@@ -458,29 +458,36 @@ async function rPv(){
 
 let stOpen={};
 // MODEL CATALOGS — only models that support 9:16 natively
+// Price = approx cost per image on Replicate
 const IMG_MODELS={
   replicate:[
-    {v:"black-forest-labs/flux-1.1-pro",l:"Flux 1.1 Pro — Best quality"},
-    {v:"black-forest-labs/flux-schnell",l:"Flux Schnell — Fast"},
-    {v:"black-forest-labs/flux-dev",l:"Flux Dev — Open source"},
-    {v:"stability-ai/stable-diffusion-3.5-large",l:"SD 3.5 Large"},
-    {v:"recraft-ai/recraft-v3",l:"Recraft v3"},
-    {v:"ideogram-ai/ideogram-v2",l:"Ideogram v2"},
-    {v:"google-deepmind/imagen-4-preview",l:"Imagen 4 Preview"},
+    {v:"google/nano-banana-pro",l:"Nano Banana Pro — BEST ~$0.10"},
+    {v:"google/nano-banana",l:"Nano Banana — Fast ~$0.02"},
+    {v:"xai/grok-imagine-image",l:"Grok Aurora — Cinematic ~$0.07"},
+    {v:"bytedance/seedream-4.5",l:"Seedream 4.5 — Great ~$0.03"},
+    {v:"black-forest-labs/flux-1.1-pro",l:"Flux 1.1 Pro — Top ~$0.04"},
+    {v:"black-forest-labs/flux-schnell",l:"Flux Schnell — Cheap ~$0.003"},
+    {v:"black-forest-labs/flux-dev",l:"Flux Dev — Open ~$0.03"},
+    {v:"ideogram-ai/ideogram-v3-quality",l:"Ideogram v3 Quality ~$0.08"},
+    {v:"ideogram-ai/ideogram-v3-turbo",l:"Ideogram v3 Turbo ~$0.02"},
+    {v:"recraft-ai/recraft-v3",l:"Recraft v3 — Design ~$0.04"},
+    {v:"stability-ai/stable-diffusion-3.5-large",l:"SD 3.5 Large ~$0.035"},
+    {v:"google-deepmind/imagen-4-preview",l:"Imagen 4 Preview ~$0.04"},
   ]
 };
 const VID_MODELS={
   replicate:[
-    {v:"bytedance/seedance-1-lite",l:"Seedance Lite — Fast/$"},
-    {v:"bytedance/seedance-1",l:"Seedance Pro — Best"},
-    {v:"wavespeedai/wan-2.1-i2v-480p",l:"Wan 2.1 — 480p"},
-    {v:"wavespeedai/wan-2.1-i2v-720p",l:"Wan 2.1 — 720p"},
-    {v:"minimax/video-01-live",l:"Minimax Live"},
-    {v:"minimax/video-01",l:"Minimax v01"},
-    {v:"kwaivgi/kling-v2.0-image-to-video",l:"Kling v2.0"},
-    {v:"luma/ray-2-flash",l:"Luma Ray 2 Flash"},
-    {v:"luma/ray-2",l:"Luma Ray 2"},
-    {v:"google-deepmind/veo-3",l:"Veo 3"},
+    {v:"bytedance/seedance-1-lite",l:"Seedance Lite — Fast ~$0.25/5s"},
+    {v:"bytedance/seedance-1",l:"Seedance Pro — Best ~$0.50/5s"},
+    {v:"wavespeedai/wan-2.1-i2v-480p",l:"Wan 2.1 480p — Cheap ~$0.10"},
+    {v:"wavespeedai/wan-2.1-i2v-720p",l:"Wan 2.1 720p ~$0.20"},
+    {v:"xai/grok-imagine-video",l:"Grok Imagine — +Audio ~$0.30"},
+    {v:"minimax/video-01-live",l:"Minimax Live ~$0.25"},
+    {v:"minimax/video-01",l:"Minimax v01 ~$0.50"},
+    {v:"kwaivgi/kling-v2.0-image-to-video",l:"Kling v2.0 ~$0.30"},
+    {v:"luma/ray-2-flash",l:"Luma Ray 2 Flash ~$0.20"},
+    {v:"luma/ray-2",l:"Luma Ray 2 — Premium ~$0.40"},
+    {v:"google-deepmind/veo-3",l:"Veo 3 — Premium ~$0.50"},
   ]
 };
 function getModels(fieldKey){

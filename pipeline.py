@@ -558,18 +558,34 @@ def generate_images(clips: list) -> list:
     quality = getattr(Config, 'IMAGE_QUALITY', 'high')
     log.info(f"🖼️  Phase 4: Generating images via Replicate ({model}) | Quality: {quality} | Aspect: 9:16")
 
-    rep_model = model if "/" in model else f"openai/{model}"
     for clip in clips:
-        params = {
-            "prompt": clip["image_prompt"],
-            "aspect_ratio": "9:16",
-        }
-        # Model-specific params
-        if "recraft" in model or "ideogram" in model:
-            pass  # These use aspect_ratio only
+        params = {"prompt": clip["image_prompt"]}
+
+        # Model-specific parameter mapping
+        if "grok-imagine" in model:
+            # xAI Grok Aurora — uses prompt + aspect_ratio
+            params["aspect_ratio"] = "9:16"
+        elif "nano-banana" in model:
+            # Google Nano Banana / Pro — uses aspect_ratio
+            params["aspect_ratio"] = "9:16"
+        elif "seedream" in model:
+            # ByteDance Seedream — uses aspect_ratio
+            params["aspect_ratio"] = "9:16"
+        elif "ideogram" in model:
+            # Ideogram v3 — uses aspect_ratio
+            params["aspect_ratio"] = "9:16"
+        elif "recraft" in model:
+            # Recraft v3 — uses aspect_ratio (no quality param)
+            params["aspect_ratio"] = "9:16"
+        elif "imagen" in model:
+            # Google Imagen — uses aspect_ratio
+            params["aspect_ratio"] = "9:16"
         else:
+            # Flux, SD, and most others
+            params["aspect_ratio"] = "9:16"
             params["quality"] = quality
-        url = replicate_create(rep_model, params)
+
+        url = replicate_create(model, params)
         clip["image_poll_url"] = url
         log.info(f"   Clip {clip['index']}: submitted")
         time.sleep(3)
@@ -592,14 +608,27 @@ def generate_videos(clips: list) -> list:
 
     # Build params based on model (different models accept different params)
     for clip in clips:
-        params = {
-            "image": clip["image_url"],
-            "prompt": clip["motion_prompt"],
-        }
-        # Images generated at native 9:16, pass matching aspect_ratio
-        if "seedance" in model.lower():
-            params["aspect_ratio"] = "9:16"
-        elif "wan" in model.lower():
+        if "grok-imagine" in model.lower():
+            # xAI Grok Imagine Video — uses image_url, mode, prompt
+            params = {
+                "image_url": clip["image_url"],
+                "prompt": clip["motion_prompt"],
+                "mode": "normal",
+            }
+        elif "minimax" in model.lower():
+            # Minimax — uses first_frame_image
+            params = {
+                "first_frame_image": clip["image_url"],
+                "prompt": clip["motion_prompt"],
+            }
+        else:
+            # Most models: Seedance, Wan, Kling, Luma, Veo
+            params = {
+                "image": clip["image_url"],
+                "prompt": clip["motion_prompt"],
+            }
+        # Pass 9:16 where supported
+        if "seedance" in model.lower() or "wan" in model.lower():
             params["aspect_ratio"] = "9:16"
 
         url = replicate_create(model, params)
