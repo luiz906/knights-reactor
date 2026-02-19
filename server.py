@@ -55,14 +55,46 @@ def apply_credentials():
     Config.BLOTATO_KEY = os.getenv("BLOTATO_API_KEY", "")
 
 def apply_model_settings():
-    """Load model selections from saved settings into Config."""
-    settings = load_json(SETTINGS_FILE, {})
-    if settings.get("image_model"):
-        Config.IMAGE_MODEL = settings["image_model"]
-    if settings.get("image_quality"):
-        Config.IMAGE_QUALITY = settings["image_quality"]
-    if settings.get("video_model"):
-        Config.VIDEO_MODEL = settings["video_model"]
+    """Load ALL settings from saved config into Config."""
+    s = load_json(SETTINGS_FILE, {})
+    # Image/Video models
+    if s.get("image_model"):    Config.IMAGE_MODEL = s["image_model"]
+    if s.get("image_quality"):  Config.IMAGE_QUALITY = s["image_quality"]
+    if s.get("video_model"):    Config.VIDEO_MODEL = s["video_model"]
+    # Script
+    if s.get("script_model"):   Config.SCRIPT_MODEL = s["script_model"]
+    if s.get("script_temp"):    Config.SCRIPT_TEMP = float(s["script_temp"])
+    if s.get("script_words"):   Config.SCRIPT_WORDS = int(float(s["script_words"]))
+    # Scene Engine
+    if s.get("scene_style"):    Config.SCENE_STYLE = s["scene_style"]
+    if s.get("scene_camera"):   Config.SCENE_CAMERA = s["scene_camera"]
+    if s.get("scene_mood"):     Config.SCENE_MOOD_BIAS = s["scene_mood"]
+    # Voice
+    if s.get("voice_model"):    Config.VOICE_MODEL = s["voice_model"]
+    if s.get("voice_stability"):Config.VOICE_STABILITY = float(s["voice_stability"])
+    if s.get("voice_similarity"):Config.VOICE_SIMILARITY = float(s["voice_similarity"])
+    if s.get("voice_speed"):    Config.VOICE_SPEED = float(s["voice_speed"])
+    if s.get("voice_style"):    Config.VOICE_STYLE = float(s["voice_style"])
+    if s.get("voice_id"):       Config.VOICE_ID = s["voice_id"]
+    # Video clips
+    if s.get("clip_count"):     Config.CLIP_COUNT = int(s["clip_count"])
+    if s.get("clip_duration"):  Config.CLIP_DURATION = float(s["clip_duration"])
+    # Render
+    if s.get("render_fps"):     Config.RENDER_FPS = int(s["render_fps"])
+    if s.get("render_res"):     Config.RENDER_RES = s["render_res"]
+    if s.get("render_aspect"):  Config.RENDER_ASPECT = s["render_aspect"]
+    if s.get("render_bg"):      Config.RENDER_BG = s["render_bg"]
+    # Logo/Watermark
+    if s.get("logo_url"):       Config.LOGO_URL = s["logo_url"]
+    if s.get("logo_enabled"):   Config.LOGO_ENABLED = s["logo_enabled"] in (True, "true", "True")
+    if s.get("logo_position"):  Config.LOGO_POSITION = s["logo_position"]
+    if s.get("logo_scale"):     Config.LOGO_SCALE = float(s["logo_scale"])
+    if s.get("logo_opacity"):   Config.LOGO_OPACITY = float(s["logo_opacity"])
+    # Video timeout
+    if s.get("video_timeout"):  Config.VIDEO_TIMEOUT = int(s["video_timeout"])
+    # Platforms
+    for pk in ["on_tt","on_yt","on_ig","on_fb","on_tw","on_th","on_pn"]:
+        if pk in s: setattr(Config, pk.upper(), s[pk] in (True, "true", "True"))
 
 apply_credentials()
 apply_model_settings()
@@ -265,6 +297,10 @@ button{font-family:var(--f3);cursor:pointer}input,select{font-family:var(--f3)}
 .sec-b{padding:0 14px 12px}.fi{padding:9px 0;border-bottom:1px solid var(--bd2)}
 .fl{font-family:var(--f3);font-size:8px;color:var(--txtd);text-transform:uppercase;letter-spacing:2px;margin-bottom:4px}
 .fin{width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--bd2);font-size:11px;color:var(--amb);outline:none;box-sizing:border-box;font-family:var(--f3)}
+.fin-slider{-webkit-appearance:none;appearance:none;background:var(--bg3);border-radius:3px;outline:none;opacity:.8;transition:opacity .15s}
+.fin-slider:hover{opacity:1}
+.fin-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:var(--amb);cursor:pointer;border:2px solid var(--bg)}
+.fin-slider::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--amb);cursor:pointer;border:2px solid var(--bg)}
 .fin:focus{border-color:var(--amb);box-shadow:0 0 8px rgba(227,160,40,.15)}
 .tg{width:38px;height:20px;border-radius:1px;border:1px solid var(--bd);position:relative;transition:background .2s}
 .tg.on{background:rgba(40,224,96,.2);border-color:var(--grn)}.tg.off{background:var(--bg);border-color:var(--bd2)}.td{position:absolute;top:2px;width:16px;height:16px;border-radius:0;background:var(--amb);transition:left .2s;box-shadow:0 0 6px rgba(227,160,40,.4)}
@@ -407,13 +443,66 @@ const B=(s,l)=>{const c={done:'g',running:'b',failed:'r',configured:'g',missing:
 const PHS=[{n:"FETCH TOPIC",a:"AIRTABLE",i:"⬡",d:"~2s"},{n:"GENERATE SCRIPT",a:"GPT-4o",i:"⬢",d:"~3s"},{n:"SCENE ENGINE",a:"LOCAL",i:"◈",d:"<1s"},{n:"GENERATE IMAGES",a:"SWITCHABLE",i:"◉",d:"~30s"},{n:"GENERATE VIDEOS",a:"SWITCHABLE",i:"▶",d:"~120s"},{n:"VOICEOVER",a:"ELEVENLABS",i:"◎",d:"~4s"},{n:"TRANSCRIBE",a:"WHISPER",i:"▤",d:"~3s"},{n:"UPLOAD ASSETS",a:"R2",i:"⬆",d:"~8s"},{n:"FINAL RENDER",a:"SHOTSTACK",i:"⬡",d:"~90s"},{n:"CAPTIONS",a:"GPT-4o",i:"✎",d:"~4s"},{n:"PUBLISH",a:"BLOTATO",i:"◇",d:"~6s"}];
 
 const STS=[
-{t:"SCRIPT ENGINE",f:[{k:"script_model",l:"AI Model",tp:"select",o:["gpt-4o","gpt-4o-mini"],d:"gpt-4o"},{k:"script_temp",l:"Temperature",d:"0.85"},{k:"script_max_words",l:"Max Words",d:"50"}]},
-{t:"VOICE SYNTH",f:[{k:"voice_model",l:"Model",tp:"select",o:["eleven_turbo_v2","eleven_multilingual_v2"],d:"eleven_turbo_v2"},{k:"voice_stability",l:"Stability",d:"0.5"},{k:"voice_similarity",l:"Similarity",d:"0.75"}]},
-{t:"IMAGE GENERATION",f:[{k:"image_provider",l:"Provider",tp:"select",o:["replicate"],d:"replicate"},{k:"image_model",l:"Model",tp:"select",o:[],d:"black-forest-labs/flux-1.1-pro",dep:"image_provider"},{k:"image_quality",l:"Quality",tp:"select",o:["low","medium","high"],d:"high"}]},
-{t:"VIDEO GENERATION",f:[{k:"video_provider",l:"Provider",tp:"select",o:["replicate"],d:"replicate"},{k:"video_model",l:"Model",tp:"select",o:[],d:"bytedance/seedance-1-lite",dep:"video_provider"},{k:"video_timeout",l:"Timeout (sec)",d:"600"}]},
-{t:"RENDER OUTPUT",f:[{k:"render_fps",l:"FPS",tp:"select",o:["24","30","60"],d:"30"},{k:"render_res",l:"Resolution",tp:"select",o:["720","1080"],d:"1080"},{k:"render_aspect",l:"Aspect Ratio",tp:"select",o:["9:16","16:9","1:1"],d:"9:16"}]},
-{t:"SCHEDULE",f:[{k:"sched_int",l:"Every (hours)",tp:"select",o:["4","6","8","12","24"],d:"8"},{k:"post_tt",l:"TikTok Time",d:"3:00 PM"},{k:"post_yt",l:"YouTube Time",d:"1:30 PM"},{k:"post_ig",l:"Instagram Time",d:"12:00 PM"},{k:"post_fb",l:"Facebook Time",d:"2:00 PM"}]},
-{t:"PLATFORMS",f:[{k:"on_tt",l:"TikTok",tp:"toggle",d:true},{k:"on_yt",l:"YouTube",tp:"toggle",d:true},{k:"on_ig",l:"Instagram",tp:"toggle",d:true},{k:"on_fb",l:"Facebook",tp:"toggle",d:true},{k:"on_tw",l:"X/Twitter",tp:"toggle",d:true},{k:"on_th",l:"Threads",tp:"toggle",d:true},{k:"on_pn",l:"Pinterest",tp:"toggle",d:false}]}
+{t:"SCRIPT ENGINE",f:[
+  {k:"script_model",l:"AI Model",tp:"select",o:["gpt-4o","gpt-4o-mini"],d:"gpt-4o"},
+  {k:"script_temp",l:"Temperature (creativity)",d:"0.85"},
+  {k:"script_words",l:"Script Length",tp:"slider",min:30,max:180,step:5,d:90}
+]},
+{t:"SCENE ENGINE",f:[
+  {k:"scene_style",l:"Visual Style",tp:"select",o:["photorealistic","cinematic","painterly","anime","dark fantasy","oil painting"],d:"photorealistic"},
+  {k:"scene_camera",l:"Camera Style",tp:"select",o:["steady","dynamic","handheld"],d:"steady"},
+  {k:"scene_mood",l:"Mood Override",tp:"select",o:["auto","storm","fire","dawn","night","grey","battle"],d:"auto"}
+]},
+{t:"VOICE SYNTH",f:[
+  {k:"voice_id",l:"Voice ID (ElevenLabs)",d:"bwCXcoVxWNYMlC6Esa8u"},
+  {k:"voice_model",l:"Model",tp:"select",o:["eleven_turbo_v2","eleven_multilingual_v2","eleven_monolingual_v1"],d:"eleven_turbo_v2"},
+  {k:"voice_stability",l:"Stability (0-1)",d:"0.5"},
+  {k:"voice_similarity",l:"Similarity Boost (0-1)",d:"0.75"},
+  {k:"voice_speed",l:"Speed (0.5-2.0)",d:"1.0"},
+  {k:"voice_style",l:"Style Exaggeration (0-1)",d:"0.0"}
+]},
+{t:"IMAGE GENERATION",f:[
+  {k:"image_provider",l:"Provider",tp:"select",o:["replicate"],d:"replicate"},
+  {k:"image_model",l:"Model",tp:"select",o:[],d:"black-forest-labs/flux-1.1-pro",dep:"image_provider"},
+  {k:"image_quality",l:"Quality",tp:"select",o:["low","medium","high"],d:"high"}
+]},
+{t:"VIDEO GENERATION",f:[
+  {k:"video_provider",l:"Provider",tp:"select",o:["replicate"],d:"replicate"},
+  {k:"video_model",l:"Model",tp:"select",o:[],d:"bytedance/seedance-1-lite",dep:"video_provider"},
+  {k:"clip_count",l:"Clips per Video",tp:"select",o:["2","3","4","5"],d:"3"},
+  {k:"clip_duration",l:"Clip Duration (sec)",tp:"select",o:["5","8","10","12","15"],d:"10"},
+  {k:"_vid_total",l:"",tp:"computed"},
+  {k:"video_timeout",l:"Timeout (sec)",d:"600"}
+]},
+{t:"RENDER OUTPUT",f:[
+  {k:"render_fps",l:"FPS",tp:"select",o:["24","30","60"],d:"30"},
+  {k:"render_res",l:"Resolution",tp:"select",o:["720","1080"],d:"1080"},
+  {k:"render_aspect",l:"Aspect Ratio",tp:"select",o:["9:16","16:9","1:1"],d:"9:16"},
+  {k:"render_bg",l:"Background Color",d:"#000000"}
+]},
+{t:"WATERMARK / LOGO",f:[
+  {k:"logo_enabled",l:"Show Logo",tp:"toggle",d:true},
+  {k:"logo_url",l:"Logo Image URL",d:"https://pub-b96dc727407242919393b2bef35ade2f.r2.dev/gods_knights.png"},
+  {k:"logo_position",l:"Position",tp:"select",o:["topRight","topLeft","bottomRight","bottomLeft","center"],d:"topRight"},
+  {k:"logo_scale",l:"Scale (0.01-1.0)",d:"0.12"},
+  {k:"logo_opacity",l:"Opacity (0-1)",d:"0.8"}
+]},
+{t:"SCHEDULE",f:[
+  {k:"sched_int",l:"Every (hours)",tp:"select",o:["4","6","8","12","24"],d:"8"},
+  {k:"post_tt",l:"TikTok Time",d:"3:00 PM"},
+  {k:"post_yt",l:"YouTube Time",d:"1:30 PM"},
+  {k:"post_ig",l:"Instagram Time",d:"12:00 PM"},
+  {k:"post_fb",l:"Facebook Time",d:"2:00 PM"}
+]},
+{t:"PLATFORMS",f:[
+  {k:"on_tt",l:"TikTok",tp:"toggle",d:true},
+  {k:"on_yt",l:"YouTube",tp:"toggle",d:true},
+  {k:"on_ig",l:"Instagram",tp:"toggle",d:true},
+  {k:"on_fb",l:"Facebook",tp:"toggle",d:true},
+  {k:"on_tw",l:"X/Twitter",tp:"toggle",d:true},
+  {k:"on_th",l:"Threads",tp:"toggle",d:true},
+  {k:"on_pn",l:"Pinterest",tp:"toggle",d:false}
+]}
 ];
 
 async function go(){const p=$('pw').value;if(!p){$('le').style.display='block';return;}try{const r=await(await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p})})).json();if(r.ok){if(r.token)sessionStorage.setItem('kt',r.token);$('L').style.display='none';$('A').style.display='block';init();}else{$('le').style.display='block';}}catch(e){$('le').style.display='block';}}
@@ -519,8 +608,21 @@ if(f.tp==='toggle'){const on=v===true||v==='true';ff+=`<div class="fi" style="di
 else if(f.tp==='select'){
   let opts=f.o;
   if(f.dep){opts=getModels(f.k);ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value">${opts.map(o=>`<option value="${o.v}"${o.v==v?' selected':''}>${o.l}</option>`).join('')}</select></div>`;}
-  else if(f.k==='image_provider'||f.k==='video_provider'){ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value;rSt()">${opts.map(o=>`<option${o==v?' selected':''}>${o}</option>`).join('')}</select></div>`;}
+  else if(f.k==='image_provider'||f.k==='video_provider'||f.k==='clip_count'||f.k==='clip_duration'){ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value;rSt()">${opts.map(o=>`<option${o==v?' selected':''}>${o}</option>`).join('')}</select></div>`;}
   else{ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value">${opts.map(o=>`<option${o==v?' selected':''}>${o}</option>`).join('')}</select></div>`;}
+}
+else if(f.tp==='computed'){
+  const clips=parseInt(ST['clip_count'])||3;const dur=parseInt(ST['clip_duration'])||10;const total=clips*dur;
+  const words=parseInt(ST['script_words'])||90;const voSec=Math.round(words/3);
+  const diff=total-voSec;const warn=diff>10?'⚠ Voiceover '+diff+'s shorter than video':'✓ Well matched';
+  const wc=diff>10?'var(--red)':'var(--grn)';
+  ff+=`<div class="fi" style="border:1px solid var(--bd2);padding:8px 10px;background:rgba(224,175,56,.04)"><div style="display:flex;justify-content:space-between;align-items:center"><div style="font-family:var(--f1);font-size:9px;letter-spacing:2px;color:var(--txtd)">TOTAL VIDEO</div><div style="font-family:var(--f1);font-size:16px;font-weight:800;color:var(--amb)">${total}s</div></div><div style="display:flex;justify-content:space-between;margin-top:4px"><div style="font-size:8px;color:var(--txtdd)">${clips} clips × ${dur}s each</div><div style="font-size:8px;color:${wc}">${warn}</div></div></div>`;
+}
+else if(f.tp==='slider'){
+  const mn=f.min||30,mx=f.max||180,stp=f.step||5;const cv=parseInt(v)||f.d;const secs=Math.round(cv/3);
+  const pct=((cv-mn)/(mx-mn))*100;
+  const durLabel=secs>=60?Math.floor(secs/60)+'m '+(secs%60?secs%60+'s':''):secs+'s';
+  ff+=`<div class="fi"><div class="fl">${f.l}</div><div style="display:flex;align-items:center;gap:10px;width:100%"><input type="range" min="${mn}" max="${mx}" step="${stp}" value="${cv}" class="fin-slider" style="flex:1;accent-color:var(--amb);height:6px;cursor:pointer" oninput="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').innerHTML=this.value+' words ≈ '+Math.round(this.value/3)+'s'+(Math.round(this.value/3)>=60?' ('+Math.floor(Math.round(this.value/3)/60)+'m '+(Math.round(this.value/3)%60?Math.round(this.value/3)%60+'s':'')+')'    :'');document.getElementById('sl_${f.k}_bar').style.width=((this.value-${mn})/(${mx}-${mn})*100)+'%'"><div id="sl_${f.k}" style="min-width:120px;font-family:var(--f1);font-size:10px;letter-spacing:1px;color:var(--amb);text-align:right">${cv} words ≈ ${durLabel}</div></div><div style="position:relative;height:3px;background:var(--bg3);border-radius:2px;margin-top:4px;overflow:hidden"><div id="sl_${f.k}_bar" style="position:absolute;top:0;left:0;height:100%;background:var(--amb);border-radius:2px;width:${pct}%;transition:width .1s"></div></div><div style="display:flex;justify-content:space-between;margin-top:3px"><span style="font-size:7px;color:var(--txtdd);letter-spacing:1px">${mn}w / ${Math.round(mn/3)}s</span><span style="font-size:7px;color:var(--txtdd);letter-spacing:1px">${mx}w / ${Math.round(mx/3)}s (1min)</span></div></div>`;
 }
 else{ff+=`<div class="fi"><div class="fl">${f.l}</div><input class="fin" value="${v||''}" onchange="ST['${f.k}']=this.value"></div>`;}
 });h+=`<div class="sec"><button class="sec-h" onclick="stOpen[${si}]=!stOpen[${si}];rSt()"><span class="sec-t">${sec.t}</span><span class="sec-a" style="transform:${stOpen[si]?'rotate(90deg)':''}">›</span></button><div class="sec-b${stOpen[si]?'':' hd'}">${ff}</div></div>`;});

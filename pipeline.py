@@ -45,6 +45,43 @@ class Config:
     # ElevenLabs
     ELEVEN_KEY        = env("ELEVENLABS_API_KEY")
     VOICE_ID          = env("ELEVENLABS_VOICE_ID", "bwCXcoVxWNYMlC6Esa8u")  # Austin
+    VOICE_MODEL       = "eleven_turbo_v2"
+    VOICE_STABILITY   = 0.5
+    VOICE_SIMILARITY  = 0.75
+    VOICE_SPEED       = 1.0
+    VOICE_STYLE       = 0.0
+
+    # Script
+    SCRIPT_MODEL      = "gpt-4o"
+    SCRIPT_TEMP       = 0.85
+    SCRIPT_WORDS      = 90   # word count target (integer, used by slider)
+
+    # Scene Engine
+    SCENE_STYLE       = "photorealistic"  # photorealistic | cinematic | painterly | anime
+    SCENE_CAMERA      = "steady"          # steady | dynamic | handheld
+    SCENE_MOOD_BIAS   = "auto"            # auto | storm | fire | dawn | night | grey | battle
+
+    # Video clips
+    CLIP_COUNT        = 3
+    CLIP_DURATION     = 10.0
+    VIDEO_TIMEOUT     = 600
+
+    # Render output
+    RENDER_FPS        = 30
+    RENDER_RES        = "1080"
+    RENDER_ASPECT     = "9:16"
+    RENDER_BG         = "#000000"
+
+    # Logo / Watermark
+    LOGO_URL          = "https://pub-b96dc727407242919393b2bef35ade2f.r2.dev/gods_knights.png"
+    LOGO_ENABLED      = True
+    LOGO_POSITION     = "topRight"
+    LOGO_SCALE        = 0.12
+    LOGO_OPACITY      = 0.8
+
+    # Platform toggles
+    ON_TT = True; ON_YT = True; ON_IG = True; ON_FB = True
+    ON_TW = True; ON_TH = True; ON_PN = False
 
     # Shotstack
     SHOTSTACK_KEY     = env("SHOTSTACK_API_KEY")
@@ -74,9 +111,6 @@ class Config:
         "twitter":   env("BLOTATO_TWITTER_ID"),
         "threads":   env("BLOTATO_THREADS_ID"),
     }
-
-    # Logo
-    LOGO_URL = "https://pub-b96dc727407242919393b2bef35ade2f.r2.dev/gods_knights.png"
 
 
 # ══════════════════════════════════════════════════════════════
@@ -169,19 +203,18 @@ CATEGORY_CONFIG = {
     },
 }
 
-SCRIPT_PROMPT = """## ⚠️ WORD COUNT: 40-50 WORDS MAXIMUM ⚠️
+def build_script_prompt():
+    """Build the script prompt dynamically from Config values."""
+    words = int(Config.SCRIPT_WORDS)  # integer e.g. 90
+    secs = round(words / 3)  # ~3 words per second
+    low = max(words - 10, 20)
+    high = words + 10
+    
+    return f"""## ⚠️ WORD COUNT: ~{words} WORDS ⚠️
 
-TOTAL SCRIPT: 40-50 WORDS (15-20 seconds at measured pace)
+TOTAL SCRIPT: {low}-{high} WORDS ({secs} seconds at measured pace — 3 words/sec)
 
-Before you output, COUNT YOUR WORDS. If over 50, DELETE words until under 50.
-
-WORD LIMITS PER SECTION:
-- Hook: 6-8 words MAX
-- Build: 10-12 words MAX
-- Reveal: 10-12 words MAX
-- Command: 8-10 words MAX
-
-IF YOUR SCRIPT IS OVER 50 WORDS, YOU HAVE FAILED.
+Before you output, COUNT YOUR WORDS. Target exactly {words}. Too short sounds rushed. Too long gets cut off.
 
 ---
 
@@ -225,47 +258,47 @@ What to USE: Direct honest practical language, military/warfare metaphors, duty 
 - ONE continuous paragraph
 - Clean punctuation: periods only (rarely commas)
 
-## SCRIPT STRUCTURE (15-20 seconds / 40-50 words MAX)
+## SCRIPT STRUCTURE ({secs} seconds / ~{words} words)
 
-### 1. HOOK (0-3 sec) — 6-8 words
-Immediate call to attention. VARY the opener.
+### 1. HOOK (first ~15% of words)
+Immediate call to attention. VARY the opener. Draw them in with a bold statement or question.
 
-### 2. BUILD (3-9 sec) — 10-12 words
-Name the specific battle. The real struggle men face daily.
+### 2. BUILD (next ~30% of words)
+Name the specific battle. The real struggle men face daily. Paint the scene with military imagery.
 
-### 3. REVEAL (9-15 sec) — 10-12 words
-The truth. Brief scripture reference. Military language.
+### 3. REVEAL (next ~30% of words)
+The truth. Brief scripture reference woven naturally. Military language. The weapon or shield for this battle.
 
-### 4. COMMAND (15-20 sec) — 8-10 words
-One clear action. Today. Now. End with one-word imperative.
+### 4. COMMAND (final ~25% of words)
+One clear action. Today. Now. End with a strong imperative. Leave them ready to move.
 
 ## YOUR ASSIGNMENT
 
-**TOPIC:** {topic}
-**CATEGORY:** {category}
-**SUGGESTED FOCUS:** {angle}
+**TOPIC:** {{topic}}
+**CATEGORY:** {{category}}
+**SUGGESTED FOCUS:** {{angle}}
 
 ## OUTPUT FORMAT (JSON only, no markdown):
 
-{{
-  "hook": "Bold opener, 6-8 words, NO QUOTES",
-  "build": "Name the battle, 10-12 words, NO QUOTES",
-  "reveal": "Scripture truth, 10-12 words, NO QUOTES",
-  "command": "Clear action for today, 8-10 words, NO QUOTES",
-  "script_full": "Complete script 40-50 words - SHORT DECLARATIVE SENTENCES - NO QUOTES",
+{{{{
+  "hook": "Bold opener, NO QUOTES",
+  "build": "Name the battle, NO QUOTES",
+  "reveal": "Scripture truth, NO QUOTES",
+  "command": "Clear action for today, NO QUOTES",
+  "script_full": "Complete script ~{words} words - SHORT DECLARATIVE SENTENCES - NO QUOTES - ONE PARAGRAPH",
   "tone": "disciplined|resolute|commanding|unwavering"
-}}
+}}}}
 """
 
 def generate_script(topic: dict) -> dict:
     """Generate viral knight script via GPT-4o."""
-    log.info("📝 Phase 2: Generating script via GPT-4o...")
+    log.info(f"📝 Phase 2: Generating script via {Config.SCRIPT_MODEL} | Words: {Config.SCRIPT_WORDS} | ~{round(int(Config.SCRIPT_WORDS)/3)}s")
 
     cat = topic["category"]
     config = CATEGORY_CONFIG.get(cat, list(CATEGORY_CONFIG.values())[0])
     angle = config["angle"]
 
-    prompt = SCRIPT_PROMPT.format(
+    prompt = build_script_prompt().format(
         topic=topic["idea"],
         category=cat,
         angle=angle,
@@ -275,9 +308,9 @@ def generate_script(topic: dict) -> dict:
         "Authorization": f"Bearer {Config.OPENAI_KEY}",
         "Content-Type": "application/json",
     }, json={
-        "model": Config.OPENAI_MODEL,
+        "model": Config.SCRIPT_MODEL,
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.85,
+        "temperature": Config.SCRIPT_TEMP,
         "max_tokens": 800,
     })
     r.raise_for_status()
@@ -343,15 +376,20 @@ FIGURES = [
 ]
 
 IMAGE_SUFFIXES = {
-    "storm": "Cinematic dark atmosphere, cold blue-grey tones, rain, fog, 9:16 vertical, photorealistic.",
-    "fire": "Cinematic dark atmosphere, orange ember glow against darkness, smoke, ash particles, 9:16 vertical, photorealistic.",
-    "dawn": "Cinematic golden hour light, warm amber highlights, cold shadows, fog, 9:16 vertical, photorealistic.",
-    "night": "Cinematic moonlit scene, silver-blue cold tones, deep shadows, mist, 9:16 vertical, photorealistic.",
-    "grey": "Cinematic overcast atmosphere, muted grey tones, rain, wet surfaces, 9:16 vertical, photorealistic.",
-    "battle": "Cinematic dark atmosphere, smoke, distant fire, debris, dramatic lighting, 9:16 vertical, photorealistic.",
+    "storm": "Cinematic dark atmosphere, cold blue-grey tones, rain, fog, 9:16 vertical, {style}.",
+    "fire": "Cinematic dark atmosphere, orange ember glow against darkness, smoke, ash particles, 9:16 vertical, {style}.",
+    "dawn": "Cinematic golden hour light, warm amber highlights, cold shadows, fog, 9:16 vertical, {style}.",
+    "night": "Cinematic moonlit scene, silver-blue cold tones, deep shadows, mist, 9:16 vertical, {style}.",
+    "grey": "Cinematic overcast atmosphere, muted grey tones, rain, wet surfaces, 9:16 vertical, {style}.",
+    "battle": "Cinematic dark atmosphere, smoke, distant fire, debris, dramatic lighting, 9:16 vertical, {style}.",
 }
 
-TECH_SUFFIX = "Steady camera. 9:16 vertical."
+CAMERA_STYLES = {
+    "steady": "Steady camera.",
+    "dynamic": "Dynamic cinematic camera movement.",
+    "handheld": "Handheld shaky camera, raw documentary feel.",
+}
+
 
 # All 21 story seeds from the n8n Scene Engine v6
 STORY_SEEDS = [
@@ -472,32 +510,48 @@ def detect_theme(text: str) -> str:
 
 
 def scene_engine(script: dict, topic: dict) -> list:
-    """Generate 3 clip prompt pairs (image + motion). Direct port of Scene Engine v6."""
-    log.info("🎬 Phase 3: Scene Engine v6 — generating prompts...")
+    """Generate clip prompt pairs (image + motion). Direct port of Scene Engine v6."""
+    log.info(f"🎬 Phase 3: Scene Engine v6 | Clips: {Config.CLIP_COUNT} | Style: {Config.SCENE_STYLE} | Camera: {Config.SCENE_CAMERA}")
 
     all_text = " ".join([
         script["hook"], script["build"], script["reveal"],
         script.get("tone", ""), topic.get("category", ""), topic.get("idea", ""),
     ]).lower()
 
-    theme = detect_theme(all_text)
-
-    # Match stories to theme
-    if theme == "random":
-        matching = STORY_SEEDS
-    else:
-        matching = [s for s in STORY_SEEDS if theme in s["themes"]]
+    # Mood: use config bias or auto-detect from script
+    if Config.SCENE_MOOD_BIAS != "auto" and Config.SCENE_MOOD_BIAS in IMAGE_SUFFIXES:
+        theme = Config.SCENE_MOOD_BIAS
+        # Match stories to forced mood
+        matching = [s for s in STORY_SEEDS if s["mood"] == Config.SCENE_MOOD_BIAS]
         if not matching:
             matching = STORY_SEEDS
+    else:
+        theme = detect_theme(all_text)
+        if theme == "random":
+            matching = STORY_SEEDS
+        else:
+            matching = [s for s in STORY_SEEDS if theme in s["themes"]]
+            if not matching:
+                matching = STORY_SEEDS
 
     story = pick(matching)
     figure = pick(FIGURES)
-    img_suffix = IMAGE_SUFFIXES.get(story["mood"], IMAGE_SUFFIXES["dawn"])
+    # Apply configurable style to image suffix
+    img_suffix = IMAGE_SUFFIXES.get(story["mood"], IMAGE_SUFFIXES["dawn"]).format(style=Config.SCENE_STYLE)
+    # Apply configurable camera to tech suffix
+    tech_suffix = CAMERA_STYLES.get(Config.SCENE_CAMERA, CAMERA_STYLES["steady"]) + " 9:16 vertical."
 
     clips = []
-    for i, clip in enumerate(story["clips"]):
+    story_clips = story["clips"]
+    target_count = Config.CLIP_COUNT
+    # Extend or trim clips to match target count
+    while len(story_clips) < target_count:
+        story_clips = story_clips + story["clips"]  # cycle through
+    story_clips = story_clips[:target_count]
+
+    for i, clip in enumerate(story_clips):
         image_prompt = f"{figure} {clip['action']}. {clip['setting']}. {clip['composition']}. {clip['lighting']}. {clip['atmosphere']}. {img_suffix}"
-        motion_prompt = f"{clip['camera']}. {clip['subject']}. {clip['ambient']}. {clip['pace']} {TECH_SUFFIX}"
+        motion_prompt = f"{clip['camera']}. {clip['subject']}. {clip['ambient']}. {clip['pace']} {tech_suffix}"
         clips.append({
             "index": i + 1,
             "image_prompt": image_prompt,
@@ -649,11 +703,20 @@ def generate_videos(clips: list) -> list:
 
 def generate_voiceover(script: dict) -> bytes:
     """Generate voiceover audio via ElevenLabs."""
-    log.info("🔊 Phase 6: Generating voiceover via ElevenLabs...")
+    log.info(f"🔊 Phase 6: Generating voiceover via ElevenLabs | Voice: {Config.VOICE_ID} | Model: {Config.VOICE_MODEL}")
 
     text = script["script_full"]
     # Clean for ElevenLabs (prevent chuckling)
     text = re.sub(r'["""]', '', text)
+
+    voice_settings = {
+        "stability": Config.VOICE_STABILITY,
+        "similarity_boost": Config.VOICE_SIMILARITY,
+    }
+    if Config.VOICE_STYLE > 0:
+        voice_settings["style"] = Config.VOICE_STYLE
+    if Config.VOICE_SPEED != 1.0:
+        voice_settings["speed"] = Config.VOICE_SPEED
 
     r = requests.post(
         f"https://api.elevenlabs.io/v1/text-to-speech/{Config.VOICE_ID}",
@@ -663,11 +726,8 @@ def generate_voiceover(script: dict) -> bytes:
         },
         json={
             "text": text,
-            "model_id": "eleven_turbo_v2",
-            "voice_settings": {
-                "stability": 0.5,
-                "similarity_boost": 0.75,
-            },
+            "model_id": Config.VOICE_MODEL,
+            "voice_settings": voice_settings,
         },
         timeout=30,
     )
@@ -778,13 +838,13 @@ def create_srt(script_text: str) -> str:
 
 def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
     """Render final video via Shotstack. Returns download URL."""
-    log.info("🎞️  Phase 9: Rendering final video via Shotstack...")
+    log.info(f"🎞️  Phase 9: Rendering final video via Shotstack | {Config.RENDER_RES}p {Config.RENDER_ASPECT} {Config.RENDER_FPS}fps")
 
     # Build video clips timeline
     video_clips = []
     cursor = 0.0
     for clip in clips:
-        dur = 10.0  # Default clip duration
+        dur = Config.CLIP_DURATION
         video_clips.append({
             "asset": {"type": "video", "src": clip["r2_url"], "volume": 0, "transcode": True},
             "start": round(cursor, 3),
@@ -795,34 +855,47 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
 
     total_dur = round(cursor, 3)
 
+    tracks = []
+
+    # Logo overlay (conditional)
+    if Config.LOGO_ENABLED and Config.LOGO_URL:
+        # Offset map for positions
+        offsets = {
+            "topRight": {"x": -0.03, "y": 0.03},
+            "topLeft": {"x": 0.03, "y": 0.03},
+            "bottomRight": {"x": -0.03, "y": -0.03},
+            "bottomLeft": {"x": 0.03, "y": -0.03},
+            "center": {"x": 0, "y": 0},
+        }
+        tracks.append({"clips": [{
+            "asset": {"type": "image", "src": Config.LOGO_URL},
+            "start": 0, "length": total_dur,
+            "position": Config.LOGO_POSITION,
+            "offset": offsets.get(Config.LOGO_POSITION, {"x": -0.03, "y": 0.03}),
+            "scale": Config.LOGO_SCALE, "opacity": Config.LOGO_OPACITY,
+        }]})
+
+    # Video clips
+    tracks.append({"clips": video_clips})
+
+    # Audio
+    tracks.append({"clips": [{
+        "asset": {"type": "audio", "src": voiceover_url},
+        "start": 0, "length": total_dur,
+    }]})
+
     timeline = {
-        "tracks": [
-            # Logo overlay
-            {"clips": [{
-                "asset": {"type": "image", "src": Config.LOGO_URL},
-                "start": 0, "length": total_dur,
-                "position": "topRight",
-                "offset": {"x": -0.03, "y": 0.03},
-                "scale": 0.12, "opacity": 0.8,
-            }]},
-            # Video clips
-            {"clips": video_clips},
-            # Audio
-            {"clips": [{
-                "asset": {"type": "audio", "src": voiceover_url},
-                "start": 0, "length": total_dur,
-            }]},
-        ],
-        "background": "#000000",
+        "tracks": tracks,
+        "background": Config.RENDER_BG,
     }
 
     payload = {
         "timeline": timeline,
         "output": {
             "format": "mp4",
-            "resolution": "1080",
-            "aspectRatio": "9:16",
-            "fps": 30,
+            "resolution": Config.RENDER_RES,
+            "aspectRatio": Config.RENDER_ASPECT,
+            "fps": Config.RENDER_FPS,
         },
     }
 
