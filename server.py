@@ -342,8 +342,10 @@ button{font-family:var(--f3);cursor:pointer}input,select{font-family:var(--f3)}.
 .sec-b{padding:0 14px 10px}.sec-b.shut{display:none}
 .fi{padding:7px 0;border-bottom:1px solid var(--bd2)}
 .fl{font-size:8px;color:var(--txtd);text-transform:uppercase;letter-spacing:2px;margin-bottom:3px}
-.fin{width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--bd2);font-size:11px;color:var(--amb);outline:none;font-family:var(--f3)}
+.fin{width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--bd2);font-size:11px;color:var(--amb);outline:none;font-family:var(--f3);border-radius:0}
 .fin:focus{border-color:var(--amb);box-shadow:0 0 6px rgba(227,160,40,.1)}
+select.fin{-webkit-appearance:none;-moz-appearance:none;appearance:none;background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23e3a028'/%3E%3C/svg%3E") no-repeat right 10px center;padding-right:28px;cursor:pointer}
+select.fin option{background:var(--bg2);color:var(--amb);padding:6px}
 .fin-slider{-webkit-appearance:none;appearance:none;background:var(--bg3);border-radius:3px;outline:none;height:6px;cursor:pointer;width:100%}
 .fin-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--amb);border:2px solid var(--bg);cursor:pointer}
 .fin-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--amb);border:2px solid var(--bg)}
