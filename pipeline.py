@@ -35,8 +35,12 @@ class Config:
 
     # Replicate
     REPLICATE_TOKEN   = env("REPLICATE_API_TOKEN")
-    IMAGE_MODEL       = "openai/gpt-image-1.5"
-    VIDEO_MODEL       = "bytedance/seedance-1-lite"
+
+    # Image & Video models (switchable via Settings)
+    IMAGE_PROVIDER    = env("IMAGE_PROVIDER", "openai_direct")  # openai_direct | replicate
+    IMAGE_MODEL       = env("IMAGE_MODEL", "gpt-image-1.5")     # model name
+    VIDEO_PROVIDER    = env("VIDEO_PROVIDER", "replicate")       # replicate
+    VIDEO_MODEL       = env("VIDEO_MODEL", "bytedance/seedance-1-lite")
 
     # ElevenLabs
     ELEVEN_KEY        = env("ELEVENLABS_API_KEY")
@@ -548,23 +552,71 @@ def replicate_poll(get_url: str, timeout: int = 300) -> str:
     raise TimeoutError("Replicate prediction timed out")
 
 
+def openai_generate_image(prompt: str, model: str = "gpt-image-1.5",
+                          size: str = "1024x1536", quality: str = "medium") -> str:
+    """Generate an image via OpenAI's native API. Returns image URL."""
+    import base64 as b64mod
+    r = requests.post(
+        "https://api.openai.com/v1/images/generations",
+        headers={
+            "Authorization": f"Bearer {Config.OPENAI_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": model,
+            "prompt": prompt,
+            "n": 1,
+            "size": size,
+            "quality": quality,
+        },
+        timeout=120,
+    )
+    r.raise_for_status()
+    data = r.json()["data"][0]
+    if "url" in data and data["url"]:
+        return data["url"]
+    elif "b64_json" in data:
+        img_bytes = b64mod.b64decode(data["b64_json"])
+        import hashlib
+        name = hashlib.md5(prompt[:50].encode()).hexdigest()[:10]
+        return upload_to_r2("temp_images", f"{name}.png", img_bytes, "image/png", raw_bytes=True)
+    raise RuntimeError("OpenAI image API returned no image data")
+
+
 def generate_images(clips: list) -> list:
-    """Generate 3 cinematic images via GPT-Image-1.5 on Replicate."""
-    log.info("🖼️  Phase 4: Generating images via GPT-Image-1.5...")
+    """Generate cinematic images via configured provider."""
+    provider = Config.IMAGE_PROVIDER
+    model = Config.IMAGE_MODEL
+    log.info(f"🖼️  Phase 4: Generating images via {provider} ({model})...")
 
-    for clip in clips:
-        url = replicate_create(Config.IMAGE_MODEL, {
-            "prompt": clip["image_prompt"],
-            "aspect_ratio": "9:16",
-            "quality": "high",
-        })
-        clip["image_poll_url"] = url
-        log.info(f"   Clip {clip['index']}: submitted")
-        time.sleep(3)  # Batch interval from n8n
+    if provider == "openai_direct":
+        # OpenAI native API — supports 1024x1536 true portrait
+        for clip in clips:
+            clip["image_url"] = openai_generate_image(
+                clip["image_prompt"],
+                model=model,
+                size="1024x1536",
+                quality="medium",
+            )
+            log.info(f"   Clip {clip['index']}: image ready ✓")
+            time.sleep(2)
 
-    for clip in clips:
-        clip["image_url"] = replicate_poll(clip["image_poll_url"])
-        log.info(f"   Clip {clip['index']}: image ready ✓")
+    else:
+        # Replicate (any model: gpt-image-1.5, flux, etc.)
+        rep_model = model if "/" in model else f"openai/{model}"
+        for clip in clips:
+            url = replicate_create(rep_model, {
+                "prompt": clip["image_prompt"],
+                "aspect_ratio": "2:3",
+                "quality": "high",
+            })
+            clip["image_poll_url"] = url
+            log.info(f"   Clip {clip['index']}: submitted")
+            time.sleep(3)
+
+        for clip in clips:
+            clip["image_url"] = replicate_poll(clip["image_poll_url"])
+            log.info(f"   Clip {clip['index']}: image ready ✓")
 
     return clips
 
@@ -574,15 +626,24 @@ def generate_images(clips: list) -> list:
 # ══════════════════════════════════════════════════════════════
 
 def generate_videos(clips: list) -> list:
-    """Animate images into videos via Seedance-1-Lite on Replicate."""
-    log.info("🎥 Phase 5: Generating videos via Seedance-1-Lite...")
+    """Animate images into videos via configured provider."""
+    model = Config.VIDEO_MODEL
+    log.info(f"🎥 Phase 5: Generating videos via {model}...")
 
+    # Build params based on model (different models accept different params)
     for clip in clips:
-        url = replicate_create(Config.VIDEO_MODEL, {
+        params = {
             "image": clip["image_url"],
             "prompt": clip["motion_prompt"],
-            "aspect_ratio": "9:16",
-        })
+        }
+        # Seedance supports aspect_ratio
+        if "seedance" in model.lower():
+            params["aspect_ratio"] = "9:16"
+        # Wan / other models may use different params
+        elif "wan" in model.lower():
+            params["aspect_ratio"] = "9:16"
+
+        url = replicate_create(model, params)
         clip["video_poll_url"] = url
         log.info(f"   Clip {clip['index']}: submitted")
         time.sleep(3)

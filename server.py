@@ -50,7 +50,18 @@ def apply_credentials():
     Config.AIRTABLE_TABLE = os.getenv("AIRTABLE_TABLE", "Scripture Topics")
     Config.BLOTATO_KEY = os.getenv("BLOTATO_API_KEY", "")
 
+def apply_model_settings():
+    """Load model selections from saved settings into Config."""
+    settings = load_json(SETTINGS_FILE, {})
+    if settings.get("image_provider"):
+        Config.IMAGE_PROVIDER = settings["image_provider"]
+    if settings.get("image_model"):
+        Config.IMAGE_MODEL = settings["image_model"]
+    if settings.get("video_model"):
+        Config.VIDEO_MODEL = settings["video_model"]
+
 apply_credentials()
+apply_model_settings()
 
 # ─── STATE ────────────────────────────────────────────────────
 RUNS = load_json(RUNS_FILE, []) if RUNS_FILE.exists() else []
@@ -62,6 +73,7 @@ def log_entry(phase, level, msg):
     if len(LOGS) > 500: LOGS.pop(0)
 
 def execute_pipeline():
+    apply_model_settings()  # Reload model selections before each run
     CURRENT_RUN.update({"active": True, "started": datetime.now().isoformat(), "result": None, "phase": 0, "phase_name": "", "phases_done": []})
     LOGS.clear()
     log_entry("System", "info", "Pipeline started")
@@ -148,6 +160,7 @@ async def get_settings(): return load_json(SETTINGS_FILE, {})
 @app.post("/api/settings")
 async def save_settings(req: Request):
     save_json(SETTINGS_FILE, await req.json())
+    apply_model_settings()
     return {"status": "saved"}
 
 @app.post("/api/test-connection")
@@ -270,7 +283,7 @@ let RN=false,PH=0,PD=[],CR={},ST={};
 const $=id=>document.getElementById(id);
 const B=(s,l)=>{const c={done:'g',running:'b',failed:'r',configured:'g',missing:'r',warning:'o',waiting:'m'}[s]||'m';return`<span class="bg bg-${c}"><span class="bd2"></span>${l||s}</span>`};
 
-const PHS=[{n:"Fetch Topic",a:"Airtable",i:"📋",d:"~2s"},{n:"Generate Script",a:"OpenAI GPT-4o",i:"📝",d:"~3s"},{n:"Scene Engine v6",a:"Local",i:"🎬",d:"<1s"},{n:"Generate Images",a:"Replicate",i:"🖼️",d:"~60s"},{n:"Generate Videos",a:"Seedance-1-Lite",i:"🎥",d:"~120s"},{n:"Voiceover",a:"ElevenLabs",i:"🔊",d:"~4s"},{n:"Transcribe",a:"Whisper",i:"💬",d:"~3s"},{n:"Upload Assets",a:"R2",i:"☁️",d:"~8s"},{n:"Final Render",a:"Shotstack",i:"🎞️",d:"~90s"},{n:"Captions",a:"GPT-4o",i:"✍️",d:"~4s"},{n:"Publish",a:"Blotato",i:"📡",d:"~6s"}];
+const PHS=[{n:"Fetch Topic",a:"Airtable",i:"📋",d:"~2s"},{n:"Generate Script",a:"OpenAI GPT-4o",i:"📝",d:"~3s"},{n:"Scene Engine v6",a:"Local",i:"🎬",d:"<1s"},{n:"Generate Images",a:"Switchable",i:"🖼️",d:"~30s"},{n:"Generate Videos",a:"Switchable",i:"🎥",d:"~120s"},{n:"Voiceover",a:"ElevenLabs",i:"🔊",d:"~4s"},{n:"Transcribe",a:"Whisper",i:"💬",d:"~3s"},{n:"Upload Assets",a:"R2",i:"☁️",d:"~8s"},{n:"Final Render",a:"Shotstack",i:"🎞️",d:"~90s"},{n:"Captions",a:"GPT-4o",i:"✍️",d:"~4s"},{n:"Publish",a:"Blotato",i:"📡",d:"~6s"}];
 
 const CRS=[
 {t:"🤖 OpenAI",d:"Powers script generation and transcription",l:"https://platform.openai.com/api-keys",ll:"Get key → platform.openai.com",f:[{k:"OPENAI_API_KEY",l:"API Key",p:"sk-...",s:1}]},
@@ -286,7 +299,8 @@ const CRS=[
 const STS=[
 {t:"📝 Script",f:[{k:"script_model",l:"AI Model",tp:"select",o:["gpt-4o","gpt-4o-mini"],d:"gpt-4o"},{k:"script_temp",l:"Temperature",d:"0.85"},{k:"script_max_words",l:"Max Words",d:"50"}]},
 {t:"🔊 Voice",f:[{k:"voice_model",l:"Model",tp:"select",o:["eleven_turbo_v2","eleven_multilingual_v2"],d:"eleven_turbo_v2"},{k:"voice_stability",l:"Stability",d:"0.5"},{k:"voice_similarity",l:"Similarity",d:"0.75"}]},
-{t:"🖼️ Image & Video",f:[{k:"image_size",l:"Size",tp:"select",o:["1024x1792","1024x1024"],d:"1024x1792"},{k:"image_quality",l:"Quality",tp:"select",o:["high","standard"],d:"high"},{k:"video_timeout",l:"Timeout (sec)",d:"600"}]},
+{t:"🖼️ Image Generation",f:[{k:"image_provider",l:"Provider",tp:"select",o:["openai_direct","replicate"],d:"openai_direct"},{k:"image_model",l:"Model",tp:"select",o:["gpt-image-1.5","gpt-image-1","gpt-image-1-mini","dall-e-3"],d:"gpt-image-1.5"},{k:"image_quality",l:"Quality",tp:"select",o:["low","medium","high"],d:"medium"}]},
+{t:"🎥 Video Generation",f:[{k:"video_model",l:"Model",tp:"select",o:["bytedance/seedance-1-lite","wavespeedai/wan-2.1-i2v-480p","minimax/video-01-live"],d:"bytedance/seedance-1-lite"},{k:"video_timeout",l:"Timeout (sec)",d:"600"}]},
 {t:"🎞️ Render",f:[{k:"render_fps",l:"FPS",tp:"select",o:["24","30","60"],d:"30"},{k:"render_res",l:"Resolution",tp:"select",o:["720","1080"],d:"1080"},{k:"render_aspect",l:"Aspect",tp:"select",o:["9:16","16:9","1:1"],d:"9:16"}]},
 {t:"⏰ Schedule",f:[{k:"sched_int",l:"Every (hours)",tp:"select",o:["4","6","8","12","24"],d:"8"},{k:"post_tt",l:"TikTok Time",d:"3:00 PM"},{k:"post_yt",l:"YouTube Time",d:"1:30 PM"},{k:"post_ig",l:"Instagram Time",d:"12:00 PM"},{k:"post_fb",l:"Facebook Time",d:"2:00 PM"}]},
 {t:"📡 Platforms",f:[{k:"on_tt",l:"TikTok",tp:"toggle",d:true},{k:"on_yt",l:"YouTube",tp:"toggle",d:true},{k:"on_ig",l:"Instagram",tp:"toggle",d:true},{k:"on_fb",l:"Facebook",tp:"toggle",d:true},{k:"on_tw",l:"X/Twitter",tp:"toggle",d:true},{k:"on_th",l:"Threads",tp:"toggle",d:true},{k:"on_pn",l:"Pinterest",tp:"toggle",d:false}]}
