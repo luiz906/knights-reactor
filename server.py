@@ -313,6 +313,8 @@ HTML = r"""<!DOCTYPE html><html lang="en"><head>
 <style>
 :root{--bg:#08080a;--bg2:#0c0c10;--bg3:#111118;--panel:#0d0d12;--bd:rgba(227,160,40,.12);--bd2:rgba(227,160,40,.06);--amb:#e3a028;--amb2:#c88a1a;--amblo:rgba(227,160,40,.05);--txt:#e3a028;--txtd:#7a5a18;--txtdd:#3a2a08;--grn:#28e060;--grn2:rgba(40,224,96,.08);--red:#e04028;--red2:rgba(224,64,40,.08);--blu:#28a0e0;--blu2:rgba(40,160,224,.08);--wht:#c8c0a8;--f1:'Orbitron',monospace;--f2:'Rajdhani',sans-serif;--f3:'Share Tech Mono',monospace}
 *{margin:0;padding:0;box-sizing:border-box}body{background:var(--bg);color:var(--txt);font-family:var(--f3);height:100vh;overflow:hidden}
+#L{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 30%,rgba(227,160,40,.03),transparent 60%)}
+.login-box{width:340px;padding:32px 24px;text-align:center;background:var(--panel);border:1px solid var(--bd);animation:glow 3s infinite}
 ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--amb2)}::-webkit-scrollbar-track{background:var(--bg)}
 button{font-family:var(--f3);cursor:pointer}input,select{font-family:var(--f3)}.hd{display:none}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
@@ -437,7 +439,7 @@ body{overflow:auto}
 </div></div>
 
 <div id="A" class="hd">
-<div class="desk-wrap" style="display:none">
+<div class="desk-wrap">
 <div class="sidebar">
 <div class="sb-logo"><h1>KNIGHTS<br>REACTOR</h1><p>CONTROL v6.0</p></div>
 <div class="sb-nav">
@@ -476,12 +478,12 @@ body{overflow:auto}
 <div class="dpage" id="dp-health">
 <div class="panel" id="d-hl" style="margin-bottom:10px"></div>
 <div class="panel" style="padding:12px"><div class="ptitle">DIAGNOSTICS</div><button style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--bd2);color:var(--amb);font-size:11px" onclick="testAll()">TEST ALL CONNECTIONS →</button></div>
-<button onclick="sessionStorage.removeItem('kt');$('L').style.display='flex';$('A').style.display='none'" style="width:100%;padding:9px;margin-top:10px;border:1px solid rgba(224,64,40,.2);background:var(--red2);font-family:var(--f1);font-size:8px;color:var(--red);letter-spacing:3px">⚠ DISCONNECT</button>
+<button onclick="sessionStorage.removeItem('kt');$('L').style.display='flex';$('A').classList.add('hd')" style="width:100%;padding:9px;margin-top:10px;border:1px solid rgba(224,64,40,.2);background:var(--red2);font-family:var(--f1);font-size:8px;color:var(--red);letter-spacing:3px">⚠ DISCONNECT</button>
 </div>
 
 </div></div></div>
 
-<div class="mob-wrap" style="display:none">
+<div class="mob-wrap">
 <div class="mhdr"><h1>KNIGHTS REACTOR</h1><div style="display:flex"><button class="mexec" id="m-rb" onclick="runNow()">▶ EXECUTE</button><button class="mres" id="m-rsb" onclick="resumeNow()">♻</button></div></div>
 <div class="mprog" id="m-prog"><div id="m-pb"></div></div>
 <div class="mtabs">
@@ -513,7 +515,7 @@ body{overflow:auto}
 <div class="mpage" id="mp-health">
 <div class="panel" id="m-hl" style="margin-bottom:8px"></div>
 <button style="width:100%;padding:12px;background:var(--bg);border:1px solid var(--bd2);color:var(--amb);font-size:11px;min-height:48px" onclick="testAll()">TEST ALL CONNECTIONS →</button>
-<button onclick="sessionStorage.removeItem('kt');$('L').style.display='flex';$('A').style.display='none'" style="width:100%;padding:12px;margin-top:8px;border:1px solid rgba(224,64,40,.2);background:var(--red2);font-family:var(--f1);font-size:9px;color:var(--red);letter-spacing:3px;min-height:48px">⚠ DISCONNECT</button>
+<button onclick="sessionStorage.removeItem('kt');$('L').style.display='flex';$('A').classList.add('hd')" style="width:100%;padding:12px;margin-top:8px;border:1px solid rgba(224,64,40,.2);background:var(--red2);font-family:var(--f1);font-size:9px;color:var(--red);letter-spacing:3px;min-height:48px">⚠ DISCONNECT</button>
 </div>
 
 </div></div>
@@ -544,8 +546,8 @@ const SVCS=[{n:"OPENAI",d:"GPT-4o + Whisper",k:"openai"},{n:"REPLICATE",d:"Image
 const titles={pipeline:'⚡ PIPELINE MONITOR',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ CONFIGURATION',health:'◎ SYSTEM STATUS'};
 
 /* AUTH */
-async function go(){const p=$('pw').value;if(!p){$('le').style.display='block';return;}try{const r=await(await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p})})).json();if(r.ok){if(r.token)sessionStorage.setItem('kt',r.token);$('L').style.display='none';$('A').style.display='';init();}else{$('le').style.display='block';}}catch(e){$('le').style.display='block';}}
-async function autoLogin(){const t=sessionStorage.getItem('kt');if(!t)return;try{const r=await(await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})})).json();if(r.ok){$('L').style.display='none';$('A').style.display='';init();}}catch(e){}}
+async function go(){const p=$('pw').value;if(!p){$('le').style.display='block';return;}try{const r=await(await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p})})).json();if(r.ok){if(r.token)sessionStorage.setItem('kt',r.token);$('L').style.display='none';$('A').classList.remove('hd');init();}else{$('le').style.display='block';}}catch(e){$('le').style.display='block';}}
+async function autoLogin(){const t=sessionStorage.getItem('kt');if(!t)return;try{const r=await(await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})})).json();if(r.ok){$('L').style.display='none';$('A').classList.remove('hd');init();}}catch(e){}}
 
 /* NAV */
 function dNav(p,btn){document.querySelectorAll('.dpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));$('dp-'+p).classList.add('on');if(btn)btn.classList.add('on');$('d-title').textContent=titles[p]||p;if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();}
