@@ -875,17 +875,28 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
     # Logo overlay (conditional)
     if Config.LOGO_ENABLED and Config.LOGO_URL:
         logo_url = Config.LOGO_URL
-        # Verify logo is accessible, upload to our R2 if not
+        # Re-upload logo to our working R2 bucket to guarantee Shotstack can access it
         try:
-            lr = requests.head(logo_url, timeout=5, allow_redirects=True)
-            if lr.status_code != 200:
-                log.warning(f"   Logo URL returned {lr.status_code}, attempting re-upload to R2...")
-                lr2 = requests.get(logo_url.replace("head","get"), timeout=10)
-                if lr2.status_code != 200:
-                    log.warning(f"   Logo unreachable ({lr.status_code}), skipping logo overlay")
-                    logo_url = None
+            log.info(f"   Fetching logo from {logo_url}...")
+            lr = requests.get(logo_url, timeout=15)
+            lr.raise_for_status()
+            # Detect format from content-type or magic bytes
+            ct = lr.headers.get("content-type", "image/png").split(";")[0].strip()
+            body = lr.content
+            ext = "png"
+            if body[:4] == b'\x89PNG':
+                ct = "image/png"; ext = "png"
+            elif body[:2] == b'\xff\xd8':
+                ct = "image/jpeg"; ext = "jpg"
+            elif body[:4] == b'RIFF' and body[8:12] == b'WEBP':
+                ct = "image/webp"; ext = "webp"
+            s3 = get_s3_client()
+            logo_key = f"_assets/logo.{ext}"
+            s3.put_object(Bucket=Config.R2_BUCKET, Key=logo_key, Body=body, ContentType=ct)
+            logo_url = f"{Config.R2_PUBLIC_URL}/{logo_key}"
+            log.info(f"   Logo re-uploaded to {logo_url} ({ct}, {len(body)//1024}KB)")
         except Exception as e:
-            log.warning(f"   Logo URL check failed: {e}, skipping logo overlay")
+            log.warning(f"   Logo fetch/upload failed: {e}, skipping logo overlay")
             logo_url = None
 
         if logo_url:
@@ -928,6 +939,31 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
             "fps": Config.RENDER_FPS,
         },
     }
+
+    # Pre-flight: probe all asset URLs to catch format issues early
+    all_asset_urls = []
+    for track in tracks:
+        for clip in track.get("clips", []):
+            asset = clip.get("asset", {})
+            src = asset.get("src", "")
+            if src:
+                all_asset_urls.append((asset.get("type", "?"), src))
+
+    for atype, aurl in all_asset_urls:
+        try:
+            encoded_url = requests.utils.quote(aurl, safe='')
+            probe_r = requests.get(f"https://api.shotstack.io/v1/probe/{aurl}",
+                                   headers={"x-api-key": Config.SHOTSTACK_KEY}, timeout=15)
+            if probe_r.status_code == 200:
+                probe_data = probe_r.json().get("response", {}).get("metadata", {})
+                streams = probe_data.get("streams", [])
+                fmt = probe_data.get("format", {}).get("format_name", "?")
+                log.info(f"   Probe OK: {atype} — {fmt} — {aurl.split('/')[-1]}")
+            else:
+                log.warning(f"   Probe FAIL ({probe_r.status_code}): {atype} — {aurl}")
+                log.warning(f"   Response: {probe_r.text[:300]}")
+        except Exception as e:
+            log.warning(f"   Probe error for {aurl}: {e}")
 
     r = requests.post("https://api.shotstack.io/v1/render", headers={
         "x-api-key": Config.SHOTSTACK_KEY,
