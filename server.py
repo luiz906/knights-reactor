@@ -342,24 +342,24 @@ button{font-family:var(--f3);cursor:pointer}input,select{font-family:var(--f3)}.
 .ph.dm{opacity:.25}
 
 /* SETTINGS */
-.sec{background:var(--panel);border:1px solid var(--bd2);margin-bottom:6px}
-.sec-h{width:100%;display:flex;align-items:center;justify-content:space-between;padding:.7em 1em;background:none;border:none;color:var(--txt);cursor:pointer}
-.sec-t{font-family:var(--f1);font-size:.65em;font-weight:600;letter-spacing:.15em}.sec-a{font-size:.85em;color:var(--txtd);transition:transform .15s}
-.sec-b{padding:0 1em .7em}.sec-b.shut{display:none}
-.fi{padding:.5em 0;border-bottom:1px solid var(--bd2)}
-.fl{font-size:.55em;color:var(--txtd);text-transform:uppercase;letter-spacing:.15em;margin-bottom:.2em}
-.fin{width:100%;padding:.5em .65em;background:var(--bg);border:1px solid var(--bd2);font-size:.8em;color:var(--amb);outline:none;font-family:var(--f3);border-radius:0}
+.sec{background:var(--panel);border:1px solid var(--bd2);margin-bottom:.7em}
+.sec-h{width:100%;display:flex;align-items:center;justify-content:space-between;padding:1em 1.2em;background:none;border:none;color:var(--txt);cursor:pointer}
+.sec-t{font-family:var(--f1);font-size:.85em;font-weight:600;letter-spacing:.15em}.sec-a{font-size:1em;color:var(--txtd);transition:transform .15s}
+.sec-b{padding:0 1.2em 1em}.sec-b.shut{display:none}
+.fi{padding:.7em 0;border-bottom:1px solid var(--bd2)}
+.fl{font-size:.7em;color:var(--txtd);text-transform:uppercase;letter-spacing:.15em;margin-bottom:.35em}
+.fin{width:100%;padding:.65em .8em;background:var(--bg);border:1px solid var(--bd2);font-size:.9em;color:var(--amb);outline:none;font-family:var(--f3);border-radius:0}
 .fin:focus{border-color:var(--amb);box-shadow:0 0 6px rgba(227,160,40,.1)}
 select.fin{-webkit-appearance:none;-moz-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23e3a028'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-color:var(--bg);padding-right:28px;cursor:pointer}
 html.light select.fin{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a6010'/%3E%3C/svg%3E")}
 select.fin option{background:var(--bg2);color:var(--amb);padding:6px}
-.fin-slider{-webkit-appearance:none;appearance:none;background:var(--bg3);border-radius:3px;outline:none;height:.4em;cursor:pointer;width:100%}
-.fin-slider::-webkit-slider-thumb{-webkit-appearance:none;width:1em;height:1em;border-radius:50%;background:var(--amb);border:2px solid var(--bg);cursor:pointer}
-.fin-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--amb);border:2px solid var(--bg)}
-.tg{width:36px;height:18px;border-radius:1px;border:1px solid var(--bd);position:relative;transition:background .2s}
+.fin-slider{-webkit-appearance:none;appearance:none;background:var(--bg3);border-radius:3px;outline:none;height:.5em;cursor:pointer;width:100%}
+.fin-slider::-webkit-slider-thumb{-webkit-appearance:none;width:1.3em;height:1.3em;border-radius:50%;background:var(--amb);border:2px solid var(--bg);cursor:pointer}
+.fin-slider::-moz-range-thumb{width:1.3em;height:1.3em;border-radius:50%;background:var(--amb);border:2px solid var(--bg)}
+.tg{width:3em;height:1.5em;border-radius:1px;border:1px solid var(--bd);position:relative;transition:background .2s}
 .tg.on{background:rgba(40,224,96,.15);border-color:var(--grn)}.tg.off{background:var(--bg);border-color:var(--bd2)}
-.td{position:absolute;top:2px;width:14px;height:14px;background:var(--amb);transition:left .2s}.tg.on .td{background:var(--grn)}
-.sv{width:100%;padding:.7em;border:1px solid var(--amb);background:rgba(227,160,40,.06);font-size:.7em;font-weight:600;color:var(--amb);letter-spacing:3px;font-family:var(--f1);margin-top:8px}
+.td{position:absolute;top:.15em;width:1.15em;height:1.15em;background:var(--amb);transition:left .2s}.tg.on .td{background:var(--grn)}
+.sv{width:100%;padding:.9em;border:1px solid var(--amb);background:rgba(227,160,40,.06);font-size:.85em;font-weight:600;color:var(--amb);letter-spacing:.2em;font-family:var(--f1);margin-top:1em}
 .sv:hover{background:rgba(227,160,40,.12)}
 .sm{background:var(--grn2);border:1px solid rgba(40,224,96,.15);padding:.5em .85em;margin-bottom:.55em;font-size:.7em;color:var(--grn)}
 .rw{padding:.7em 1em;border-bottom:1px solid var(--bd2)}
@@ -627,7 +627,7 @@ async function rPv(){try{const r=await(await fetch('/api/last-result')).json();i
 function getModels(fk){const prov=fk==='image_model'?(ST.image_provider||'replicate'):(ST.video_provider||'replicate');const cat=fk==='image_model'?IMG_MODELS:VID_MODELS;return cat[prov]||[];}
 
 function rSt(){let h='';STS.forEach((sec,si)=>{let ff='';sec.f.forEach(f=>{try{const v=ST[f.k]!==undefined?ST[f.k]:f.d;const wide=f.tp==='slider'||f.tp==='toggle'||f.tp==='computed';
-if(f.tp==='toggle'){const on=v===true||v==='true';ff+=`<div class="fi${wide?' w':''}" style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:.8em;color:var(--wht)">${f.l}</div><button class="tg ${on?'on':'off'}" onclick="event.stopPropagation();ST['${f.k}']=!(ST['${f.k}']===true||ST['${f.k}']==='true');rSt()"><span class="td" style="left:${on?'20px':'2px'}"></span></button></div>`;}
+if(f.tp==='toggle'){const on=v===true||v==='true';ff+=`<div class="fi${wide?' w':''}" style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:.9em;color:var(--wht)">${f.l}</div><button class="tg ${on?'on':'off'}" onclick="event.stopPropagation();ST['${f.k}']=!(ST['${f.k}']===true||ST['${f.k}']==='true');rSt()"><span class="td" style="left:${on?'1.65em':'.15em'}"></span></button></div>`;}
 else if(f.tp==='select'){let opts=f.o;if(f.dep){opts=getModels(f.k);ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value">${opts.map(o=>`<option value="${o.v}"${o.v==v?' selected':''}>${o.l}</option>`).join('')}</select></div>`;}
 else if(f.k==='image_provider'||f.k==='video_provider'||f.k==='clip_count'||f.k==='clip_duration'){ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value;rSt()">${opts.map(o=>`<option${o==v?' selected':''}>${o}</option>`).join('')}</select></div>`;}
 else{ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value">${opts.map(o=>`<option${o==v?' selected':''}>${o}</option>`).join('')}</select></div>`;}}
