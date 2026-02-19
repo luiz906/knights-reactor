@@ -314,11 +314,12 @@ async function loadLogs(){try{const logs=await(await fetch('/api/logs')).json();
 $('la').innerHTML=logs.length?logs.map(l=>`<div><span style="color:var(--mt)">${l.t}</span> <span style="color:var(--gold);background:var(--gg);padding:0 4px;border-radius:3px;font-size:9px">${l.phase}</span> <span style="color:var(--${l.level==='ok'?'grn':l.level==='error'?'red':'dm'})">${l.msg}</span></div>`).join(''):'<div style="color:var(--dm)">No logs yet. Run the pipeline to see output.</div>';
 $('la').scrollTop=$('la').scrollHeight;}catch(e){}}
 
-function rSt(){let h='';STS.forEach(sec=>{let ff='';sec.f.forEach(f=>{const v=ST[f.k]!==undefined?ST[f.k]:f.d;
-if(f.tp==='toggle'){const on=v===true||v==='true';ff+=`<div class="fi" style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:12px">${f.l}</div><button class="tg ${on?'on':'off'}" onclick="ST['${f.k}']=!ST['${f.k}'];rSt()"><span class="td" style="left:${on?'20px':'2px'}"></span></button></div>`;}
+let stOpen={};
+function rSt(){let h='';STS.forEach((sec,si)=>{let ff='';sec.f.forEach(f=>{const v=ST[f.k]!==undefined?ST[f.k]:f.d;
+if(f.tp==='toggle'){const on=v===true||v==='true';ff+=`<div class="fi" style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:12px">${f.l}</div><button class="tg ${on?'on':'off'}" onclick="event.stopPropagation();ST['${f.k}']=!(ST['${f.k}']===true||ST['${f.k}']==='true');rSt()"><span class="td" style="left:${on?'20px':'2px'}"></span></button></div>`;}
 else if(f.tp==='select'){ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value">${f.o.map(o=>`<option${o==v?' selected':''}>${o}</option>`).join('')}</select></div>`;}
 else{ff+=`<div class="fi"><div class="fl">${f.l}</div><input class="fin" value="${v||''}" onchange="ST['${f.k}']=this.value"></div>`;}
-});h+=`<div class="sec"><button class="sec-h" onclick="this.nextElementSibling.classList.toggle('hd');this.querySelector('.sec-a').style.transform=this.nextElementSibling.classList.contains('hd')?'':'rotate(90deg)'"><span class="sec-t">${sec.t}</span><span class="sec-a">›</span></button><div class="sec-b hd">${ff}</div></div>`;});
+});h+=`<div class="sec"><button class="sec-h" onclick="stOpen[${si}]=!stOpen[${si}];rSt()"><span class="sec-t">${sec.t}</span><span class="sec-a" style="transform:${stOpen[si]?'rotate(90deg)':''}">›</span></button><div class="sec-b${stOpen[si]?'':' hd'}">${ff}</div></div>`;});
 $('sf').innerHTML=h;}
 
 async function saveSett(){await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(ST)});$('ss').style.display='block';setTimeout(()=>$('ss').style.display='none',3000);}
