@@ -57,10 +57,10 @@ def apply_credentials():
 def apply_model_settings():
     """Load model selections from saved settings into Config."""
     settings = load_json(SETTINGS_FILE, {})
-    if settings.get("image_provider"):
-        Config.IMAGE_PROVIDER = settings["image_provider"]
     if settings.get("image_model"):
         Config.IMAGE_MODEL = settings["image_model"]
+    if settings.get("image_quality"):
+        Config.IMAGE_QUALITY = settings["image_quality"]
     if settings.get("video_model"):
         Config.VIDEO_MODEL = settings["video_model"]
 
@@ -164,6 +164,11 @@ async def login(req: Request):
 
 @app.get("/api/settings")
 async def get_settings(): return load_json(SETTINGS_FILE, {})
+
+@app.get("/api/last-result")
+async def get_last_result():
+    """Return the result of the most recent pipeline run for Preview tab."""
+    return CURRENT_RUN.get("result") or {}
 
 @app.post("/api/settings")
 async def save_settings(req: Request):
@@ -388,8 +393,8 @@ const PHS=[{n:"FETCH TOPIC",a:"AIRTABLE",i:"⬡",d:"~2s"},{n:"GENERATE SCRIPT",a
 const STS=[
 {t:"SCRIPT ENGINE",f:[{k:"script_model",l:"AI Model",tp:"select",o:["gpt-4o","gpt-4o-mini"],d:"gpt-4o"},{k:"script_temp",l:"Temperature",d:"0.85"},{k:"script_max_words",l:"Max Words",d:"50"}]},
 {t:"VOICE SYNTH",f:[{k:"voice_model",l:"Model",tp:"select",o:["eleven_turbo_v2","eleven_multilingual_v2"],d:"eleven_turbo_v2"},{k:"voice_stability",l:"Stability",d:"0.5"},{k:"voice_similarity",l:"Similarity",d:"0.75"}]},
-{t:"IMAGE GENERATION",f:[{k:"image_provider",l:"Provider",tp:"select",o:["openai_direct","replicate"],d:"openai_direct"},{k:"image_model",l:"Model",tp:"select",o:["gpt-image-1.5","gpt-image-1","gpt-image-1-mini","dall-e-3","black-forest-labs/flux-1.1-pro","black-forest-labs/flux-schnell","black-forest-labs/flux-dev","stability-ai/sdxl","stability-ai/stable-diffusion-3.5-large","recraft-ai/recraft-v3","ideogram-ai/ideogram-v2","google-deepmind/imagen-4-preview"],d:"gpt-image-1.5"},{k:"image_quality",l:"Quality",tp:"select",o:["low","medium","high"],d:"medium"}]},
-{t:"VIDEO GENERATION",f:[{k:"video_model",l:"Model",tp:"select",o:["bytedance/seedance-1-lite","bytedance/seedance-1","wavespeedai/wan-2.1-i2v-480p","wavespeedai/wan-2.1-i2v-720p","minimax/video-01-live","minimax/video-01","kwaivgi/kling-v2.0-image-to-video","luma/ray-2-flash","luma/ray-2","google-deepmind/veo-3"],d:"bytedance/seedance-1-lite"},{k:"video_timeout",l:"Timeout (sec)",d:"600"}]},
+{t:"IMAGE GENERATION",f:[{k:"image_provider",l:"Provider",tp:"select",o:["replicate"],d:"replicate"},{k:"image_model",l:"Model",tp:"select",o:[],d:"black-forest-labs/flux-1.1-pro",dep:"image_provider"},{k:"image_quality",l:"Quality",tp:"select",o:["low","medium","high"],d:"high"}]},
+{t:"VIDEO GENERATION",f:[{k:"video_provider",l:"Provider",tp:"select",o:["replicate"],d:"replicate"},{k:"video_model",l:"Model",tp:"select",o:[],d:"bytedance/seedance-1-lite",dep:"video_provider"},{k:"video_timeout",l:"Timeout (sec)",d:"600"}]},
 {t:"RENDER OUTPUT",f:[{k:"render_fps",l:"FPS",tp:"select",o:["24","30","60"],d:"30"},{k:"render_res",l:"Resolution",tp:"select",o:["720","1080"],d:"1080"},{k:"render_aspect",l:"Aspect Ratio",tp:"select",o:["9:16","16:9","1:1"],d:"9:16"}]},
 {t:"SCHEDULE",f:[{k:"sched_int",l:"Every (hours)",tp:"select",o:["4","6","8","12","24"],d:"8"},{k:"post_tt",l:"TikTok Time",d:"3:00 PM"},{k:"post_yt",l:"YouTube Time",d:"1:30 PM"},{k:"post_ig",l:"Instagram Time",d:"12:00 PM"},{k:"post_fb",l:"Facebook Time",d:"2:00 PM"}]},
 {t:"PLATFORMS",f:[{k:"on_tt",l:"TikTok",tp:"toggle",d:true},{k:"on_yt",l:"YouTube",tp:"toggle",d:true},{k:"on_ig",l:"Instagram",tp:"toggle",d:true},{k:"on_fb",l:"Facebook",tp:"toggle",d:true},{k:"on_tw",l:"X/Twitter",tp:"toggle",d:true},{k:"on_th",l:"Threads",tp:"toggle",d:true},{k:"on_pn",l:"Pinterest",tp:"toggle",d:false}]}
@@ -402,7 +407,7 @@ autoLogin();
 function sw(id,btn){document.querySelectorAll('[id^="t-"]').forEach(e=>e.style.display='none');$('t-'+id).style.display='block';document.querySelectorAll('.tb').forEach(t=>t.classList.remove('ac'));btn.classList.add('ac');if(id==='runs')loadRuns();if(id==='logs')loadLogs();if(id==='health')rH();if(id==='preview')rPv();}
 
 function rP(){
-  let h='';PHS.forEach((p,i)=>{let s='waiting',c='',sl='';if(PD.includes(i)){s='done';c='dn';sl='COMPLETE';}else if(RN&&i===PH){s='running';c='rn';sl='ACTIVE';}else if(RN&&i<PH){s='done';c='dn';sl='COMPLETE';}else if(RN){c='dm';sl='';}
+  let h='';const isDone=!RN&&PD.length>0;PHS.forEach((p,i)=>{let s='waiting',c='',sl='';if(PD.includes(i)){s='done';c='dn';sl='COMPLETE';}else if(RN&&i===PH){s='running';c='rn';sl='ACTIVE';}else if(RN&&i<PH){s='done';c='dn';sl='COMPLETE';}else if(RN){c='dm';sl='';}else if(isDone){c='';sl='';}
     const nc=s==='done'?'var(--grn)':s==='running'?'var(--blu)':'var(--txtdd)';
     const nt=s==='done'?'var(--grn)':s==='running'?'var(--amb)':'var(--txtd)';
     h+=`<div class="ph ${c}"><div style="display:flex;align-items:center;gap:10px"><span style="font-size:12px;width:18px;text-align:center;color:${nc}">${p.i}</span><div style="flex:1"><div style="font-family:var(--f1);font-size:9px;font-weight:600;letter-spacing:2px;color:${nt}">${p.n}</div><div style="font-size:8px;color:var(--txtdd);margin-top:2px;letter-spacing:1px">${p.a} · ${p.d}</div></div><div style="display:flex;align-items:center;gap:6px">${sl?`<span style="font-family:var(--f1);font-size:7px;color:${nc};letter-spacing:2px">${sl}</span>`:''}${B(s)}</div></div></div>`;
@@ -412,7 +417,7 @@ function rP(){
 }
 
 async function runNow(){if(RN)return;await fetch('/api/run',{method:'POST'});RN=true;PH=0;PD=[];rP();poll();}
-async function poll(){if(!RN)return;try{const r=await(await fetch('/api/status')).json();RN=r.running;PH=r.phase;PD=r.phases_done||[];if(r.result)LAST_RESULT=r.result;rP();if(r.running)setTimeout(poll,2000);else rPv();}catch(e){setTimeout(poll,3000);}}
+async function poll(){if(!RN)return;try{const r=await(await fetch('/api/status')).json();PH=r.phase;PD=r.phases_done||[];if(r.result)LAST_RESULT=r.result;if(!r.running){RN=false;rP();rPv();return;}RN=true;rP();setTimeout(poll,2000);}catch(e){setTimeout(poll,3000);}}
 
 async function loadRuns(){try{const runs=await(await fetch('/api/runs')).json();const t=runs.length,ok=runs.filter(r=>r.status==='published'||r.status==='complete').length;
 $('rs').innerHTML=[{l:'TOTAL',v:t,c:'amb'},{l:'SUCCESS',v:ok,c:'grn'},{l:'RATE',v:t?Math.round(ok/t*100)+'%':'0%',c:'blu'},{l:'FAILED',v:t-ok,c:'red'}].map(s=>`<div class="pnl" style="padding:12px 10px;text-align:center"><div style="font-family:var(--f1);font-size:18px;font-weight:800;color:var(--${s.c})">${s.v}</div><div style="font-family:var(--f1);font-size:7px;color:var(--${s.c});margin-top:3px;letter-spacing:2px;opacity:.6">${s.l}</div></div>`).join('');
@@ -423,7 +428,8 @@ $('la').innerHTML=logs.length?logs.map(l=>`<div><span style="color:var(--txtdd)"
 $('la').scrollTop=$('la').scrollHeight;}catch(e){}}
 
 // PREVIEW
-function rPv(){
+async function rPv(){
+  if(!LAST_RESULT){try{const lr=await(await fetch('/api/last-result')).json();if(lr&&lr.status)LAST_RESULT=lr;}catch(e){}}
   const r=LAST_RESULT;
   if(!r){$('pv-empty').style.display='block';$('pv-images').style.display='none';$('pv-videos').style.display='none';$('pv-final').style.display='none';$('pv-script').style.display='none';return;}
   $('pv-empty').style.display='none';
@@ -451,9 +457,46 @@ function rPv(){
 }
 
 let stOpen={};
+// MODEL CATALOGS — only models that support 9:16 natively
+const IMG_MODELS={
+  replicate:[
+    {v:"black-forest-labs/flux-1.1-pro",l:"Flux 1.1 Pro — Best quality"},
+    {v:"black-forest-labs/flux-schnell",l:"Flux Schnell — Fast"},
+    {v:"black-forest-labs/flux-dev",l:"Flux Dev — Open source"},
+    {v:"stability-ai/stable-diffusion-3.5-large",l:"SD 3.5 Large"},
+    {v:"recraft-ai/recraft-v3",l:"Recraft v3"},
+    {v:"ideogram-ai/ideogram-v2",l:"Ideogram v2"},
+    {v:"google-deepmind/imagen-4-preview",l:"Imagen 4 Preview"},
+  ]
+};
+const VID_MODELS={
+  replicate:[
+    {v:"bytedance/seedance-1-lite",l:"Seedance Lite — Fast/$"},
+    {v:"bytedance/seedance-1",l:"Seedance Pro — Best"},
+    {v:"wavespeedai/wan-2.1-i2v-480p",l:"Wan 2.1 — 480p"},
+    {v:"wavespeedai/wan-2.1-i2v-720p",l:"Wan 2.1 — 720p"},
+    {v:"minimax/video-01-live",l:"Minimax Live"},
+    {v:"minimax/video-01",l:"Minimax v01"},
+    {v:"kwaivgi/kling-v2.0-image-to-video",l:"Kling v2.0"},
+    {v:"luma/ray-2-flash",l:"Luma Ray 2 Flash"},
+    {v:"luma/ray-2",l:"Luma Ray 2"},
+    {v:"google-deepmind/veo-3",l:"Veo 3"},
+  ]
+};
+function getModels(fieldKey){
+  const prov=fieldKey==='image_model'?(ST.image_provider||'replicate'):(ST.video_provider||'replicate');
+  const cat=fieldKey==='image_model'?IMG_MODELS:VID_MODELS;
+  return cat[prov]||[];
+}
+
 function rSt(){let h='';STS.forEach((sec,si)=>{let ff='';sec.f.forEach(f=>{const v=ST[f.k]!==undefined?ST[f.k]:f.d;
 if(f.tp==='toggle'){const on=v===true||v==='true';ff+=`<div class="fi" style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:11px;color:var(--wht)">${f.l}</div><button class="tg ${on?'on':'off'}" onclick="event.stopPropagation();ST['${f.k}']=!(ST['${f.k}']===true||ST['${f.k}']==='true');rSt()"><span class="td" style="left:${on?'20px':'2px'}"></span></button></div>`;}
-else if(f.tp==='select'){ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value">${f.o.map(o=>`<option${o==v?' selected':''}>${o}</option>`).join('')}</select></div>`;}
+else if(f.tp==='select'){
+  let opts=f.o;
+  if(f.dep){opts=getModels(f.k);ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value">${opts.map(o=>`<option value="${o.v}"${o.v==v?' selected':''}>${o.l}</option>`).join('')}</select></div>`;}
+  else if(f.k==='image_provider'||f.k==='video_provider'){ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value;rSt()">${opts.map(o=>`<option${o==v?' selected':''}>${o}</option>`).join('')}</select></div>`;}
+  else{ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value">${opts.map(o=>`<option${o==v?' selected':''}>${o}</option>`).join('')}</select></div>`;}
+}
 else{ff+=`<div class="fi"><div class="fl">${f.l}</div><input class="fin" value="${v||''}" onchange="ST['${f.k}']=this.value"></div>`;}
 });h+=`<div class="sec"><button class="sec-h" onclick="stOpen[${si}]=!stOpen[${si}];rSt()"><span class="sec-t">${sec.t}</span><span class="sec-a" style="transform:${stOpen[si]?'rotate(90deg)':''}">›</span></button><div class="sec-b${stOpen[si]?'':' hd'}">${ff}</div></div>`;});
 $('sf').innerHTML=h;}
@@ -470,7 +513,7 @@ async function init(){
   rP();
   try{const r=await(await fetch('/api/settings')).json();STS.forEach(s=>s.f.forEach(f=>{if(r[f.k]!==undefined)ST[f.k]=r[f.k];else ST[f.k]=f.d;}));}catch(e){STS.forEach(s=>s.f.forEach(f=>ST[f.k]=f.d));}
   rSt();
-  try{const r=await(await fetch('/api/status')).json();if(r.result)LAST_RESULT=r.result;if(r.running){RN=true;PH=r.phase;PD=r.phases_done||[];rP();poll();}}catch(e){}
+  try{const r=await(await fetch('/api/status')).json();if(r.result){LAST_RESULT=r.result;PD=r.phases_done||[];}if(r.running){RN=true;PH=r.phase;PD=r.phases_done||[];rP();poll();}else{rP();}}catch(e){}
 }
 </script></body></html>
 """
