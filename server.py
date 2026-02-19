@@ -104,6 +104,18 @@ RUNS = load_json(RUNS_FILE, []) if RUNS_FILE.exists() else []
 CURRENT_RUN = {"active": False, "result": None, "phase": 0, "phase_name": "", "phases_done": []}
 LOGS = []
 
+# Restore last failed run from checkpoint so Resume works after restart
+_ckpt_path = Path("/tmp/pipeline_checkpoint.json")
+if _ckpt_path.exists():
+    try:
+        _ckpt = load_json(_ckpt_path, {})
+        _last_phase = _ckpt.get("phase", 0)
+        if _last_phase > 0:
+            CURRENT_RUN["result"] = {"status": "failed", "failed_phase": _last_phase, "error": "Interrupted (server restart)"}
+            CURRENT_RUN["phases_done"] = list(range(_last_phase))
+    except Exception:
+        pass
+
 def log_entry(phase, level, msg):
     LOGS.append({"t": datetime.now().strftime("%H:%M:%S"), "phase": phase, "level": level, "msg": msg})
     if len(LOGS) > 500: LOGS.pop(0)
