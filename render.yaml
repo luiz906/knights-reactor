@@ -1,0 +1,54 @@
+services:
+  # Web dashboard - shows UI at your-app.onrender.com
+  - type: web
+    name: knights-reactor
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: REPLICATE_API_TOKEN
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        value: bwCXcoVxWNYMlC6Esa8u
+      - key: SHOTSTACK_API_KEY
+        sync: false
+      - key: R2_ACCESS_KEY
+        sync: false
+      - key: R2_SECRET_KEY
+        sync: false
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_BUCKET
+        value: knights-videos
+      - key: R2_PUBLIC_URL
+        sync: false
+      - key: AIRTABLE_API_KEY
+        sync: false
+      - key: AIRTABLE_BASE_ID
+        value: appNDCADOHinuotY1
+      - key: AIRTABLE_TABLE
+        value: Scripture Topics
+      - key: BLOTATO_API_KEY
+        sync: false
+      - key: BLOTATO_TIKTOK_ID
+        sync: false
+      - key: BLOTATO_YOUTUBE_ID
+        sync: false
+      - key: BLOTATO_INSTAGRAM_ID
+        value: "31177"
+      - key: BLOTATO_FACEBOOK_ID
+        sync: false
+      - key: BLOTATO_FACEBOOK_PAGE_ID
+        sync: false
+      - key: BLOTATO_PINTEREST_ID
+        sync: false
+      - key: BLOTATO_TWITTER_ID
+        sync: false
+      - key: BLOTATO_THREADS_ID
+        sync: false
