@@ -317,7 +317,7 @@ html.light select.fin option{background:var(--panel);color:var(--amb)}
 html.light .login-box{box-shadow:0 2px 20px rgba(0,0,0,.08)}
 html.light .sb-exec{color:#fff}
 *{margin:0;padding:0;box-sizing:border-box}
-html{font-size:clamp(13px,1.1vw,18px)}
+html{font-size:clamp(14px,1.25vw,22px)}
 body{background:var(--bg);color:var(--txt);font-family:var(--f3);height:100vh;overflow:hidden}
 #L{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 30%,rgba(227,160,40,.03),transparent 60%)}
 .login-box{width:24em;padding:2.25em 1.7em;text-align:center;background:var(--panel);border:1px solid var(--bd);animation:glow 3s infinite}
@@ -358,7 +358,7 @@ select.fin option{background:var(--bg2);color:var(--amb);padding:6px}
 .fin-slider::-moz-range-thumb{width:1.3em;height:1.3em;border-radius:50%;background:var(--amb);border:2px solid var(--bg)}
 .tg{width:3em;height:1.5em;border-radius:1px;border:1px solid var(--bd);position:relative;transition:background .2s}
 .tg.on{background:rgba(40,224,96,.15);border-color:var(--grn)}.tg.off{background:var(--bg);border-color:var(--bd2)}
-.td{position:absolute;top:.15em;width:1.15em;height:1.15em;background:var(--amb);transition:left .2s}.tg.on .td{background:var(--grn)}
+.td{position:absolute;top:.15em;width:1.15em;height:1.15em;background:var(--amb);transition:left .2s;left:.15em}.tg.on .td{background:var(--grn);left:1.5em}.tg.off .td{left:.15em}
 .sv{width:100%;padding:.9em;border:1px solid var(--amb);background:rgba(227,160,40,.06);font-size:.85em;font-weight:600;color:var(--amb);letter-spacing:.2em;font-family:var(--f1);margin-top:1em}
 .sv:hover{background:rgba(227,160,40,.12)}
 .sm{background:var(--grn2);border:1px solid rgba(40,224,96,.15);padding:.5em .85em;margin-bottom:.55em;font-size:.7em;color:var(--grn)}
@@ -405,7 +405,22 @@ select.fin option{background:var(--bg2);color:var(--amb);padding:6px}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.7em}
 .g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.55em}
 .phgrid{display:grid;grid-template-columns:1fr 1fr;gap:.35em}
-.sec-b{display:grid;grid-template-columns:1fr 1fr;gap:0 1.15em}
+.sec-b{display:grid;grid-template-columns:1fr 1fr;gap:.2em 1.5em}
+.sec{margin-bottom:.7em}
+.sec-h{padding:1.1em 1.4em}
+.sec-t{font-size:1em}
+.sec-a{font-size:1.2em}
+.fi{padding:.8em 0}
+.fl{font-size:.7em;margin-bottom:.35em}
+.fin{font-size:.9em;padding:.6em .75em}
+select.fin{padding-right:2em}
+.fi.w{grid-column:1/-1}
+.sv{font-size:.85em;padding:.9em;letter-spacing:.2em}
+.sm{font-size:.8em;padding:.6em 1em}
+.tg{width:2.8em;height:1.4em;border-radius:2px}
+.td{width:1em;height:1em;top:.15em}
+.tg.on .td{left:1.5em}
+.tg.off .td{left:.2em}
 .fi.w{grid-column:1/-1}
 .pgrid{grid-template-columns:repeat(4,1fr)}
 .logp{background:var(--panel);border:1px solid var(--bd2);padding:12px;max-height:calc(100vh - 8em);overflow-y:auto;font-size:.7em;line-height:1.8}
@@ -627,7 +642,7 @@ async function rPv(){try{const r=await(await fetch('/api/last-result')).json();i
 function getModels(fk){const prov=fk==='image_model'?(ST.image_provider||'replicate'):(ST.video_provider||'replicate');const cat=fk==='image_model'?IMG_MODELS:VID_MODELS;return cat[prov]||[];}
 
 function rSt(){let h='';STS.forEach((sec,si)=>{let ff='';sec.f.forEach(f=>{try{const v=ST[f.k]!==undefined?ST[f.k]:f.d;const wide=f.tp==='slider'||f.tp==='toggle'||f.tp==='computed';
-if(f.tp==='toggle'){const on=v===true||v==='true';ff+=`<div class="fi${wide?' w':''}" style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:.9em;color:var(--wht)">${f.l}</div><button class="tg ${on?'on':'off'}" onclick="event.stopPropagation();ST['${f.k}']=!(ST['${f.k}']===true||ST['${f.k}']==='true');rSt()"><span class="td" style="left:${on?'1.65em':'.15em'}"></span></button></div>`;}
+if(f.tp==='toggle'){const on=v===true||v==='true';ff+=`<div class="fi${wide?' w':''}" style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:.9em;color:var(--wht)">${f.l}</div><button class="tg ${on?'on':'off'}" onclick="event.stopPropagation();ST['${f.k}']=!(ST['${f.k}']===true||ST['${f.k}']==='true');rSt()"><span class="td"></span></button></div>`;}
 else if(f.tp==='select'){let opts=f.o;if(f.dep){opts=getModels(f.k);ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value">${opts.map(o=>`<option value="${o.v}"${o.v==v?' selected':''}>${o.l}</option>`).join('')}</select></div>`;}
 else if(f.k==='image_provider'||f.k==='video_provider'||f.k==='clip_count'||f.k==='clip_duration'){ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value;rSt()">${opts.map(o=>`<option${o==v?' selected':''}>${o}</option>`).join('')}</select></div>`;}
 else{ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value">${opts.map(o=>`<option${o==v?' selected':''}>${o}</option>`).join('')}</select></div>`;}}
