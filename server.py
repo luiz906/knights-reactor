@@ -379,6 +379,52 @@ button{font-family:var(--f3);cursor:pointer}input,select{font-family:var(--f3)}
 /* TABS */
 .tb{font-family:var(--f1);font-size:8px;color:var(--txtd);background:none;border:none;border-bottom:2px solid transparent;padding:10px 12px;white-space:nowrap;display:flex;align-items:center;gap:5px;letter-spacing:2px;text-transform:uppercase;transition:all .15s}
 .tb:hover{color:var(--amb)}.tb.ac{color:var(--amb);font-weight:600;border-bottom-color:var(--amb)}
+
+/* RESPONSIVE LAYOUT */
+.main-content{padding:16px 20px;max-width:960px;margin:0 auto}
+.app-header{padding:14px 20px 10px;border-bottom:1px solid var(--bd);background:var(--panel);display:flex;align-items:center;justify-content:space-between}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px}
+
+/* DESKTOP: wider layout, 2-col settings */
+@media(min-width:769px){
+  .main-content{max-width:960px;padding:20px 32px}
+  .sec-b{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
+  .fi{break-inside:avoid}
+  .fi:has(.fin-slider),.fi:has(.tg){grid-column:1/-1}
+  .preview-grid{grid-template-columns:repeat(3,1fr) !important}
+}
+
+/* MOBILE: single column, smaller text */
+@media(max-width:768px){
+  .main-content{padding:12px 10px;max-width:100%}
+  .app-header{flex-direction:column;gap:10px;padding:12px 14px 10px;align-items:flex-start}
+  .app-header>div:last-child{width:100%;display:flex;justify-content:flex-end}
+  .stats-grid{grid-template-columns:repeat(2,1fr);gap:4px}
+  .preview-grid{grid-template-columns:repeat(2,1fr) !important;gap:6px !important}
+  .sec-h{padding:10px 12px}
+  .sec-b{padding:0 12px 10px}
+  .fin{font-size:14px;padding:10px 12px}
+  select.fin{font-size:14px;min-height:44px}
+  .fi{padding:12px 0}
+  .fl{font-size:9px;margin-bottom:6px}
+  .tb{font-size:7px;padding:10px 8px;letter-spacing:1px}
+  .ph{padding:10px 12px}
+  .sv{padding:14px;font-size:12px}
+  .pnl{overflow-x:auto}
+  #la{font-size:9px !important;line-height:1.7 !important}
+}
+
+/* TOUCH TARGETS */
+@media(pointer:coarse){
+  .tg{width:48px;height:28px}
+  .td{width:20px;height:20px;top:3px}
+  .tg.on .td{left:24px !important}
+  .tg.off .td{left:3px !important}
+  .sec-h{min-height:48px}
+  .tb{min-height:44px}
+  button{min-height:44px}
+}
+
 </style></head><body>
 
 <!-- LOGIN -->
@@ -397,7 +443,7 @@ button{font-family:var(--f3);cursor:pointer}input,select{font-family:var(--f3)}
 <!-- APP -->
 <div id="A" class="hd">
 <!-- HEADER -->
-<div style="padding:14px 20px 10px;border-bottom:1px solid var(--bd);background:var(--panel);display:flex;align-items:center;justify-content:space-between">
+<div class="app-header">
 <div style="display:flex;align-items:center;gap:12px">
 <div style="width:6px;height:28px;background:var(--amb);box-shadow:0 0 10px rgba(227,160,40,.4)"></div>
 <div>
@@ -420,7 +466,7 @@ button{font-family:var(--f3);cursor:pointer}input,select{font-family:var(--f3)}
 <button class="tb" onclick="sw('health',this)">◎ STATUS</button>
 </div>
 
-<div style="padding:16px 20px;max-width:680px;margin:0 auto">
+<div class="main-content">
 
 <!-- PIPELINE -->
 <div id="t-pipeline">
@@ -430,7 +476,7 @@ button{font-family:var(--f3);cursor:pointer}input,select{font-family:var(--f3)}
 
 <!-- RUNS -->
 <div id="t-runs" class="hd">
-<div id="rs" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px"></div>
+<div id="rs" class="stats-grid"></div>
 <div class="pnl" id="rl"></div>
 </div>
 
