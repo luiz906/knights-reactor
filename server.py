@@ -76,11 +76,12 @@ def log_entry(phase, level, msg):
     LOGS.append({"t": datetime.now().strftime("%H:%M:%S"), "phase": phase, "level": level, "msg": msg})
     if len(LOGS) > 500: LOGS.pop(0)
 
-def execute_pipeline():
+def execute_pipeline(resume_from: int = 0):
     apply_model_settings()  # Reload model selections before each run
     CURRENT_RUN.update({"active": True, "started": datetime.now().isoformat(), "result": None, "phase": 0, "phase_name": "", "phases_done": []})
-    LOGS.clear()
-    log_entry("System", "info", "Pipeline started")
+    if resume_from == 0:
+        LOGS.clear()
+    log_entry("System", "info", f"Pipeline {'resumed from phase ' + str(resume_from) if resume_from else 'started'}")
 
     def on_phase(phase_index, phase_name, status):
         if status == "running":
@@ -92,7 +93,7 @@ def execute_pipeline():
                 CURRENT_RUN["phases_done"].append(phase_index)
             log_entry(phase_name, "ok", f"Complete ✓")
 
-    result = run_pipeline(progress_cb=on_phase)
+    result = run_pipeline(progress_cb=on_phase, resume_from=resume_from)
     CURRENT_RUN.update({"active": False, "result": result})
     run_entry = {
         "id": len(RUNS) + 1, "date": datetime.now().strftime("%b %d, %I:%M %p"),
@@ -109,8 +110,22 @@ def execute_pipeline():
 @app.post("/api/run")
 async def trigger_run(bg: BackgroundTasks):
     if CURRENT_RUN["active"]: return JSONResponse({"error": "Already running"}, 409)
-    bg.add_task(execute_pipeline)
+    bg.add_task(execute_pipeline, 0)
     return {"status": "started"}
+
+@app.post("/api/resume")
+async def trigger_resume(bg: BackgroundTasks):
+    """Resume pipeline from the last failed phase."""
+    if CURRENT_RUN["active"]: return JSONResponse({"error": "Already running"}, 409)
+    # Determine which phase to resume from
+    last_result = CURRENT_RUN.get("result", {}) or {}
+    failed_phase = last_result.get("failed_phase", 0)
+    # Check checkpoint exists
+    import os
+    if not os.path.exists("/tmp/pipeline_checkpoint.json"):
+        return JSONResponse({"error": "No checkpoint found — run fresh pipeline instead"}, 400)
+    bg.add_task(execute_pipeline, failed_phase)
+    return {"status": "resuming", "from_phase": failed_phase}
 
 @app.get("/api/status")
 async def get_status():
@@ -300,6 +315,7 @@ button{font-family:var(--f3);cursor:pointer}input,select{font-family:var(--f3)}
 <div style="display:flex;align-items:center;gap:10px">
 <span id="pi" class="hd" style="font-family:var(--f3);font-size:9px;color:var(--blu);letter-spacing:1px"></span>
 <button id="rb" onclick="runNow()" style="font-family:var(--f1);font-size:9px;font-weight:600;color:var(--bg);background:var(--amb);border:none;padding:9px 16px;letter-spacing:2px;transition:all .2s;box-shadow:0 0 10px rgba(227,160,40,.3)" onmouseover="this.style.boxShadow='0 0 20px rgba(227,160,40,.5)'" onmouseout="this.style.boxShadow='0 0 10px rgba(227,160,40,.3)'">▶ EXECUTE</button>
+<button id="rsb" onclick="resumeNow()" style="font-family:var(--f1);font-size:9px;font-weight:600;color:var(--amb);background:transparent;border:1px solid var(--amb);padding:9px 16px;letter-spacing:2px;transition:all .2s;display:none;margin-left:8px" onmouseover="this.style.background='rgba(227,160,40,.15)'" onmouseout="this.style.background='transparent'">♻ RESUME</button>
 </div></div>
 
 <!-- TABS -->
@@ -413,10 +429,12 @@ function rP(){
     h+=`<div class="ph ${c}"><div style="display:flex;align-items:center;gap:10px"><span style="font-size:12px;width:18px;text-align:center;color:${nc}">${p.i}</span><div style="flex:1"><div style="font-family:var(--f1);font-size:9px;font-weight:600;letter-spacing:2px;color:${nt}">${p.n}</div><div style="font-size:8px;color:var(--txtdd);margin-top:2px;letter-spacing:1px">${p.a} · ${p.d}</div></div><div style="display:flex;align-items:center;gap:6px">${sl?`<span style="font-family:var(--f1);font-size:7px;color:${nc};letter-spacing:2px">${sl}</span>`:''}${B(s)}</div></div></div>`;
   });$('pl').innerHTML=h;
   if(RN){$('pg').style.display='block';$('pb').style.width=(PD.length/PHS.length*100)+'%';$('pi').textContent='PHASE '+(PH+1)+'/11';$('pi').style.display='inline';$('rb').textContent='⏳ PROCESSING';$('rb').style.background='var(--bg)';$('rb').style.color='var(--txtd)';$('rb').style.border='1px solid var(--bd)';$('rb').style.boxShadow='none';}
-  else{$('pg').style.display='none';$('pi').style.display='none';$('rb').textContent='▶ EXECUTE';$('rb').style.background='var(--amb)';$('rb').style.color='var(--bg)';$('rb').style.border='none';$('rb').style.boxShadow='0 0 10px rgba(227,160,40,.3)';}
+  else{$('pg').style.display='none';$('pi').style.display='none';$('rb').textContent='▶ EXECUTE';$('rb').style.background='var(--amb)';$('rb').style.color='var(--bg)';$('rb').style.border='none';$('rb').style.boxShadow='0 0 10px rgba(227,160,40,.3)';
+  if(d.result&&d.result.status==='failed'){$('rsb').style.display='inline-block';}else{$('rsb').style.display='none';}}
 }
 
-async function runNow(){if(RN)return;await fetch('/api/run',{method:'POST'});RN=true;PH=0;PD=[];rP();poll();}
+async function runNow(){if(RN)return;await fetch('/api/run',{method:'POST'});RN=true;PH=0;PD=[];$('rsb').style.display='none';rP();poll();}
+async function resumeNow(){if(RN)return;const r=await fetch('/api/resume',{method:'POST'});const d=await r.json();if(r.ok){RN=true;PD=[];$('rsb').style.display='none';rP();poll();}else{alert(d.error||'Resume failed');}}
 async function poll(){if(!RN)return;try{const r=await(await fetch('/api/status')).json();PH=r.phase;PD=r.phases_done||[];if(r.result)LAST_RESULT=r.result;if(!r.running){RN=false;rP();rPv();return;}RN=true;rP();setTimeout(poll,2000);}catch(e){setTimeout(poll,3000);}}
 
 async function loadRuns(){try{const runs=await(await fetch('/api/runs')).json();const t=runs.length,ok=runs.filter(r=>r.status==='published'||r.status==='complete').length;

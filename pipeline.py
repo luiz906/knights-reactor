@@ -723,13 +723,24 @@ def upload_to_r2(folder: str, filename: str, data, content_type: str) -> str:
 
     if isinstance(data, bytes):
         s3.put_object(Bucket=Config.R2_BUCKET, Key=key, Body=data, ContentType=content_type)
+    elif isinstance(data, str) and data.startswith("http"):
+        # URL — download first, detect real format
+        r = requests.get(data, timeout=120)
+        r.raise_for_status()
+        # Detect actual content type from response or URL
+        real_ct = r.headers.get("content-type", content_type).split(";")[0].strip()
+        # Fix extension mismatch: if we named it .mp4 but got webm
+        if "webm" in real_ct or data.lower().endswith(".webm"):
+            key = key.rsplit(".", 1)[0] + ".webm"
+            real_ct = "video/webm"
+        elif "mp4" in real_ct or data.lower().endswith(".mp4"):
+            real_ct = "video/mp4"
+        else:
+            real_ct = content_type  # fallback to what caller said
+        s3.put_object(Bucket=Config.R2_BUCKET, Key=key, Body=r.content, ContentType=real_ct)
+        log.info(f"   R2 upload: {key} ({real_ct}, {len(r.content)//1024}KB)")
     elif isinstance(data, str):
         s3.put_object(Bucket=Config.R2_BUCKET, Key=key, Body=data.encode(), ContentType=content_type)
-    else:
-        # URL — download first then upload
-        r = requests.get(data, timeout=60)
-        r.raise_for_status()
-        s3.put_object(Bucket=Config.R2_BUCKET, Key=key, Body=r.content, ContentType=content_type)
 
     url = f"{Config.R2_PUBLIC_URL}/{key}"
     return url
@@ -775,7 +786,7 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
     for clip in clips:
         dur = 10.0  # Default clip duration
         video_clips.append({
-            "asset": {"type": "video", "src": clip["r2_url"], "volume": 0},
+            "asset": {"type": "video", "src": clip["r2_url"], "volume": 0, "transcode": True},
             "start": round(cursor, 3),
             "length": dur,
             "fit": "cover",
@@ -1022,10 +1033,36 @@ def publish_everywhere(final_video_url: str, captions: dict, topic: dict):
 # MAIN PIPELINE
 # ══════════════════════════════════════════════════════════════
 
-def run_pipeline(progress_cb=None) -> dict:
-    """Execute the full pipeline. Returns result summary."""
+def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
+    """Execute the full pipeline with checkpoint/resume support.
+    
+    resume_from: Phase index to resume from (0 = start fresh).
+    Checkpoints are saved after each phase to /tmp/pipeline_checkpoint.json
+    """
+    CHECKPOINT_FILE = "/tmp/pipeline_checkpoint.json"
     start = time.time()
     result = {"status": "running", "phases": [], "error": None}
+
+    # Load checkpoint if resuming
+    ckpt = {}
+    if resume_from > 0:
+        try:
+            with open(CHECKPOINT_FILE, "r") as f:
+                ckpt = json.load(f)
+            log.info(f"♻️  Resuming from phase {resume_from} (checkpoint loaded)")
+        except Exception as e:
+            log.error(f"No checkpoint found: {e}")
+            return {"status": "failed", "error": f"No checkpoint found for resume: {e}", "phases": []}
+
+    def save_checkpoint(phase_idx, data):
+        """Save accumulated state after each phase."""
+        ckpt.update(data)
+        ckpt["_last_phase"] = phase_idx
+        try:
+            with open(CHECKPOINT_FILE, "w") as f:
+                json.dump(ckpt, f)
+        except Exception as e:
+            log.warning(f"Checkpoint save failed: {e}")
 
     def notify(idx, name, status):
         if progress_cb:
@@ -1033,78 +1070,149 @@ def run_pipeline(progress_cb=None) -> dict:
             except: pass
 
     try:
-        # Phase 1: Fetch topic
-        notify(0, "Fetch Topic", "running")
-        topic = fetch_topic()
-        update_airtable(topic["airtable_id"], {"Status": "Processing"})
-        result["phases"].append({"name": "Fetch Topic", "status": "done"})
-        result["topic"] = topic
-        notify(0, "Fetch Topic", "done")
+        # ── Phase 1: Fetch topic ────────────────────────────────
+        if resume_from <= 0:
+            notify(0, "Fetch Topic", "running")
+            topic = fetch_topic()
+            update_airtable(topic["airtable_id"], {"Status": "Processing"})
+            result["phases"].append({"name": "Fetch Topic", "status": "done"})
+            result["topic"] = topic
+            save_checkpoint(0, {"topic": topic})
+            notify(0, "Fetch Topic", "done")
+        else:
+            topic = ckpt["topic"]
+            result["topic"] = topic
+            result["phases"].append({"name": "Fetch Topic", "status": "done"})
+            notify(0, "Fetch Topic", "done")
 
-        # Phase 2: Generate script
-        notify(1, "Generate Script", "running")
-        script = generate_script(topic)
-        result["phases"].append({"name": "Generate Script", "status": "done"})
-        result["script"] = script
-        notify(1, "Generate Script", "done")
+        # ── Phase 2: Generate script ────────────────────────────
+        if resume_from <= 1:
+            notify(1, "Generate Script", "running")
+            script = generate_script(topic) if resume_from < 1 else ckpt.get("script") or generate_script(topic)
+            result["phases"].append({"name": "Generate Script", "status": "done"})
+            result["script"] = script
+            save_checkpoint(1, {"script": script})
+            notify(1, "Generate Script", "done")
+        else:
+            script = ckpt["script"]
+            result["script"] = script
+            result["phases"].append({"name": "Generate Script", "status": "done"})
+            notify(1, "Generate Script", "done")
 
-        # Phase 3: Scene engine
-        notify(2, "Scene Engine", "running")
-        clips = scene_engine(script, topic)
-        result["phases"].append({"name": "Scene Engine", "status": "done"})
-        notify(2, "Scene Engine", "done")
+        # ── Phase 3: Scene engine ───────────────────────────────
+        if resume_from <= 2:
+            notify(2, "Scene Engine", "running")
+            clips = scene_engine(script, topic) if resume_from < 2 else ckpt.get("clips") or scene_engine(script, topic)
+            result["phases"].append({"name": "Scene Engine", "status": "done"})
+            save_checkpoint(2, {"clips": clips})
+            notify(2, "Scene Engine", "done")
+        else:
+            clips = ckpt["clips"]
+            result["phases"].append({"name": "Scene Engine", "status": "done"})
+            notify(2, "Scene Engine", "done")
 
-        # Phase 4: Generate images
-        notify(3, "Generate Images", "running")
-        clips = generate_images(clips)
-        result["phases"].append({"name": "Generate Images", "status": "done"})
-        result["images"] = [{"index": c["index"], "url": c["image_url"], "prompt": c.get("image_prompt","")} for c in clips]
-        notify(3, "Generate Images", "done")
+        # ── Phase 4: Generate images ────────────────────────────
+        if resume_from <= 3:
+            notify(3, "Generate Images", "running")
+            clips = generate_images(clips) if resume_from < 3 else (ckpt.get("clips_with_images") or generate_images(clips))
+            result["phases"].append({"name": "Generate Images", "status": "done"})
+            result["images"] = [{"index": c["index"], "url": c["image_url"], "prompt": c.get("image_prompt","")} for c in clips]
+            save_checkpoint(3, {"clips_with_images": clips})
+            notify(3, "Generate Images", "done")
+        else:
+            clips = ckpt["clips_with_images"]
+            result["images"] = [{"index": c["index"], "url": c["image_url"], "prompt": c.get("image_prompt","")} for c in clips]
+            result["phases"].append({"name": "Generate Images", "status": "done"})
+            notify(3, "Generate Images", "done")
 
-        # Phase 5: Generate videos
-        notify(4, "Generate Videos", "running")
-        clips = generate_videos(clips)
-        result["phases"].append({"name": "Generate Videos", "status": "done"})
-        result["videos"] = [{"index": c["index"], "url": c["video_url"]} for c in clips]
-        notify(4, "Generate Videos", "done")
+        # ── Phase 5: Generate videos ────────────────────────────
+        if resume_from <= 4:
+            notify(4, "Generate Videos", "running")
+            clips = generate_videos(clips) if resume_from < 4 else (ckpt.get("clips_with_videos") or generate_videos(clips))
+            result["phases"].append({"name": "Generate Videos", "status": "done"})
+            result["videos"] = [{"index": c["index"], "url": c["video_url"]} for c in clips]
+            save_checkpoint(4, {"clips_with_videos": clips})
+            notify(4, "Generate Videos", "done")
+        else:
+            clips = ckpt["clips_with_videos"]
+            result["videos"] = [{"index": c["index"], "url": c["video_url"]} for c in clips]
+            result["phases"].append({"name": "Generate Videos", "status": "done"})
+            notify(4, "Generate Videos", "done")
 
-        # Phase 6: Voiceover
-        notify(5, "Voiceover", "running")
-        audio = generate_voiceover(script)
-        result["phases"].append({"name": "Voiceover", "status": "done"})
-        result["voiceover_size"] = len(audio)
-        notify(5, "Voiceover", "done")
+        # ── Phase 6: Voiceover ──────────────────────────────────
+        if resume_from <= 5:
+            notify(5, "Voiceover", "running")
+            audio = generate_voiceover(script)
+            result["phases"].append({"name": "Voiceover", "status": "done"})
+            result["voiceover_size"] = len(audio)
+            # Save audio as base64 in checkpoint (it's bytes)
+            import base64
+            save_checkpoint(5, {"audio_b64": base64.b64encode(audio).decode()})
+            notify(5, "Voiceover", "done")
+        else:
+            import base64
+            audio = base64.b64decode(ckpt["audio_b64"])
+            result["voiceover_size"] = len(audio)
+            result["phases"].append({"name": "Voiceover", "status": "done"})
+            notify(5, "Voiceover", "done")
 
-        # Phase 7: Transcribe
-        notify(6, "Transcribe", "running")
-        transcription = transcribe_voiceover(audio)
-        result["phases"].append({"name": "Transcribe", "status": "done"})
-        notify(6, "Transcribe", "done")
+        # ── Phase 7: Transcribe ─────────────────────────────────
+        if resume_from <= 6:
+            notify(6, "Transcribe", "running")
+            transcription = transcribe_voiceover(audio)
+            result["phases"].append({"name": "Transcribe", "status": "done"})
+            save_checkpoint(6, {"transcription": transcription})
+            notify(6, "Transcribe", "done")
+        else:
+            transcription = ckpt["transcription"]
+            result["phases"].append({"name": "Transcribe", "status": "done"})
+            notify(6, "Transcribe", "done")
 
-        # Phase 8: Upload to R2
-        notify(7, "Upload Assets", "running")
-        folder = f"{topic['airtable_id']}_{topic['idea'][:30]}"
-        folder = re.sub(r'[^a-zA-Z0-9_-]', '_', folder)
-        srt = create_srt(script["script_full"])
-        urls = upload_assets(folder, clips, audio, srt)
-        result["phases"].append({"name": "Upload to R2", "status": "done"})
-        notify(7, "Upload Assets", "done")
+        # ── Phase 8: Upload to R2 ──────────────────────────────
+        if resume_from <= 7:
+            notify(7, "Upload Assets", "running")
+            folder = f"{topic['airtable_id']}_{topic['idea'][:30]}"
+            folder = re.sub(r'[^a-zA-Z0-9_-]', '_', folder)
+            srt = create_srt(script["script_full"])
+            urls = upload_assets(folder, clips, audio, srt)
+            result["phases"].append({"name": "Upload to R2", "status": "done"})
+            save_checkpoint(7, {"folder": folder, "urls": urls, "clips_uploaded": clips})
+            notify(7, "Upload Assets", "done")
+        else:
+            folder = ckpt["folder"]
+            urls = ckpt["urls"]
+            clips = ckpt.get("clips_uploaded", clips)
+            result["phases"].append({"name": "Upload to R2", "status": "done"})
+            notify(7, "Upload Assets", "done")
 
-        # Phase 9: Final render
-        notify(8, "Final Render", "running")
-        final_url = render_video(clips, urls["voiceover"], urls["srt"])
-        final_r2_url = upload_to_r2(folder, "final.mp4", final_url, "video/mp4")
-        result["phases"].append({"name": "Final Render", "status": "done"})
-        result["final_video"] = final_r2_url
-        notify(8, "Final Render", "done")
+        # ── Phase 9: Final render ──────────────────────────────
+        if resume_from <= 8:
+            notify(8, "Final Render", "running")
+            final_url = render_video(clips, urls["voiceover"], urls["srt"])
+            final_r2_url = upload_to_r2(folder, "final.mp4", final_url, "video/mp4")
+            result["phases"].append({"name": "Final Render", "status": "done"})
+            result["final_video"] = final_r2_url
+            save_checkpoint(8, {"final_r2_url": final_r2_url})
+            notify(8, "Final Render", "done")
+        else:
+            final_r2_url = ckpt["final_r2_url"]
+            result["final_video"] = final_r2_url
+            result["phases"].append({"name": "Final Render", "status": "done"})
+            notify(8, "Final Render", "done")
 
-        # Phase 10: Captions
-        notify(9, "Captions", "running")
-        captions = generate_captions(script, topic)
-        result["phases"].append({"name": "Generate Captions", "status": "done"})
-        notify(9, "Captions", "done")
+        # ── Phase 10: Captions ──────────────────────────────────
+        if resume_from <= 9:
+            notify(9, "Captions", "running")
+            captions = generate_captions(script, topic)
+            result["phases"].append({"name": "Generate Captions", "status": "done"})
+            save_checkpoint(9, {"captions": captions})
+            notify(9, "Captions", "done")
+        else:
+            captions = ckpt["captions"]
+            result["phases"].append({"name": "Generate Captions", "status": "done"})
+            notify(9, "Captions", "done")
 
-        # Phase 11: Publish
+        # ── Phase 11: Publish ───────────────────────────────────
         notify(10, "Publish", "running")
         publish_everywhere(final_r2_url, captions, topic)
         result["phases"].append({"name": "Publish", "status": "done"})
@@ -1121,10 +1229,16 @@ def run_pipeline(progress_cb=None) -> dict:
         result["duration"] = f"{elapsed}s"
         log.info(f"\n✅ Pipeline complete in {elapsed}s — {final_r2_url}")
 
+        # Clean up checkpoint on success
+        try: os.remove(CHECKPOINT_FILE)
+        except: pass
+
     except Exception as e:
         result["status"] = "failed"
         result["error"] = str(e)
-        log.error(f"\n❌ Pipeline failed: {e}")
+        # Track which phase we were on for resume
+        result["failed_phase"] = ckpt.get("_last_phase", 0) + 1 if ckpt.get("_last_phase") is not None else 0
+        log.error(f"\n❌ Pipeline failed at phase {result['failed_phase']}: {e}")
 
         # Update Airtable if we have the topic
         if "topic" in result:
