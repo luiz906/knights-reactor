@@ -127,7 +127,7 @@ async def save_credentials(req: Request):
 async def login(req: Request):
     body = await req.json()
     pw = body.get("password", "")
-    correct = os.getenv("ADMIN_PASSWORD", "Coogs@9006")
+    correct = os.getenv("ADMIN_PASSWORD", "")
     if pw == correct:
         return {"ok": True}
     return JSONResponse({"ok": False, "error": "Wrong password"}, 401)
