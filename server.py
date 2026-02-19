@@ -575,7 +575,7 @@ function rP(){
   });$('pl').innerHTML=h;
   if(RN){$('pg').style.display='block';$('pb').style.width=(PD.length/PHS.length*100)+'%';$('pi').textContent='PHASE '+(PH+1)+'/11';$('pi').style.display='inline';$('rb').textContent='⏳ PROCESSING';$('rb').style.background='var(--bg)';$('rb').style.color='var(--txtd)';$('rb').style.border='1px solid var(--bd)';$('rb').style.boxShadow='none';}
   else{$('pg').style.display='none';$('pi').style.display='none';$('rb').textContent='▶ EXECUTE';$('rb').style.background='var(--amb)';$('rb').style.color='var(--bg)';$('rb').style.border='none';$('rb').style.boxShadow='0 0 10px rgba(227,160,40,.3)';
-  if(d.result&&d.result.status==='failed'){$('rsb').style.display='inline-block';}else{$('rsb').style.display='none';}}
+  if(LAST_RESULT&&LAST_RESULT.status==='failed'){$('rsb').style.display='inline-block';}else{$('rsb').style.display='none';}}
 }
 
 async function runNow(){if(RN)return;await fetch('/api/run',{method:'POST'});RN=true;PH=0;PD=[];$('rsb').style.display='none';rP();poll();}
