@@ -555,7 +555,7 @@ def generate_images(clips: list) -> list:
     for clip in clips:
         url = replicate_create(Config.IMAGE_MODEL, {
             "prompt": clip["image_prompt"],
-            "size": "1024x1792",
+            "aspect_ratio": "9:16",
             "quality": "high",
         })
         clip["image_poll_url"] = url
@@ -581,6 +581,7 @@ def generate_videos(clips: list) -> list:
         url = replicate_create(Config.VIDEO_MODEL, {
             "image": clip["image_url"],
             "prompt": clip["motion_prompt"],
+            "aspect_ratio": "9:16",
         })
         clip["video_poll_url"] = url
         log.info(f"   Clip {clip['index']}: submitted")
