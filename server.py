@@ -139,6 +139,62 @@ def execute_pipeline(resume_from: int = 0):
     log_entry("System", "ok" if result.get("status") == "published" else "error", f"Pipeline finished: {result.get('status')}")
 
 # ─── API ──────────────────────────────────────────────────────
+
+# ─── GITHUB AUTO-DEPLOY ──────────────────────────────────────
+@app.post("/api/deploy")
+async def deploy_files(req: Request):
+    """Accept file updates and commit them to GitHub.
+    Body: {"files": {"pipeline.py": "content...", "server.py": "content..."}, "message": "commit msg"}
+    Requires GITHUB_TOKEN env var (Personal Access Token with repo scope).
+    """
+    import base64 as b64
+    body = await req.json()
+    files = body.get("files", {})
+    message = body.get("message", "Auto-deploy from Claude")
+    
+    token = os.getenv("GITHUB_TOKEN", "")
+    if not token:
+        return JSONResponse({"error": "GITHUB_TOKEN not set in environment"}, 400)
+    
+    repo = "luiz906/knights-reactor"
+    api = f"https://api.github.com/repos/{repo}/contents"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json",
+        "Content-Type": "application/json",
+    }
+    
+    import requests as rq
+    results = {}
+    for filename, content in files.items():
+        # Get current file SHA (needed for updates)
+        sha = None
+        try:
+            r = rq.get(f"{api}/{filename}", headers=headers, timeout=15)
+            if r.status_code == 200:
+                sha = r.json().get("sha")
+        except:
+            pass
+        
+        # Commit the file
+        payload = {
+            "message": f"{message} [{filename}]",
+            "content": b64.b64encode(content.encode("utf-8")).decode("utf-8"),
+        }
+        if sha:
+            payload["sha"] = sha  # Update existing file
+        
+        try:
+            r = rq.put(f"{api}/{filename}", headers=headers, json=payload, timeout=30)
+            if r.status_code in (200, 201):
+                results[filename] = "committed"
+            else:
+                results[filename] = f"failed: {r.status_code} {r.text[:200]}"
+        except Exception as e:
+            results[filename] = f"error: {str(e)}"
+    
+    return {"status": "deployed", "files": results, "message": message}
+
 @app.post("/api/run")
 async def trigger_run(bg: BackgroundTasks):
     if CURRENT_RUN["active"]: return JSONResponse({"error": "Already running"}, 409)
