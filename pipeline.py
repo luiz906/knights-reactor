@@ -973,62 +973,89 @@ def publish_everywhere(final_video_url: str, captions: dict, topic: dict):
 # MAIN PIPELINE
 # ══════════════════════════════════════════════════════════════
 
-def run_pipeline() -> dict:
+def run_pipeline(progress_cb=None) -> dict:
     """Execute the full pipeline. Returns result summary."""
     start = time.time()
     result = {"status": "running", "phases": [], "error": None}
 
+    def notify(idx, name, status):
+        if progress_cb:
+            try: progress_cb(idx, name, status)
+            except: pass
+
     try:
         # Phase 1: Fetch topic
+        notify(0, "Fetch Topic", "running")
         topic = fetch_topic()
         update_airtable(topic["airtable_id"], {"Status": "Processing"})
         result["phases"].append({"name": "Fetch Topic", "status": "done"})
         result["topic"] = topic
+        notify(0, "Fetch Topic", "done")
 
         # Phase 2: Generate script
+        notify(1, "Generate Script", "running")
         script = generate_script(topic)
         result["phases"].append({"name": "Generate Script", "status": "done"})
         result["script"] = script
+        notify(1, "Generate Script", "done")
 
         # Phase 3: Scene engine
+        notify(2, "Scene Engine", "running")
         clips = scene_engine(script, topic)
         result["phases"].append({"name": "Scene Engine", "status": "done"})
+        notify(2, "Scene Engine", "done")
 
         # Phase 4: Generate images
+        notify(3, "Generate Images", "running")
         clips = generate_images(clips)
         result["phases"].append({"name": "Generate Images", "status": "done"})
+        notify(3, "Generate Images", "done")
 
         # Phase 5: Generate videos
+        notify(4, "Generate Videos", "running")
         clips = generate_videos(clips)
         result["phases"].append({"name": "Generate Videos", "status": "done"})
+        notify(4, "Generate Videos", "done")
 
         # Phase 6: Voiceover
+        notify(5, "Voiceover", "running")
         audio = generate_voiceover(script)
         result["phases"].append({"name": "Voiceover", "status": "done"})
+        notify(5, "Voiceover", "done")
 
         # Phase 7: Transcribe
+        notify(6, "Transcribe", "running")
         transcription = transcribe_voiceover(audio)
         result["phases"].append({"name": "Transcribe", "status": "done"})
+        notify(6, "Transcribe", "done")
 
         # Phase 8: Upload to R2
+        notify(7, "Upload Assets", "running")
         folder = f"{topic['airtable_id']}_{topic['idea'][:30].replace(' ', '_')}"
         srt = create_srt(script["script_full"])
         urls = upload_assets(folder, clips, audio, srt)
         result["phases"].append({"name": "Upload to R2", "status": "done"})
+        notify(7, "Upload Assets", "done")
 
         # Phase 9: Final render
+        notify(8, "Final Render", "running")
         final_url = render_video(clips, urls["voiceover"], urls["srt"])
         final_r2_url = upload_to_r2(folder, "final.mp4", final_url, "video/mp4")
         result["phases"].append({"name": "Final Render", "status": "done"})
         result["final_video"] = final_r2_url
+        notify(8, "Final Render", "done")
 
         # Phase 10: Captions
+        notify(9, "Captions", "running")
         captions = generate_captions(script, topic)
         result["phases"].append({"name": "Generate Captions", "status": "done"})
+        notify(9, "Captions", "done")
 
         # Phase 11: Publish
+        notify(10, "Publish", "running")
         publish_everywhere(final_r2_url, captions, topic)
         result["phases"].append({"name": "Publish", "status": "done"})
+        notify(10, "Publish", "done")
 
         # Update Airtable
         update_airtable(topic["airtable_id"], {

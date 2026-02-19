@@ -62,10 +62,21 @@ def log_entry(phase, level, msg):
     if len(LOGS) > 500: LOGS.pop(0)
 
 def execute_pipeline():
-    CURRENT_RUN.update({"active": True, "started": datetime.now().isoformat(), "result": None, "phase": 0, "phases_done": []})
+    CURRENT_RUN.update({"active": True, "started": datetime.now().isoformat(), "result": None, "phase": 0, "phase_name": "", "phases_done": []})
     LOGS.clear()
     log_entry("System", "info", "Pipeline started")
-    result = run_pipeline()
+
+    def on_phase(phase_index, phase_name, status):
+        if status == "running":
+            CURRENT_RUN["phase"] = phase_index
+            CURRENT_RUN["phase_name"] = phase_name
+            log_entry(phase_name, "info", f"Starting...")
+        elif status == "done":
+            if phase_index not in CURRENT_RUN["phases_done"]:
+                CURRENT_RUN["phases_done"].append(phase_index)
+            log_entry(phase_name, "ok", f"Complete ✓")
+
+    result = run_pipeline(progress_cb=on_phase)
     CURRENT_RUN.update({"active": False, "result": result})
     run_entry = {
         "id": len(RUNS) + 1, "date": datetime.now().strftime("%b %d, %I:%M %p"),
@@ -105,13 +116,12 @@ async def get_config():
 
 @app.get("/api/credentials")
 async def get_credentials():
+    """Return which creds are set (True/False only, never actual values)."""
     creds = load_json(CREDS_FILE, {})
-    masked = {}
+    status = {}
     for k, v in creds.items():
-        if v and len(v) > 8: masked[k] = v[:3] + "..." + v[-3:]
-        elif v: masked[k] = "***"
-        else: masked[k] = ""
-    return masked
+        status[k] = bool(v and len(str(v).strip()) > 0)
+    return status
 
 @app.post("/api/credentials")
 async def save_credentials(req: Request):
@@ -320,18 +330,22 @@ function rC(){
   let h='';CRS.forEach((sec,si)=>{
     const af=sec.f.every(f=>CR[f.k]&&CR[f.k].length>0),pf=sec.f.some(f=>CR[f.k]&&CR[f.k].length>0);
     let ff='';if(sec.d)ff+=`<div class="ds">${sec.d}</div>`;if(sec.l)ff+=`<a class="lb" href="${sec.l}" target="_blank">↗ ${sec.ll}</a>`;
-    sec.f.forEach(f=>{const v=CR[f.k]||'';const ok=v.length>0;
-      ff+=`<div class="fi"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span class="fl">${f.l}</span>${B(ok?'configured':'missing',ok?'set':'empty')}</div><div class="fr"><input type="${f.s?'password':'text'}" class="fin${ok?' ok':''}" value="${v}" placeholder="${f.p||''}" id="c_${f.k}" onchange="CR['${f.k}']=this.value;rC()">${f.s?`<button class="eb" onclick="var i=$('c_${f.k}');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁️':'🙈'">👁️</button>`:''}</div><div class="fh">${f.k}</div></div>`;
+    sec.f.forEach(f=>{const v=CR[f.k]||'';const ok=v.length>0;const isPlaceholder=v==='••••••••';
+      ff+=`<div class="fi"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span class="fl">${f.l}</span>${B(ok?'configured':'missing',ok?'set':'empty')}</div><div class="fr"><input type="${f.s?'password':'text'}" class="fin${ok?' ok':''}" value="${isPlaceholder?'':v}" placeholder="${ok?'••••• saved •••••':f.p||''}" id="c_${f.k}" onchange="CR['${f.k}']=this.value;rC()">${f.s?`<button class="eb" onclick="var i=$('c_${f.k}');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁️':'🙈'">👁️</button>`:''}</div><div class="fh">${f.k}</div></div>`;
     });
     h+=`<div class="sec"><button class="sec-h" onclick="this.nextElementSibling.classList.toggle('hd');this.querySelector('.sec-a').style.transform=this.nextElementSibling.classList.contains('hd')?'':'rotate(90deg)'"><div style="display:flex;align-items:center;gap:10px"><span class="sec-t">${sec.t}</span>${B(af?'configured':pf?'warning':'missing',af?'all set':pf?'partial':'needs keys')}</div><span class="sec-a">›</span></button><div class="sec-b hd">${ff}</div></div>`;
   });$('cf').innerHTML=h;
 }
 
 async function saveCreds(){
-  CRS.forEach(s=>s.f.forEach(f=>{const i=$('c_'+f.k);if(i)CR[f.k]=i.value;}));
-  await fetch('/api/credentials',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(CR)});
-  $('cs').style.display='block';setTimeout(()=>$('cs').style.display='none',3000);rC();rH();
+  const toSave={};CRS.forEach(s=>s.f.forEach(f=>{const i=$('c_'+f.k);if(i&&i.value.trim())toSave[f.k]=i.value.trim();}));
+  await fetch('/api/credentials',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(toSave)});
+  $('cs').style.display='block';setTimeout(()=>$('cs').style.display='none',3000);loadCredStatus();rH();
 }
+
+async function loadCredStatus(){try{const r=await(await fetch('/api/credentials')).json();
+  CRS.forEach(s=>s.f.forEach(f=>{if(r[f.k]===true)CR[f.k]='••••••••';else if(!CR[f.k]||CR[f.k]==='••••••••')CR[f.k]='';}));rC();}catch(e){}}
+
 
 async function rH(){try{const cfg=await(await fetch('/api/config')).json();
 const svcs=[{n:"OpenAI",d:"GPT-4o + Whisper",k:"openai"},{n:"Replicate",d:"Image + Video",k:"replicate"},{n:"ElevenLabs",d:"Voiceover",k:"elevenlabs"},{n:"Shotstack",d:"Rendering",k:"shotstack"},{n:"R2",d:"Storage",k:"r2"},{n:"Airtable",d:"Topics",k:"airtable"},{n:"Blotato",d:"Publishing",k:"blotato"}];
@@ -341,7 +355,7 @@ async function testAll(){alert('Testing connections...');for(const s of['openai'
 
 async function init(){
   rP();
-  try{const r=await(await fetch('/api/credentials')).json();CR=r;}catch(e){CR={};}
+  try{await loadCredStatus();}catch(e){CR={};}
   try{const r=await(await fetch('/api/settings')).json();STS.forEach(s=>s.f.forEach(f=>{if(r[f.k]!==undefined)ST[f.k]=r[f.k];else ST[f.k]=f.d;}));}catch(e){STS.forEach(s=>s.f.forEach(f=>ST[f.k]=f.d));}
   rSt();rC();
   try{const r=await(await fetch('/api/status')).json();if(r.running){RN=true;PH=r.phase;PD=r.phases_done||[];rP();poll();}}catch(e){}
