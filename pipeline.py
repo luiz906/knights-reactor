@@ -579,7 +579,7 @@ def openai_generate_image(prompt: str, model: str = "gpt-image-1.5",
         img_bytes = b64mod.b64decode(data["b64_json"])
         import hashlib
         name = hashlib.md5(prompt[:50].encode()).hexdigest()[:10]
-        return upload_to_r2("temp_images", f"{name}.png", img_bytes, "image/png", raw_bytes=True)
+        return upload_to_r2("temp_images", f"{name}.png", img_bytes, "image/png")
     raise RuntimeError("OpenAI image API returned no image data")
 
 
@@ -1070,18 +1070,21 @@ def run_pipeline(progress_cb=None) -> dict:
         notify(3, "Generate Images", "running")
         clips = generate_images(clips)
         result["phases"].append({"name": "Generate Images", "status": "done"})
+        result["images"] = [{"index": c["index"], "url": c["image_url"], "prompt": c.get("image_prompt","")} for c in clips]
         notify(3, "Generate Images", "done")
 
         # Phase 5: Generate videos
         notify(4, "Generate Videos", "running")
         clips = generate_videos(clips)
         result["phases"].append({"name": "Generate Videos", "status": "done"})
+        result["videos"] = [{"index": c["index"], "url": c["video_url"]} for c in clips]
         notify(4, "Generate Videos", "done")
 
         # Phase 6: Voiceover
         notify(5, "Voiceover", "running")
         audio = generate_voiceover(script)
         result["phases"].append({"name": "Voiceover", "status": "done"})
+        result["voiceover_size"] = len(audio)
         notify(5, "Voiceover", "done")
 
         # Phase 7: Transcribe
