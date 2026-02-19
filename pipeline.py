@@ -569,17 +569,24 @@ def scene_engine(script: dict, topic: dict) -> list:
 
 def replicate_create(model: str, input_data: dict) -> str:
     """Create a Replicate prediction, return the GET URL for polling."""
-    r = requests.post(
-        f"https://api.replicate.com/v1/models/{model}/predictions",
-        headers={
-            "Authorization": f"Bearer {Config.REPLICATE_TOKEN}",
-            "Content-Type": "application/json",
-        },
-        json={"input": input_data},
-        timeout=30,
-    )
-    r.raise_for_status()
-    return r.json()["urls"]["get"]
+    for attempt in range(5):
+        r = requests.post(
+            f"https://api.replicate.com/v1/models/{model}/predictions",
+            headers={
+                "Authorization": f"Bearer {Config.REPLICATE_TOKEN}",
+                "Content-Type": "application/json",
+            },
+            json={"input": input_data},
+            timeout=30,
+        )
+        if r.status_code == 429:
+            wait = min(30 * (attempt + 1), 120)
+            log.warning(f"   Rate limited (429), waiting {wait}s before retry {attempt+2}/5...")
+            time.sleep(wait)
+            continue
+        r.raise_for_status()
+        return r.json()["urls"]["get"]
+    raise Exception("Replicate rate limit: 5 retries exhausted")
 
 
 def replicate_poll(get_url: str, timeout: int = 300) -> str:
@@ -642,7 +649,7 @@ def generate_images(clips: list) -> list:
         url = replicate_create(model, params)
         clip["image_poll_url"] = url
         log.info(f"   Clip {clip['index']}: submitted")
-        time.sleep(3)
+        time.sleep(8)  # Avoid 429 rate limits
 
     for clip in clips:
         clip["image_url"] = replicate_poll(clip["image_poll_url"])
