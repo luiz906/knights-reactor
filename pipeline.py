@@ -1291,6 +1291,30 @@ def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
         # ── Phase 9: Final render ──────────────────────────────
         if resume_from <= 8:
             notify(8, "Final Render", "running")
+            # Fix-up: ensure R2 clips have correct format/extension
+            s3 = get_s3_client()
+            for clip in clips:
+                r2_url = clip.get("r2_url", "")
+                if not r2_url or not r2_url.endswith(".mp4"):
+                    continue
+                try:
+                    hr = requests.head(r2_url, timeout=5, allow_redirects=True)
+                    ct = hr.headers.get("content-type", "")
+                    # Also download first 4 bytes to check magic
+                    pr = requests.get(r2_url, timeout=10, headers={"Range": "bytes=0-3"})
+                    magic = pr.content[:4]
+                    if magic == b'\x1a\x45\xdf\xa3' or "webm" in ct:
+                        # It's WebM but named .mp4 — re-upload with correct key
+                        log.warning(f"   Fixing {r2_url} — WebM detected, renaming to .webm")
+                        full = requests.get(r2_url, timeout=120)
+                        old_key = r2_url.split(Config.R2_PUBLIC_URL + "/")[-1]
+                        new_key = old_key.rsplit(".", 1)[0] + ".webm"
+                        s3.put_object(Bucket=Config.R2_BUCKET, Key=new_key, Body=full.content, ContentType="video/webm")
+                        clip["r2_url"] = f"{Config.R2_PUBLIC_URL}/{new_key}"
+                        log.info(f"   Fixed: {clip['r2_url']}")
+                except Exception as e:
+                    log.warning(f"   Format check failed for {r2_url}: {e}")
+
             final_url = render_video(clips, urls["voiceover"], urls["srt"])
             final_r2_url = upload_to_r2(folder, "final.mp4", final_url, "video/mp4")
             result["phases"].append({"name": "Final Render", "status": "done"})
