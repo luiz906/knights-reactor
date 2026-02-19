@@ -1178,7 +1178,8 @@ def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
     resume_from: Phase index to resume from (0 = start fresh).
     Checkpoints are saved after each phase to /tmp/pipeline_checkpoint.json
     """
-    CHECKPOINT_FILE = str(Path(__file__).parent / "data" / "pipeline_checkpoint.json")
+    _data_dir = Path("/var/data") if Path("/var/data").exists() else Path(__file__).parent / "data"
+    CHECKPOINT_FILE = str(_data_dir / "pipeline_checkpoint.json")
     start = time.time()
     result = {"status": "running", "phases": [], "error": None}
 

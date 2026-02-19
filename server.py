@@ -19,7 +19,7 @@ app = FastAPI(title="Knights Reactor")
 SESSION_TOKEN = secrets.token_hex(32)
 
 # ─── PERSISTENT STORAGE ──────────────────────────────────────
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = Path("/var/data") if Path("/var/data").exists() else Path(__file__).parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 CREDS_FILE = DATA_DIR / "credentials.json"
 SETTINGS_FILE = DATA_DIR / "settings.json"
