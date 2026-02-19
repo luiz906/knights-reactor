@@ -104,17 +104,13 @@ RUNS = load_json(RUNS_FILE, []) if RUNS_FILE.exists() else []
 CURRENT_RUN = {"active": False, "result": None, "phase": 0, "phase_name": "", "phases_done": []}
 LOGS = []
 
-# Restore last failed run from checkpoint so Resume works after restart
-_ckpt_path = Path("/tmp/pipeline_checkpoint.json")
-if _ckpt_path.exists():
-    try:
-        _ckpt = load_json(_ckpt_path, {})
-        _last_phase = _ckpt.get("phase", 0)
-        if _last_phase > 0:
-            CURRENT_RUN["result"] = {"status": "failed", "failed_phase": _last_phase, "error": "Interrupted (server restart)"}
-            CURRENT_RUN["phases_done"] = list(range(_last_phase))
-    except Exception:
-        pass
+# Restore last failed run state so Resume works after restart/deploy
+if RUNS:
+    _last_run = RUNS[0]  # most recent
+    if _last_run.get("status") in ("failed", "error"):
+        _fp = _last_run.get("failed_phase", 0)
+        CURRENT_RUN["result"] = {"status": "failed", "failed_phase": _fp, "error": _last_run.get("error", "Previous run failed")}
+        CURRENT_RUN["phases_done"] = list(range(_fp))
 
 def log_entry(phase, level, msg):
     LOGS.append({"t": datetime.now().strftime("%H:%M:%S"), "phase": phase, "level": level, "msg": msg})
@@ -144,7 +140,7 @@ def execute_pipeline(resume_from: int = 0):
         "topic": result.get("topic", {}).get("idea", "Unknown"),
         "category": result.get("topic", {}).get("category", ""),
         "status": result.get("status", "failed"), "duration": result.get("duration", "?"),
-        "error": result.get("error"),
+        "error": result.get("error"), "failed_phase": result.get("failed_phase", 0),
     }
     RUNS.insert(0, run_entry)
     save_json(RUNS_FILE, RUNS[:100])
@@ -222,7 +218,7 @@ async def trigger_resume(bg: BackgroundTasks):
     failed_phase = last_result.get("failed_phase", 0)
     # Check checkpoint exists
     import os
-    if not os.path.exists("/tmp/pipeline_checkpoint.json"):
+    if not os.path.exists("/tmp/pipeline_checkpoint.json") and not os.path.exists(DATA_DIR / "pipeline_checkpoint.json"):
         return JSONResponse({"error": "No checkpoint found — run fresh pipeline instead"}, 400)
     bg.add_task(execute_pipeline, failed_phase)
     return {"status": "resuming", "from_phase": failed_phase}
@@ -571,7 +567,7 @@ const STS=[
 {t:"IMAGE GENERATION",f:[{k:"image_provider",l:"Provider",tp:"select",o:["replicate"],d:"replicate"},{k:"image_model",l:"Model",tp:"select",o:[],d:"black-forest-labs/flux-1.1-pro",dep:"image_provider"},{k:"image_quality",l:"Quality",tp:"select",o:["low","medium","high"],d:"high"}]},
 {t:"VIDEO GENERATION",f:[{k:"video_provider",l:"Provider",tp:"select",o:["replicate"],d:"replicate"},{k:"video_model",l:"Model",tp:"select",o:[],d:"bytedance/seedance-1-lite",dep:"video_provider"},{k:"clip_count",l:"Clips",tp:"select",o:["2","3","4","5"],d:"3"},{k:"clip_duration",l:"Clip Duration",tp:"select",o:["5","8","10","12","15"],d:"10"},{k:"_vid_total",l:"",tp:"computed"},{k:"video_timeout",l:"Timeout (sec)",d:"600"}]},
 {t:"RENDER OUTPUT",f:[{k:"render_fps",l:"FPS",tp:"select",o:["24","30","60"],d:"30"},{k:"render_res",l:"Resolution",tp:"select",o:["720","1080"],d:"1080"},{k:"render_aspect",l:"Aspect Ratio",tp:"select",o:["9:16","16:9","1:1"],d:"9:16"},{k:"render_bg",l:"Background Color",d:"#000000"}]},
-{t:"WATERMARK / LOGO",f:[{k:"logo_enabled",l:"Show Logo",tp:"toggle",d:true},{k:"logo_url",l:"Logo URL",d:"https://pub-b96dc727407242919393b2bef35ade2f.r2.dev/gods_knights.png"},{k:"logo_position",l:"Position",tp:"select",o:["topRight","topLeft","bottomRight","bottomLeft","center"],d:"topRight"},{k:"logo_scale",l:"Scale",d:"0.12"},{k:"logo_opacity",l:"Opacity",d:"0.8"}]},
+{t:"WATERMARK / LOGO",f:[{k:"logo_enabled",l:"Show Logo",tp:"toggle",d:true},{k:"logo_url",l:"Logo URL",d:"https://pub-8d4a1338211a44a7875ebe6ac8487129.r2.dev/gods_knights.png"},{k:"logo_position",l:"Position",tp:"select",o:["topRight","topLeft","bottomRight","bottomLeft","center"],d:"topRight"},{k:"logo_scale",l:"Scale",d:"0.12"},{k:"logo_opacity",l:"Opacity",d:"0.8"}]},
 {t:"SCHEDULE",f:[{k:"sched_int",l:"Every (hours)",tp:"select",o:["4","6","8","12","24"],d:"8"},{k:"post_tt",l:"TikTok Time",d:"3:00 PM"},{k:"post_yt",l:"YouTube Time",d:"1:30 PM"},{k:"post_ig",l:"Instagram Time",d:"12:00 PM"},{k:"post_fb",l:"Facebook Time",d:"2:00 PM"}]},
 {t:"PLATFORMS",f:[{k:"on_tt",l:"TikTok",tp:"toggle",d:true},{k:"on_yt",l:"YouTube",tp:"toggle",d:true},{k:"on_ig",l:"Instagram",tp:"toggle",d:true},{k:"on_fb",l:"Facebook",tp:"toggle",d:true},{k:"on_tw",l:"X/Twitter",tp:"toggle",d:true},{k:"on_th",l:"Threads",tp:"toggle",d:true},{k:"on_pn",l:"Pinterest",tp:"toggle",d:false}]}
 ];

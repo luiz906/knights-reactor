@@ -73,7 +73,7 @@ class Config:
     RENDER_BG         = "#000000"
 
     # Logo / Watermark
-    LOGO_URL          = "https://pub-b96dc727407242919393b2bef35ade2f.r2.dev/gods_knights.png"
+    LOGO_URL          = env("LOGO_URL", "https://pub-8d4a1338211a44a7875ebe6ac8487129.r2.dev/gods_knights.png")
     LOGO_ENABLED      = True
     LOGO_POSITION     = "topRight"
     LOGO_SCALE        = 0.12
@@ -1178,7 +1178,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
     resume_from: Phase index to resume from (0 = start fresh).
     Checkpoints are saved after each phase to /tmp/pipeline_checkpoint.json
     """
-    CHECKPOINT_FILE = "/tmp/pipeline_checkpoint.json"
+    CHECKPOINT_FILE = str(Path(__file__).parent / "data" / "pipeline_checkpoint.json")
     start = time.time()
     result = {"status": "running", "phases": [], "error": None}
 
