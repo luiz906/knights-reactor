@@ -782,23 +782,38 @@ def upload_to_r2(folder: str, filename: str, data, content_type: str) -> str:
     key = f"{folder}/{filename}"
 
     if isinstance(data, bytes):
+        # Check if bytes are actually webm when named mp4
+        if filename.endswith(".mp4") and data[:4] == b'\x1a\x45\xdf\xa3':
+            filename = filename.rsplit(".", 1)[0] + ".webm"
+            content_type = "video/webm"
+            key = f"{folder}/{filename}"
         s3.put_object(Bucket=Config.R2_BUCKET, Key=key, Body=data, ContentType=content_type)
     elif isinstance(data, str) and data.startswith("http"):
         # URL — download first, detect real format
         r = requests.get(data, timeout=120)
         r.raise_for_status()
-        # Detect actual content type from response or URL
-        real_ct = r.headers.get("content-type", content_type).split(";")[0].strip()
-        # Fix extension mismatch: if we named it .mp4 but got webm
-        if "webm" in real_ct or data.lower().endswith(".webm"):
-            key = key.rsplit(".", 1)[0] + ".webm"
+        body = r.content
+        # Detect actual content type from magic bytes first
+        real_ct = content_type
+        if body[:4] == b'\x1a\x45\xdf\xa3':  # WebM/MKV magic bytes
             real_ct = "video/webm"
-        elif "mp4" in real_ct or data.lower().endswith(".mp4"):
+            key = key.rsplit(".", 1)[0] + ".webm"
+        elif body[:4] == b'\x00\x00\x00\x18' or body[:4] == b'\x00\x00\x00\x1c' or body[4:8] == b'ftyp':
             real_ct = "video/mp4"
+        elif body[:3] == b'ID3' or body[:2] == b'\xff\xfb' or body[:2] == b'\xff\xf3':
+            real_ct = "audio/mpeg"
         else:
-            real_ct = content_type  # fallback to what caller said
-        s3.put_object(Bucket=Config.R2_BUCKET, Key=key, Body=r.content, ContentType=real_ct)
-        log.info(f"   R2 upload: {key} ({real_ct}, {len(r.content)//1024}KB)")
+            # Fallback to response header
+            hdr_ct = r.headers.get("content-type", "").split(";")[0].strip()
+            if "webm" in hdr_ct:
+                real_ct = "video/webm"
+                key = key.rsplit(".", 1)[0] + ".webm"
+            elif "mp4" in hdr_ct:
+                real_ct = "video/mp4"
+            elif "mpeg" in hdr_ct or "mp3" in hdr_ct:
+                real_ct = "audio/mpeg"
+        s3.put_object(Bucket=Config.R2_BUCKET, Key=key, Body=body, ContentType=real_ct)
+        log.info(f"   R2 upload: {key} ({real_ct}, {len(body)//1024}KB)")
     elif isinstance(data, str):
         s3.put_object(Bucket=Config.R2_BUCKET, Key=key, Body=data.encode(), ContentType=content_type)
 
@@ -859,21 +874,36 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
 
     # Logo overlay (conditional)
     if Config.LOGO_ENABLED and Config.LOGO_URL:
-        # Offset map for positions
-        offsets = {
-            "topRight": {"x": -0.03, "y": 0.03},
-            "topLeft": {"x": 0.03, "y": 0.03},
-            "bottomRight": {"x": -0.03, "y": -0.03},
-            "bottomLeft": {"x": 0.03, "y": -0.03},
-            "center": {"x": 0, "y": 0},
-        }
-        tracks.append({"clips": [{
-            "asset": {"type": "image", "src": Config.LOGO_URL},
-            "start": 0, "length": total_dur,
-            "position": Config.LOGO_POSITION,
-            "offset": offsets.get(Config.LOGO_POSITION, {"x": -0.03, "y": 0.03}),
-            "scale": Config.LOGO_SCALE, "opacity": Config.LOGO_OPACITY,
-        }]})
+        logo_url = Config.LOGO_URL
+        # Verify logo is accessible, upload to our R2 if not
+        try:
+            lr = requests.head(logo_url, timeout=5, allow_redirects=True)
+            if lr.status_code != 200:
+                log.warning(f"   Logo URL returned {lr.status_code}, attempting re-upload to R2...")
+                lr2 = requests.get(logo_url.replace("head","get"), timeout=10)
+                if lr2.status_code != 200:
+                    log.warning(f"   Logo unreachable ({lr.status_code}), skipping logo overlay")
+                    logo_url = None
+        except Exception as e:
+            log.warning(f"   Logo URL check failed: {e}, skipping logo overlay")
+            logo_url = None
+
+        if logo_url:
+            # Offset map for positions
+            offsets = {
+                "topRight": {"x": -0.03, "y": 0.03},
+                "topLeft": {"x": 0.03, "y": 0.03},
+                "bottomRight": {"x": -0.03, "y": -0.03},
+                "bottomLeft": {"x": 0.03, "y": -0.03},
+                "center": {"x": 0, "y": 0},
+            }
+            tracks.append({"clips": [{
+                "asset": {"type": "image", "src": logo_url},
+                "start": 0, "length": total_dur,
+                "position": Config.LOGO_POSITION,
+                "offset": offsets.get(Config.LOGO_POSITION, {"x": -0.03, "y": 0.03}),
+                "scale": Config.LOGO_SCALE, "opacity": Config.LOGO_OPACITY,
+            }]})
 
     # Video clips
     tracks.append({"clips": video_clips})
