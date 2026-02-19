@@ -312,6 +312,10 @@ HTML = r"""<!DOCTYPE html><html lang="en"><head>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#08080a;--bg2:#0c0c10;--bg3:#111118;--panel:#0d0d12;--bd:rgba(227,160,40,.12);--bd2:rgba(227,160,40,.06);--amb:#e3a028;--amb2:#c88a1a;--amblo:rgba(227,160,40,.05);--txt:#e3a028;--txtd:#7a5a18;--txtdd:#3a2a08;--grn:#28e060;--grn2:rgba(40,224,96,.08);--red:#e04028;--red2:rgba(224,64,40,.08);--blu:#28a0e0;--blu2:rgba(40,160,224,.08);--wht:#c8c0a8;--f1:'Orbitron',monospace;--f2:'Rajdhani',sans-serif;--f3:'Share Tech Mono',monospace}
+html.light{--bg:#f0ece4;--bg2:#e8e2d8;--bg3:#ddd6c8;--panel:#f5f1ea;--bd:rgba(140,100,20,.18);--bd2:rgba(140,100,20,.1);--amb:#8a6010;--amb2:#6e4c0c;--amblo:rgba(140,100,20,.06);--txt:#8a6010;--txtd:#a0884a;--txtdd:#c4b898;--grn:#1a8a3a;--grn2:rgba(26,138,58,.08);--red:#c03020;--red2:rgba(192,48,32,.08);--blu:#1870b0;--blu2:rgba(24,112,176,.08);--wht:#3a3428}
+html.light select.fin option{background:var(--panel);color:var(--amb)}
+html.light .login-box{box-shadow:0 2px 20px rgba(0,0,0,.08)}
+html.light .sb-exec{color:#fff}
 *{margin:0;padding:0;box-sizing:border-box}body{background:var(--bg);color:var(--txt);font-family:var(--f3);height:100vh;overflow:hidden}
 #L{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 30%,rgba(227,160,40,.03),transparent 60%)}
 .login-box{width:340px;padding:32px 24px;text-align:center;background:var(--panel);border:1px solid var(--bd);animation:glow 3s infinite}
@@ -344,7 +348,8 @@ button{font-family:var(--f3);cursor:pointer}input,select{font-family:var(--f3)}.
 .fl{font-size:8px;color:var(--txtd);text-transform:uppercase;letter-spacing:2px;margin-bottom:3px}
 .fin{width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--bd2);font-size:11px;color:var(--amb);outline:none;font-family:var(--f3);border-radius:0}
 .fin:focus{border-color:var(--amb);box-shadow:0 0 6px rgba(227,160,40,.1)}
-select.fin{-webkit-appearance:none;-moz-appearance:none;appearance:none;background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23e3a028'/%3E%3C/svg%3E") no-repeat right 10px center;padding-right:28px;cursor:pointer}
+select.fin{-webkit-appearance:none;-moz-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23e3a028'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-color:var(--bg);padding-right:28px;cursor:pointer}
+html.light select.fin{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a6010'/%3E%3C/svg%3E")}
 select.fin option{background:var(--bg2);color:var(--amb);padding:6px}
 .fin-slider{-webkit-appearance:none;appearance:none;background:var(--bg3);border-radius:3px;outline:none;height:6px;cursor:pointer;width:100%}
 .fin-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--amb);border:2px solid var(--bg);cursor:pointer}
@@ -455,6 +460,7 @@ body{overflow:auto}
 <div class="sb-ft">
 <button class="sb-exec" id="d-rb" onclick="runNow()">▶ EXECUTE</button>
 <button class="sb-res" id="d-rsb" onclick="resumeNow()">♻ RESUME</button>
+<button id="d-thm" onclick="toggleTheme()" style="width:100%;padding:6px;margin-top:6px;font-size:8px;letter-spacing:2px;color:var(--txtd);background:none;border:1px solid var(--bd2);font-family:var(--f1)">☀ LIGHT MODE</button>
 </div>
 </div>
 <div class="dmain">
@@ -486,7 +492,7 @@ body{overflow:auto}
 </div></div></div>
 
 <div class="mob-wrap">
-<div class="mhdr"><h1>KNIGHTS REACTOR</h1><div style="display:flex"><button class="mexec" id="m-rb" onclick="runNow()">▶ EXECUTE</button><button class="mres" id="m-rsb" onclick="resumeNow()">♻</button></div></div>
+<div class="mhdr"><h1>KNIGHTS REACTOR</h1><div style="display:flex;align-items:center;gap:6px"><button id="m-thm" onclick="toggleTheme()" style="font-size:12px;background:none;border:1px solid var(--bd2);color:var(--txtd);padding:6px 8px;min-height:36px">☀</button><button class="mexec" id="m-rb" onclick="runNow()">▶ EXECUTE</button><button class="mres" id="m-rsb" onclick="resumeNow()">♻</button></div></div>
 <div class="mprog" id="m-prog"><div id="m-pb"></div></div>
 <div class="mtabs">
 <button class="mt on" onclick="mNav('pipeline',this)">⚡ PIPELINE</button>
@@ -546,6 +552,11 @@ const VID_MODELS={replicate:[{v:"bytedance/seedance-1-lite",l:"Seedance Lite ~$0
 const SVCS=[{n:"OPENAI",d:"GPT-4o + Whisper",k:"openai"},{n:"REPLICATE",d:"Image + Video",k:"replicate"},{n:"ELEVENLABS",d:"Voice Synthesis",k:"elevenlabs"},{n:"SHOTSTACK",d:"Video Render",k:"shotstack"},{n:"R2",d:"Asset Storage",k:"r2"},{n:"AIRTABLE",d:"Topic DB",k:"airtable"},{n:"BLOTATO",d:"Publishing",k:"blotato"}];
 
 const titles={pipeline:'⚡ PIPELINE MONITOR',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ CONFIGURATION',health:'◎ SYSTEM STATUS'};
+
+/* THEME */
+function toggleTheme(){const on=document.documentElement.classList.toggle('light');localStorage.setItem('kr-theme',on?'light':'dark');updThemeBtn();}
+function updThemeBtn(){const lt=document.documentElement.classList.contains('light');['d-thm','m-thm'].forEach(id=>{const el=$(id);if(el){if(id==='d-thm')el.textContent=lt?'◑ DARK MODE':'☀ LIGHT MODE';else el.textContent=lt?'◑':'☀';}});}
+(function(){if(localStorage.getItem('kr-theme')==='light')document.documentElement.classList.add('light');})();
 
 /* AUTH */
 async function go(){const p=$('pw').value;if(!p){$('le').style.display='block';return;}try{const r=await(await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p})})).json();if(r.ok){if(r.token)sessionStorage.setItem('kt',r.token);$('L').style.display='none';$('A').classList.remove('hd');init();}else{$('le').style.display='block';}}catch(e){$('le').style.display='block';}}
@@ -634,7 +645,7 @@ async function rH(){try{const cfg=await(await fetch('/api/config')).json();const
 async function testAll(){alert('Testing...');for(const s of['openai','replicate','elevenlabs','airtable']){try{await(await fetch('/api/test-connection',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({service:s})})).json();}catch(e){}}rH();alert('Done!');}
 
 /* INIT */
-async function init(){rP();try{const r=await(await fetch('/api/settings')).json();STS.forEach(s=>s.f.forEach(f=>{if(r[f.k]!==undefined)ST[f.k]=r[f.k];else ST[f.k]=f.d;}));}catch(e){STS.forEach(s=>s.f.forEach(f=>ST[f.k]=f.d));}rSt();try{const r=await(await fetch('/api/status')).json();if(r.result){LAST_RESULT=r.result;PD=r.phases_done||[];}if(r.running){RN=true;PH=r.phase;PD=r.phases_done||[];rP();poll();}else{rP();}}catch(e){}}
+async function init(){rP();updThemeBtn();try{const r=await(await fetch('/api/settings')).json();STS.forEach(s=>s.f.forEach(f=>{if(r[f.k]!==undefined)ST[f.k]=r[f.k];else ST[f.k]=f.d;}));}catch(e){STS.forEach(s=>s.f.forEach(f=>ST[f.k]=f.d));}rSt();try{const r=await(await fetch('/api/status')).json();if(r.result){LAST_RESULT=r.result;PD=r.phases_done||[];}if(r.running){RN=true;PH=r.phase;PD=r.phases_done||[];rP();poll();}else{rP();}}catch(e){}}
 autoLogin();
 </script></body></html>
 """
