@@ -123,6 +123,15 @@ async def save_credentials(req: Request):
     apply_credentials()
     return {"status": "saved"}
 
+@app.post("/api/login")
+async def login(req: Request):
+    body = await req.json()
+    pw = body.get("password", "")
+    correct = os.getenv("ADMIN_PASSWORD", "Coogs@9006")
+    if pw == correct:
+        return {"ok": True}
+    return JSONResponse({"ok": False, "error": "Wrong password"}, 401)
+
 @app.get("/api/settings")
 async def get_settings(): return load_json(SETTINGS_FILE, {})
 
@@ -273,7 +282,7 @@ const STS=[
 {t:"📡 Platforms",f:[{k:"on_tt",l:"TikTok",tp:"toggle",d:true},{k:"on_yt",l:"YouTube",tp:"toggle",d:true},{k:"on_ig",l:"Instagram",tp:"toggle",d:true},{k:"on_fb",l:"Facebook",tp:"toggle",d:true},{k:"on_tw",l:"X/Twitter",tp:"toggle",d:true},{k:"on_th",l:"Threads",tp:"toggle",d:true},{k:"on_pn",l:"Pinterest",tp:"toggle",d:false}]}
 ];
 
-function go(){if($('pw').value.length>0){$('L').style.display='none';$('A').style.display='block';init();}else $('le').style.display='block'}
+async function go(){const p=$('pw').value;if(!p){$('le').style.display='block';return;}try{const r=await(await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p})})).json();if(r.ok){$('L').style.display='none';$('A').style.display='block';init();}else{$('le').style.display='block';}}catch(e){$('le').style.display='block';}}
 function sw(id,btn){document.querySelectorAll('[id^="t-"]').forEach(e=>e.style.display='none');$('t-'+id).style.display='block';document.querySelectorAll('.tb').forEach(t=>t.classList.remove('ac'));btn.classList.add('ac');if(id==='runs')loadRuns();if(id==='logs')loadLogs();if(id==='health')rH();}
 
 function rP(){
