@@ -659,7 +659,7 @@ function getModels(fieldKey){
   return cat[prov]||[];
 }
 
-function rSt(){let h='';STS.forEach((sec,si)=>{let ff='';sec.f.forEach(f=>{const v=ST[f.k]!==undefined?ST[f.k]:f.d;
+function rSt(){let h='';STS.forEach((sec,si)=>{let ff='';sec.f.forEach(f=>{try{const v=ST[f.k]!==undefined?ST[f.k]:f.d;
 if(f.tp==='toggle'){const on=v===true||v==='true';ff+=`<div class="fi" style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:11px;color:var(--wht)">${f.l}</div><button class="tg ${on?'on':'off'}" onclick="event.stopPropagation();ST['${f.k}']=!(ST['${f.k}']===true||ST['${f.k}']==='true');rSt()"><span class="td" style="left:${on?'20px':'2px'}"></span></button></div>`;}
 else if(f.tp==='select'){
   let opts=f.o;
@@ -681,7 +681,7 @@ else if(f.tp==='slider'){
   ff+=`<div class="fi"><div class="fl">${f.l}</div><div style="display:flex;align-items:center;gap:10px;width:100%"><input type="range" min="${mn}" max="${mx}" step="${stp}" value="${cv}" class="fin-slider" style="flex:1;accent-color:var(--amb);height:6px;cursor:pointer" oninput="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').innerHTML=this.value+' words ≈ '+Math.round(this.value/3)+'s'+(Math.round(this.value/3)>=60?' ('+Math.floor(Math.round(this.value/3)/60)+'m '+(Math.round(this.value/3)%60?Math.round(this.value/3)%60+'s':'')+')'    :'');document.getElementById('sl_${f.k}_bar').style.width=((this.value-${mn})/(${mx}-${mn})*100)+'%'"><div id="sl_${f.k}" style="min-width:120px;font-family:var(--f1);font-size:10px;letter-spacing:1px;color:var(--amb);text-align:right">${cv} words ≈ ${durLabel}</div></div><div style="position:relative;height:3px;background:var(--bg3);border-radius:2px;margin-top:4px;overflow:hidden"><div id="sl_${f.k}_bar" style="position:absolute;top:0;left:0;height:100%;background:var(--amb);border-radius:2px;width:${pct}%;transition:width .1s"></div></div><div style="display:flex;justify-content:space-between;margin-top:3px"><span style="font-size:7px;color:var(--txtdd);letter-spacing:1px">${mn}w / ${Math.round(mn/3)}s</span><span style="font-size:7px;color:var(--txtdd);letter-spacing:1px">${mx}w / ${Math.round(mx/3)}s (1min)</span></div></div>`;
 }
 else{ff+=`<div class="fi"><div class="fl">${f.l}</div><input class="fin" value="${v||''}" onchange="ST['${f.k}']=this.value"></div>`;}
-});h+=`<div class="sec"><button class="sec-h" onclick="stOpen[${si}]=!stOpen[${si}];rSt()"><span class="sec-t">${sec.t}</span><span class="sec-a" style="transform:${stOpen[si]?'rotate(90deg)':''}">›</span></button><div class="sec-b${stOpen[si]?'':' hd'}">${ff}</div></div>`;});
+}catch(e){console.error('Config render error:',f.k,e);}});h+=`<div class="sec"><button class="sec-h" onclick="stOpen[${si}]=!stOpen[${si}];rSt()"><span class="sec-t">${sec.t}</span><span class="sec-a" style="transform:${stOpen[si]?'rotate(90deg)':''}">›</span></button><div class="sec-b${stOpen[si]?'':' hd'}">${ff}</div></div>`;});
 $('sf').innerHTML=h;}
 
 async function saveSett(){await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(ST)});$('ss').style.display='block';setTimeout(()=>$('ss').style.display='none',3000);}
