@@ -938,7 +938,7 @@ def _build_shotstack_payload(clips: list, voiceover_url: str = None, logo_url: s
 
 def _submit_and_poll_shotstack(payload: dict, label: str = "") -> str:
     """Submit a Shotstack render and poll until done. Returns download URL or raises."""
-    r = requests.post("https://api.shotstack.io/v1/render", headers={
+    r = requests.post("https://api.shotstack.io/edit/v1/render", headers={
         "x-api-key": Config.SHOTSTACK_KEY,
         "Content-Type": "application/json",
     }, json=payload, timeout=30)
@@ -948,7 +948,7 @@ def _submit_and_poll_shotstack(payload: dict, label: str = "") -> str:
 
     for _ in range(60):
         time.sleep(15)
-        r = requests.get(f"https://api.shotstack.io/v1/render/{job_id}", headers={
+        r = requests.get(f"https://api.shotstack.io/edit/v1/render/{job_id}", headers={
             "x-api-key": Config.SHOTSTACK_KEY,
         })
         r.raise_for_status()
