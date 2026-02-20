@@ -800,27 +800,37 @@ def upload_to_r2(folder: str, filename: str, data, content_type: str) -> str:
         r = requests.get(data, timeout=120)
         r.raise_for_status()
         body = r.content
-        # Detect actual content type from magic bytes first
+        hdr_ct = r.headers.get("content-type", "").split(";")[0].strip().lower()
+        src_ext = data.rsplit(".", 1)[-1].split("?")[0].lower() if "." in data else ""
+
+        # Detect format: source URL ext → response header → magic bytes
         real_ct = content_type
-        if body[:4] == b'\x1a\x45\xdf\xa3':  # WebM/MKV magic bytes
+        is_webm = False
+
+        # 1) Source URL extension (Replicate URLs often end in .webm)
+        if src_ext == "webm" or "webm" in hdr_ct:
+            is_webm = True
+        # 2) Magic bytes: WebM/MKV (EBML header)
+        elif len(body) >= 4 and body[:4] == b'\x1a\x45\xdf\xa3':
+            is_webm = True
+        # 3) Extended WebM detection: check for 'webm' doctype in first 64 bytes
+        elif len(body) >= 64 and b'webm' in body[:64]:
+            is_webm = True
+
+        if is_webm:
             real_ct = "video/webm"
             key = key.rsplit(".", 1)[0] + ".webm"
-        elif body[:4] == b'\x00\x00\x00\x18' or body[:4] == b'\x00\x00\x00\x1c' or body[4:8] == b'ftyp':
+        elif len(body) >= 8 and (body[4:8] == b'ftyp' or body[:4] in (b'\x00\x00\x00\x18', b'\x00\x00\x00\x1c', b'\x00\x00\x00\x20')):
             real_ct = "video/mp4"
-        elif body[:3] == b'ID3' or body[:2] == b'\xff\xfb' or body[:2] == b'\xff\xf3':
+        elif len(body) >= 3 and (body[:3] == b'ID3' or body[:2] == b'\xff\xfb' or body[:2] == b'\xff\xf3'):
             real_ct = "audio/mpeg"
-        else:
-            # Fallback to response header
-            hdr_ct = r.headers.get("content-type", "").split(";")[0].strip()
-            if "webm" in hdr_ct:
-                real_ct = "video/webm"
-                key = key.rsplit(".", 1)[0] + ".webm"
-            elif "mp4" in hdr_ct:
-                real_ct = "video/mp4"
-            elif "mpeg" in hdr_ct or "mp3" in hdr_ct:
-                real_ct = "audio/mpeg"
+        elif "mp4" in hdr_ct:
+            real_ct = "video/mp4"
+        elif "mpeg" in hdr_ct or "mp3" in hdr_ct:
+            real_ct = "audio/mpeg"
+
         s3.put_object(Bucket=Config.R2_BUCKET, Key=key, Body=body, ContentType=real_ct)
-        log.info(f"   R2 upload: {key} ({real_ct}, {len(body)//1024}KB)")
+        log.info(f"   R2 upload: {key} ({real_ct}, {len(body)//1024}KB) [src_ext={src_ext}, hdr={hdr_ct}]")
     elif isinstance(data, str):
         s3.put_object(Bucket=Config.R2_BUCKET, Key=key, Body=data.encode(), ContentType=content_type)
 
@@ -1342,12 +1352,23 @@ def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
                 if not r2_url or not r2_url.endswith(".mp4"):
                     continue
                 try:
-                    hr = requests.head(r2_url, timeout=5, allow_redirects=True)
-                    ct = hr.headers.get("content-type", "")
-                    # Also download first 4 bytes to check magic
-                    pr = requests.get(r2_url, timeout=10, headers={"Range": "bytes=0-3"})
-                    magic = pr.content[:4]
-                    if magic == b'\x1a\x45\xdf\xa3' or "webm" in ct:
+                    # Download first 64 bytes for reliable format detection
+                    pr = requests.get(r2_url, timeout=15, headers={"Range": "bytes=0-63"})
+                    # Some R2 configs don't support Range — fallback to HEAD
+                    if pr.status_code == 200:
+                        sample = pr.content[:64]
+                    elif pr.status_code == 206:
+                        sample = pr.content[:64]
+                    else:
+                        sample = b''
+                    ct = pr.headers.get("content-type", "").lower()
+                    is_webm = (
+                        (len(sample) >= 4 and sample[:4] == b'\x1a\x45\xdf\xa3') or
+                        (len(sample) >= 64 and b'webm' in sample[:64]) or
+                        "webm" in ct
+                    )
+                    log.info(f"   Format check {r2_url.split('/')[-1]}: ct={ct}, magic={sample[:4].hex() if sample else '?'}, webm={is_webm}")
+                    if is_webm:
                         # It's WebM but named .mp4 — re-upload with correct key
                         log.warning(f"   Fixing {r2_url} — WebM detected, renaming to .webm")
                         full = requests.get(r2_url, timeout=120)
