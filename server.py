@@ -55,9 +55,6 @@ def apply_credentials():
     Config.R2_ENDPOINT = os.getenv("R2_ENDPOINT", "")
     Config.R2_BUCKET = os.getenv("R2_BUCKET", "knights-videos")
     Config.R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL", "")
-    Config.AIRTABLE_KEY = os.getenv("AIRTABLE_API_KEY", "")
-    Config.AIRTABLE_BASE = os.getenv("AIRTABLE_BASE_ID", "")
-    Config.AIRTABLE_TABLE = os.getenv("AIRTABLE_TABLE", "Scripture Topics")
     Config.BLOTATO_KEY = os.getenv("BLOTATO_API_KEY", "")
 
 def apply_model_settings():
@@ -373,7 +370,7 @@ async def get_logs(): return LOGS[-200:]
 async def get_config():
     return {"openai": bool(Config.OPENAI_KEY), "replicate": bool(Config.REPLICATE_TOKEN),
             "elevenlabs": bool(Config.ELEVEN_KEY), "shotstack": bool(Config.SHOTSTACK_KEY),
-            "r2": bool(Config.R2_ACCESS_KEY), "airtable": bool(Config.AIRTABLE_KEY), "blotato": bool(Config.BLOTATO_KEY)}
+            "r2": bool(Config.R2_ACCESS_KEY), "blotato": bool(Config.BLOTATO_KEY)}
 
 @app.get("/api/credentials")
 async def get_credentials():
@@ -435,10 +432,6 @@ async def test_conn(req: Request):
             return {"ok": r.status_code == 200}
         if svc == "elevenlabs":
             r = rq.get("https://api.elevenlabs.io/v1/voices", headers={"xi-api-key": Config.ELEVEN_KEY}, timeout=10)
-            return {"ok": r.status_code == 200}
-        if svc == "airtable":
-            r = rq.get(f"https://api.airtable.com/v0/{Config.AIRTABLE_BASE}/{Config.AIRTABLE_TABLE}?maxRecords=1",
-                       headers={"Authorization": f"Bearer {Config.AIRTABLE_KEY}"}, timeout=10)
             return {"ok": r.status_code == 200}
         return {"ok": False, "error": "Unknown"}
     except Exception as e:
