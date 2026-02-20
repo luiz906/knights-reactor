@@ -103,7 +103,7 @@ def create_srt(script_text: str) -> str:
 
 def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
     """Render final video via Shotstack. Returns download URL."""
-    ss_env = getattr(Config, 'SHOTSTACK_ENV', 'stage')
+    ss_env = getattr(Config, 'SHOTSTACK_ENV', 'v1')
     ss_base = f"https://api.shotstack.io/{ss_env}"
     log.info(f"🎞️  Phase 9: Rendering final video via Shotstack ({ss_env}) | {Config.RENDER_RES}p {Config.RENDER_ASPECT} {Config.RENDER_FPS}fps")
 
@@ -120,11 +120,11 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
         })
         cursor += dur
 
-    # CTA clip at end
+    # CTA clip at end (static image held for CTA_DURATION)
     if getattr(Config, 'CTA_ENABLED', False) and getattr(Config, 'CTA_URL', ''):
         cta_dur = getattr(Config, 'CTA_DURATION', 4.0)
         video_clips.append({
-            "asset": {"type": "video", "src": Config.CTA_URL, "volume": 0, "transcode": True},
+            "asset": {"type": "image", "src": Config.CTA_URL},
             "start": round(cursor, 3),
             "length": cta_dur,
             "fit": "cover",
