@@ -8,7 +8,7 @@ import os, json, time, re, base64
 from config import Config, DATA_DIR, log
 
 # Phase functions
-from phases.topics import fetch_topic, update_airtable
+from phases.topics import fetch_topic, update_topic
 from phases.script import generate_script
 from phases.scenes import scene_engine
 from phases.media import generate_images, generate_videos, generate_video_single, generate_voiceover, transcribe_voiceover
@@ -68,7 +68,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None) -
         if resume_from <= 0:
             notify(0, "Fetch Topic", "running")
             topic = fetch_topic(topic_id)
-            update_airtable(topic["id"], {"Status": "Processing"})
+            update_topic(topic["id"], {"Status": "Processing"})
             result["phases"].append({"name": "Fetch Topic", "status": "done"})
             result["topic"] = topic
             save_checkpoint(0, {"topic": topic})
@@ -260,7 +260,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None) -
         notify(10, "Publish", "done")
 
         # Update topic status
-        update_airtable(topic["id"], {"Status": "Published", "Final Video URL": final_r2_url})
+        update_topic(topic["id"], {"Status": "Published", "Final Video URL": final_r2_url})
 
         result["status"] = "complete"
         elapsed = round(time.time() - start, 1)
@@ -277,7 +277,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None) -
         log.error(f"\n❌ Pipeline failed at phase {result['failed_phase']}: {e}")
 
         if "topic" in result:
-            update_airtable(result["topic"]["id"], {"Status": "Failed", "Error": str(e)})
+            update_topic(result["topic"]["id"], {"Status": "Failed", "Error": str(e)})
 
     return result
 
