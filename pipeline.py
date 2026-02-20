@@ -66,6 +66,11 @@ class Config:
     CLIP_DURATION     = 10.0
     VIDEO_TIMEOUT     = 600
 
+    # CTA clip (static ending clip appended after generated clips)
+    CTA_ENABLED       = True
+    CTA_URL           = env("CTA_URL", "https://pub-8d4a1338211a44a7875ebe6ac8487129.r2.dev/ChristCTA.mp4")
+    CTA_DURATION      = 5.0  # seconds
+
     # Render output
     RENDER_FPS        = 30
     RENDER_RES        = "1080"
@@ -930,6 +935,19 @@ def _build_shotstack_payload(clips: list, voiceover_url: str = None, logo_url: s
             "fit": "cover",
         })
         cursor += dur
+
+    # Append static CTA clip at the end
+    if Config.CTA_ENABLED and Config.CTA_URL:
+        cta_dur = Config.CTA_DURATION
+        video_clips.append({
+            "asset": {"type": "video", "src": Config.CTA_URL, "volume": 1, "transcode": True},
+            "start": round(cursor, 3),
+            "length": cta_dur,
+            "fit": "cover",
+        })
+        cursor += cta_dur
+        log.info(f"   CTA clip appended: {cta_dur}s at {round(cursor - cta_dur, 3)}s")
+
     total_dur = round(cursor, 3)
 
     tracks = []
@@ -1093,6 +1111,21 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
 
     # Prepare logo
     logo_url = _prepare_logo()
+
+    # Prepare CTA clip — re-upload to main bucket if from different source
+    if Config.CTA_ENABLED and Config.CTA_URL:
+        cta_src = Config.CTA_URL
+        if Config.R2_PUBLIC_URL not in cta_src or "_assets/ChristCTA.mp4" not in cta_src:
+            try:
+                log.info(f"   Re-uploading CTA clip to main bucket...")
+                cr = requests.get(cta_src, timeout=30)
+                cr.raise_for_status()
+                s3 = get_s3_client()
+                s3.put_object(Bucket=Config.R2_BUCKET, Key="_assets/ChristCTA.mp4", Body=cr.content, ContentType="video/mp4")
+                Config.CTA_URL = f"{Config.R2_PUBLIC_URL}/_assets/ChristCTA.mp4"
+                log.info(f"   CTA clip ready: {Config.CTA_URL} ({len(cr.content)//1024}KB)")
+            except Exception as e:
+                log.warning(f"   CTA re-upload failed: {e}, using original URL")
 
     # Log all asset info for debugging
     log.info(f"   Assets: {len(clips)} clips, voiceover={voiceover_url.split('/')[-1]}, logo={'YES' if logo_url else 'NO'}")

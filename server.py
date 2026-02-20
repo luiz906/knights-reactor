@@ -92,6 +92,10 @@ def apply_model_settings():
     if s.get("logo_opacity"):   Config.LOGO_OPACITY = float(s["logo_opacity"])
     # Video timeout
     if s.get("video_timeout"):  Config.VIDEO_TIMEOUT = int(s["video_timeout"])
+    # CTA clip
+    if s.get("cta_enabled") is not None: Config.CTA_ENABLED = s["cta_enabled"] in (True, "true", "True")
+    if s.get("cta_url"):        Config.CTA_URL = s["cta_url"]
+    if s.get("cta_duration"):   Config.CTA_DURATION = float(s["cta_duration"])
     # Shotstack
     if s.get("shotstack_env"):  Config.SHOTSTACK_ENV = s["shotstack_env"]
     # Platforms
@@ -567,7 +571,7 @@ const STS=[
 {t:"SCENE ENGINE",f:[{k:"scene_style",l:"Visual Style",tp:"select",o:["photorealistic","cinematic","painterly","anime","dark fantasy","oil painting"],d:"photorealistic"},{k:"scene_camera",l:"Camera Style",tp:"select",o:["steady","dynamic","handheld"],d:"steady"},{k:"scene_mood",l:"Mood Override",tp:"select",o:["auto","storm","fire","dawn","night","grey","battle"],d:"auto"}]},
 {t:"VOICE SYNTH",f:[{k:"voice_id",l:"Voice ID",d:"bwCXcoVxWNYMlC6Esa8u"},{k:"voice_model",l:"Model",tp:"select",o:["eleven_turbo_v2","eleven_multilingual_v2","eleven_monolingual_v1"],d:"eleven_turbo_v2"},{k:"voice_stability",l:"Stability",d:"0.5"},{k:"voice_similarity",l:"Similarity",d:"0.75"},{k:"voice_speed",l:"Speed",d:"1.0"},{k:"voice_style",l:"Style",d:"0.0"}]},
 {t:"IMAGE GENERATION",f:[{k:"image_provider",l:"Provider",tp:"select",o:["replicate"],d:"replicate"},{k:"image_model",l:"Model",tp:"select",o:[],d:"black-forest-labs/flux-1.1-pro",dep:"image_provider"},{k:"image_quality",l:"Quality",tp:"select",o:["low","medium","high"],d:"high"}]},
-{t:"VIDEO GENERATION",f:[{k:"video_provider",l:"Provider",tp:"select",o:["replicate"],d:"replicate"},{k:"video_model",l:"Model",tp:"select",o:[],d:"bytedance/seedance-1-lite",dep:"video_provider"},{k:"clip_count",l:"Clips",tp:"select",o:["2","3","4","5"],d:"3"},{k:"clip_duration",l:"Clip Duration",tp:"select",o:["5","8","10","12","15"],d:"10"},{k:"_vid_total",l:"",tp:"computed"},{k:"video_timeout",l:"Timeout (sec)",d:"600"}]},
+{t:"VIDEO GENERATION",f:[{k:"video_provider",l:"Provider",tp:"select",o:["replicate"],d:"replicate"},{k:"video_model",l:"Model",tp:"select",o:[],d:"bytedance/seedance-1-lite",dep:"video_provider"},{k:"clip_count",l:"Clips",tp:"select",o:["2","3","4","5"],d:"3"},{k:"clip_duration",l:"Clip Duration",tp:"select",o:["5","8","10","12","15"],d:"10"},{k:"_vid_total",l:"",tp:"computed"},{k:"video_timeout",l:"Timeout (sec)",d:"600"},{k:"cta_enabled",l:"CTA End Clip",tp:"toggle",d:true},{k:"cta_url",l:"CTA Video URL",d:"https://pub-8d4a1338211a44a7875ebe6ac8487129.r2.dev/_assets/ChristCTA.mp4"},{k:"cta_duration",l:"CTA Duration (sec)",tp:"select",o:["3","4","5","6","8","10"],d:"5"}]},
 {t:"RENDER OUTPUT",f:[{k:"render_fps",l:"FPS",tp:"select",o:["24","30","60"],d:"30"},{k:"render_res",l:"Resolution",tp:"select",o:["720","1080"],d:"1080"},{k:"render_aspect",l:"Aspect Ratio",tp:"select",o:["9:16","16:9","1:1"],d:"9:16"},{k:"render_bg",l:"Background Color",d:"#000000"}]},
 {t:"WATERMARK / LOGO",f:[{k:"logo_enabled",l:"Show Logo",tp:"toggle",d:true},{k:"logo_url",l:"Logo URL",d:"https://pub-8d4a1338211a44a7875ebe6ac8487129.r2.dev/gods_knights.png"},{k:"logo_position",l:"Position",tp:"select",o:["topRight","topLeft","bottomRight","bottomLeft","center"],d:"topRight"},{k:"logo_scale",l:"Scale",d:"0.12"},{k:"logo_opacity",l:"Opacity",d:"0.8"}]},
 {t:"SCHEDULE",f:[{k:"sched_int",l:"Every (hours)",tp:"select",o:["4","6","8","12","24"],d:"8"},{k:"post_tt",l:"TikTok Time",d:"3:00 PM"},{k:"post_yt",l:"YouTube Time",d:"1:30 PM"},{k:"post_ig",l:"Instagram Time",d:"12:00 PM"},{k:"post_fb",l:"Facebook Time",d:"2:00 PM"}]},
