@@ -453,7 +453,7 @@ async function poll(){
 /* ═══ TOPICS ═══ */
 async function loadTopics(){
   try{
-    const topics=await(await fetch('/api/topics')).json();
+    const _tr=await(await fetch('/api/topics')).json();const topics=_tr.topics||_tr;
     const h=topics.length?topics.map(t=>`<div class="topic-row"><div style="flex:1"><div style="font-family:var(--f2);font-size:.85em;font-weight:600;color:var(--wht)">${t.idea}</div><div style="font-size:.55em;color:var(--txtd);margin-top:.05em">${t.category}${t.scripture?' · '+t.scripture:''}</div></div><div style="display:flex;gap:4px"><button class="btn-sm btn-grn" onclick="runNow('${t.id}')" title="Run pipeline with this topic">▶</button><button class="btn-sm btn-red" onclick="deleteTopic('${t.id}')" title="Delete">✕</button></div></div>`).join(''):'<div class="topic-row" style="color:var(--txtd)">No topics — seed defaults or add manually</div>';
     ['d-tl','m-tl'].forEach(id=>{if($(id))$(id).innerHTML=h;});
   }catch(e){console.error('loadTopics:',e);}
