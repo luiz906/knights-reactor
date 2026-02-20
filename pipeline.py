@@ -963,6 +963,24 @@ def _submit_and_poll_shotstack(payload: dict, label: str = "") -> str:
     raise TimeoutError("Shotstack render timed out")
 
 
+def _probe_asset(url: str) -> dict | None:
+    """Probe a media URL via Shotstack to get codec/format info."""
+    try:
+        r = requests.get(
+            f"https://api.shotstack.io/edit/v1/probe/{requests.utils.quote(url, safe='')}",
+            headers={"x-api-key": Config.SHOTSTACK_KEY},
+            timeout=20,
+        )
+        if r.status_code == 200:
+            return r.json().get("response", {}).get("metadata", {})
+        else:
+            log.warning(f"   Probe failed ({r.status_code}): {url.split('/')[-1]}")
+            return None
+    except Exception as e:
+        log.warning(f"   Probe error: {e}")
+        return None
+
+
 def _prepare_logo() -> str | None:
     """Download, validate, and re-upload logo. Returns R2 URL or None."""
     if not Config.LOGO_ENABLED or not Config.LOGO_URL:
@@ -1018,6 +1036,29 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
     for clip in clips:
         log.info(f"   Clip {clip['index']}: {clip.get('r2_url', '?')}")
     log.info(f"   Voiceover: {voiceover_url}")
+
+    # Probe assets to detect codec issues BEFORE rendering
+    log.info(f"   Probing assets via Shotstack...")
+    for clip in clips:
+        meta = _probe_asset(clip.get("r2_url", ""))
+        if meta:
+            streams = meta.get("streams", [])
+            fmt = meta.get("format", {})
+            fmt_name = fmt.get("format_name", "?")
+            for s in streams:
+                if s.get("codec_type") == "video":
+                    log.info(f"   Clip {clip['index']} codec: {s.get('codec_name','?')} ({s.get('width')}x{s.get('height')}) container={fmt_name}")
+                elif s.get("codec_type") == "audio":
+                    log.info(f"   Clip {clip['index']} audio: {s.get('codec_name','?')}")
+        else:
+            log.warning(f"   Clip {clip['index']}: probe failed — Shotstack can't access this file!")
+
+    vo_meta = _probe_asset(voiceover_url)
+    if vo_meta:
+        for s in vo_meta.get("streams", []):
+            log.info(f"   Voiceover codec: {s.get('codec_name','?')} rate={s.get('sample_rate','?')}")
+    else:
+        log.warning(f"   Voiceover: probe failed!")
 
     # Attempt 1: Full render with logo
     payload = _build_shotstack_payload(clips, voiceover_url, logo_url)
