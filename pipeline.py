@@ -883,12 +883,41 @@ def upload_assets(folder: str, clips: list, audio: bytes, srt: str) -> dict:
 # PHASE 9: FINAL RENDER (Shotstack)
 # ══════════════════════════════════════════════════════════════
 
-def create_srt(script_text: str) -> str:
-    """Create simple SRT content."""
-    return f"1\n00:00:00,000 --> 00:59:59,000\n{script_text}\n"
+def create_srt(transcription: dict, words_per_group: int = 4) -> str:
+    """Create SRT with word-level timestamps from Whisper transcription.
+    Groups words into short chunks for punchy on-screen captions.
+    Falls back to single-block SRT if no word data available.
+    """
+    words = transcription.get("words", [])
+    if not words:
+        # Fallback: single block from full text
+        text = transcription.get("text", "")
+        return f"1\n00:00:00,000 --> 00:59:59,000\n{text}\n"
+
+    def fmt_ts(seconds: float) -> str:
+        h = int(seconds // 3600)
+        m = int((seconds % 3600) // 60)
+        s = int(seconds % 60)
+        ms = int((seconds % 1) * 1000)
+        return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+    srt_blocks = []
+    idx = 1
+    i = 0
+    while i < len(words):
+        group = words[i:i + words_per_group]
+        start = group[0].get("start", 0)
+        end = group[-1].get("end", start + 1)
+        text = " ".join(w.get("word", "") for w in group).strip().upper()
+        if text:
+            srt_blocks.append(f"{idx}\n{fmt_ts(start)} --> {fmt_ts(end)}\n{text}\n")
+            idx += 1
+        i += words_per_group
+
+    return "\n".join(srt_blocks)
 
 
-def _build_shotstack_payload(clips: list, voiceover_url: str = None, logo_url: str = None) -> dict:
+def _build_shotstack_payload(clips: list, voiceover_url: str = None, logo_url: str = None, srt_url: str = None) -> dict:
     """Build Shotstack render payload. Separates build from submit for retry logic."""
     video_clips = []
     cursor = 0.0
@@ -904,6 +933,36 @@ def _build_shotstack_payload(clips: list, voiceover_url: str = None, logo_url: s
     total_dur = round(cursor, 3)
 
     tracks = []
+
+    # Caption/subtitle overlay (must be ABOVE video track)
+    if srt_url:
+        tracks.append({"clips": [{
+            "asset": {
+                "type": "caption",
+                "src": srt_url,
+                "font": {
+                    "family": "Montserrat ExtraBold",
+                    "color": "#ffffff",
+                    "size": 34,
+                    "lineHeight": 0.9,
+                    "stroke": "#000000",
+                    "strokeWidth": 1.5,
+                },
+                "background": {
+                    "color": "#00000000",
+                    "padding": 8,
+                    "borderRadius": 4,
+                },
+                "margin": {
+                    "bottom": 0.18,
+                    "left": 0.08,
+                    "right": 0.08,
+                },
+            },
+            "start": 0,
+            "length": "end",
+            "position": "bottom",
+        }]})
 
     # Logo overlay
     if logo_url:
@@ -1064,8 +1123,11 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
     else:
         log.warning(f"   Voiceover: probe failed!")
 
-    # Attempt 1: Full render with logo
-    payload = _build_shotstack_payload(clips, voiceover_url, logo_url)
+    # Log SRT for captions
+    log.info(f"   SRT: {srt_url if srt_url else 'NONE'}")
+
+    # Attempt 1: Full render with logo + captions
+    payload = _build_shotstack_payload(clips, voiceover_url, logo_url, srt_url=srt_url)
     try:
         return _submit_and_poll_shotstack(payload, "with logo" if logo_url else "no logo")
     except RuntimeError as e:
@@ -1084,7 +1146,7 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
         # Attempt 2: Retry WITHOUT logo (most common culprit)
         if logo_url:
             log.info(f"   Retry 1: Removing logo overlay...")
-            payload_no_logo = _build_shotstack_payload(clips, voiceover_url, logo_url=None)
+            payload_no_logo = _build_shotstack_payload(clips, voiceover_url, logo_url=None, srt_url=srt_url)
             try:
                 url = _submit_and_poll_shotstack(payload_no_logo, "no logo retry")
                 log.warning(f"   ✓ Render succeeded without logo — logo.png is the culprit!")
@@ -1103,7 +1165,7 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
 
             # Attempt 3b: Full clips + audio (since video works, maybe it's audio format)
             log.info(f"   Retry 3: All clips + voiceover, no logo...")
-            full_no_logo = _build_shotstack_payload(clips, voiceover_url, logo_url=None)
+            full_no_logo = _build_shotstack_payload(clips, voiceover_url, logo_url=None, srt_url=srt_url)
             try:
                 url2 = _submit_and_poll_shotstack(full_no_logo, "clips+audio no logo")
                 return url2
@@ -1442,7 +1504,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
             notify(7, "Upload Assets", "running")
             folder = f"{topic['airtable_id']}_{topic['idea'][:30]}"
             folder = re.sub(r'[^a-zA-Z0-9_-]', '_', folder)
-            srt = create_srt(script["script_full"])
+            srt = create_srt(transcription)
             urls = upload_assets(folder, clips, audio, srt)
             result["phases"].append({"name": "Upload to R2", "status": "done"})
             save_checkpoint(7, {"folder": folder, "urls": urls, "clips_uploaded": clips})
