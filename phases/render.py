@@ -120,11 +120,11 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
         })
         cursor += dur
 
-    # CTA clip at end (static image held for CTA_DURATION)
+    # CTA clip at end
     if getattr(Config, 'CTA_ENABLED', False) and getattr(Config, 'CTA_URL', ''):
         cta_dur = getattr(Config, 'CTA_DURATION', 4.0)
         video_clips.append({
-            "asset": {"type": "image", "src": Config.CTA_URL},
+            "asset": {"type": "video", "src": Config.CTA_URL, "volume": 0, "transcode": True},
             "start": round(cursor, 3),
             "length": cta_dur,
             "fit": "cover",
