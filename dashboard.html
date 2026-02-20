@@ -292,7 +292,7 @@ const STS=[
 let stOpen={};
 const IMG_MODELS={replicate:[{v:"google/nano-banana-pro",l:"Nano Banana Pro"},{v:"google/nano-banana",l:"Nano Banana"},{v:"xai/grok-imagine-image",l:"Grok Aurora"},{v:"bytedance/seedream-4.5",l:"Seedream 4.5"},{v:"black-forest-labs/flux-1.1-pro",l:"Flux 1.1 Pro"},{v:"black-forest-labs/flux-schnell",l:"Flux Schnell"},{v:"black-forest-labs/flux-dev",l:"Flux Dev"},{v:"ideogram-ai/ideogram-v3-quality",l:"Ideogram v3 Q"},{v:"ideogram-ai/ideogram-v3-turbo",l:"Ideogram v3 T"},{v:"recraft-ai/recraft-v3",l:"Recraft v3"},{v:"stability-ai/stable-diffusion-3.5-large",l:"SD 3.5 L"},{v:"google-deepmind/imagen-4-preview",l:"Imagen 4"}]};
 const VID_MODELS={replicate:[{v:"bytedance/seedance-1-lite",l:"Seedance Lite"},{v:"bytedance/seedance-1",l:"Seedance Pro"},{v:"wavespeedai/wan-2.1-i2v-480p",l:"Wan 480p"},{v:"wavespeedai/wan-2.1-i2v-720p",l:"Wan 720p"},{v:"xai/grok-imagine-video",l:"Grok Video"},{v:"minimax/video-01-live",l:"Minimax Live"},{v:"minimax/video-01",l:"Minimax v01"},{v:"kwaivgi/kling-v2.0-image-to-video",l:"Kling v2.0"},{v:"luma/ray-2-flash",l:"Luma Flash"},{v:"luma/ray-2",l:"Luma Ray 2"},{v:"google-deepmind/veo-3",l:"Veo 3"}]};
-const SVCS=[{n:"OPENAI",d:"GPT-4o + Whisper",k:"openai"},{n:"REPLICATE",d:"Image + Video",k:"replicate"},{n:"ELEVENLABS",d:"Voice Synthesis",k:"elevenlabs"},{n:"SHOTSTACK",d:"Video Render",k:"shotstack"},{n:"R2",d:"Asset Storage",k:"r2"},{n:"AIRTABLE",d:"Topic DB (legacy)",k:"airtable"},{n:"BLOTATO",d:"Publishing",k:"blotato"}];
+const SVCS=[{n:"OPENAI",d:"GPT-4o + Whisper",k:"openai"},{n:"REPLICATE",d:"Image + Video",k:"replicate"},{n:"ELEVENLABS",d:"Voice Synthesis",k:"elevenlabs"},{n:"SHOTSTACK",d:"Video Render",k:"shotstack"},{n:"R2",d:"Asset Storage",k:"r2"},{n:"BLOTATO",d:"Publishing",k:"blotato"}];
 const titles={pipeline:'⚡ PIPELINE MONITOR',topics:'✦ TOPIC DATABASE',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ CONFIGURATION',health:'◎ SYSTEM STATUS'};
 
 /* THEME */
@@ -583,7 +583,7 @@ async function rH(){
 }
 async function testAll(){
   alert('Testing connections...');
-  for(const s of['openai','replicate','elevenlabs','airtable']){
+  for(const s of['openai','replicate','elevenlabs']){
     try{await(await fetch('/api/test-connection',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({service:s})})).json();}catch(e){}
   }
   rH();alert('Done!');
