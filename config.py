@@ -59,9 +59,6 @@ class Config:
     R2_ENDPOINT       = env("R2_ENDPOINT")
     R2_BUCKET         = env("R2_BUCKET", "app-knight-videos")
     R2_PUBLIC_URL     = env("R2_PUBLIC_URL", "https://pub-8d4a1338211a44a7875ebe6ac8487129.r2.dev")
-    AIRTABLE_KEY      = env("AIRTABLE_API_KEY")
-    AIRTABLE_BASE     = env("AIRTABLE_BASE_ID", "appNDCADOHinuotY1")
-    AIRTABLE_TABLE    = env("AIRTABLE_TABLE", "Scripture Topics")
     BLOTATO_KEY       = env("BLOTATO_API_KEY")
     BLOTATO_ACCOUNTS  = {
         "tiktok": env("BLOTATO_TIKTOK_ID"), "youtube": env("BLOTATO_YOUTUBE_ID"),
