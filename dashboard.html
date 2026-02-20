@@ -317,6 +317,8 @@ function rGate(){
     h=`<div class="gate-banner"><div class="g-icon">▶</div><div class="g-text"><div class="g-title">VIDEO APPROVAL GATE</div><div class="g-sub">Videos generated — review clips, regenerate if needed, then approve</div></div><div style="display:flex;gap:6px"><button class="btn-sm btn-blu" onclick="openVideoReview()">REVIEW CLIPS</button><button class="btn-sm btn-grn" onclick="approveAllVideos()">APPROVE ALL ▶</button></div></div>`;
   }
   ['d-gate','m-gate'].forEach(id=>{if($(id))$(id).innerHTML=h;});
+  if(GATE==='prompts')setTimeout(openPromptEditor,100);
+  if(GATE==='videos')setTimeout(openVideoReview,100);
 }
 
 /* ═══ PROMPT EDITOR ═══ */
