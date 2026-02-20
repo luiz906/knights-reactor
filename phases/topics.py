@@ -193,14 +193,13 @@ def seed_default_topics():
     log.info(f"   Seeded {len(defaults)} topics")
 
 
-# ─── Backward-compat wrappers (used by pipeline orchestrator) ──
 
 def fetch_topic(topic_id=None):
     """Get next new topic from local DB."""
     return fetch_next_topic(topic_id)
 
-def update_airtable(record_id, fields):
-    """Update topic status (backward compat name)."""
+def update_topic(record_id, fields):
+    """Update topic status in local DB."""
     status = fields.get("Status", "").lower()
     if status:
         update_topic_status(record_id, status, fields)
