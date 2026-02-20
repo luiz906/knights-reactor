@@ -1,15 +1,13 @@
 """
-Biblical Knights Content Reactor — Pipeline Engine
+Biblical Knights Content Reactor — Pipeline Engine v2
 =====================================================
-Replaces: 87-node n8n workflow (Biblical_Knights_V5_NANO_WAN)
-Same APIs: OpenAI GPT-4o, Replicate (GPT-Image-1.5, Seedance-1-Lite),
-           ElevenLabs, Shotstack, Blotato, Airtable, Cloudflare R2
+Phase 2: Local Topic DB, Prompt Editing Gates, Video Approval Gates
 
-Pipeline: Airtable → Script → Scenes → Images → Videos → Voice →
-          Transcribe → Render → Upload → Publish (7 platforms)
+Pipeline: Topic DB → Script → Scenes → [EDIT PROMPTS] → Images → Videos →
+          [APPROVE VIDEOS] → Voice → Transcribe → Render → Upload → Publish
 """
 
-import os, json, time, random, re, io, csv, logging
+import os, json, time, random, re, io, csv, logging, base64
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -27,6 +25,9 @@ log = logging.getLogger("knights")
 # ─── CONFIG (from .env or environment) ────────────────────────
 def env(key, default=""):
     return os.environ.get(key, default)
+
+DATA_DIR = Path("/var/data") if Path("/var/data").exists() else Path(__file__).parent / "data"
+DATA_DIR.mkdir(exist_ok=True)
 
 class Config:
     # OpenAI
@@ -66,11 +67,6 @@ class Config:
     CLIP_DURATION     = 10.0
     VIDEO_TIMEOUT     = 600
 
-    # CTA clip (static ending clip appended after generated clips)
-    CTA_ENABLED       = True
-    CTA_URL           = env("CTA_URL", "https://pub-8d4a1338211a44a7875ebe6ac8487129.r2.dev/ChristCTA.mp4")
-    CTA_DURATION      = 5.0  # seconds
-
     # Render output
     RENDER_FPS        = 30
     RENDER_RES        = "1080"
@@ -84,20 +80,25 @@ class Config:
     LOGO_SCALE        = 0.12
     LOGO_OPACITY      = 0.8
 
+    # CTA clip
+    CTA_ENABLED       = True
+    CTA_URL           = env("CTA_URL", "https://pub-8d4a1338211a44a7875ebe6ac8487129.r2.dev/ChristCTA.mp4")
+    CTA_DURATION      = 5.0
+
     # Platform toggles
     ON_TT = True; ON_YT = True; ON_IG = True; ON_FB = True
     ON_TW = True; ON_TH = True; ON_PN = False
 
     # Shotstack
     SHOTSTACK_KEY     = env("SHOTSTACK_API_KEY")
-    SHOTSTACK_ENV     = env("SHOTSTACK_ENV", "stage")  # stage (sandbox/watermark) or v1 (production/no watermark)
+    SHOTSTACK_ENV     = env("SHOTSTACK_ENV", "stage")
 
     # Cloudflare R2
     R2_ACCESS_KEY     = env("R2_ACCESS_KEY")
     R2_SECRET_KEY     = env("R2_SECRET_KEY")
     R2_ENDPOINT       = env("R2_ENDPOINT")
-    R2_BUCKET         = env("R2_BUCKET", "knights-videos")
-    R2_PUBLIC_URL     = env("R2_PUBLIC_URL", "https://pub-f92dbf6db5984f8da62f9e837891f0f4.r2.dev")
+    R2_BUCKET         = env("R2_BUCKET", "app-knight-videos")
+    R2_PUBLIC_URL     = env("R2_PUBLIC_URL", "https://pub-8d4a1338211a44a7875ebe6ac8487129.r2.dev")
 
     # Airtable
     AIRTABLE_KEY      = env("AIRTABLE_API_KEY")
@@ -120,45 +121,200 @@ class Config:
 
 
 # ══════════════════════════════════════════════════════════════
-# PHASE 1: FETCH TOPIC FROM AIRTABLE
+# TOPIC DATABASE (replaces Airtable)
 # ══════════════════════════════════════════════════════════════
+TOPICS_FILE = DATA_DIR / "topics.json"
+CATEGORIES = ["Shocking Revelations","Shocking Reveal","Behind-the-Scenes","Myths Debunked","Deep Dive Analysis"]
+
+def load_topics():
+    if TOPICS_FILE.exists():
+        try: return json.loads(TOPICS_FILE.read_text())
+        except: pass
+    return []
+
+def save_topics(topics):
+    TOPICS_FILE.write_text(json.dumps(topics, indent=2))
+
+def add_topic(idea, category, scripture=""):
+    topics = load_topics()
+    t = {"id": f"t_{int(time.time()*1000)}_{random.randint(100,999)}", "idea": idea.strip(),
+         "category": category.strip(), "scripture": scripture.strip(), "status": "new",
+         "created": datetime.now().isoformat()}
+    topics.append(t); save_topics(topics); return t
+
+def delete_topic(topic_id):
+    topics = load_topics()
+    topics = [t for t in topics if t.get("id") != topic_id]
+    save_topics(topics)
+
+def fetch_next_topic(topic_id=None):
+    """Get next new topic, or specific one by ID."""
+    topics = load_topics()
+    if topic_id:
+        for t in topics:
+            if t.get("id") == topic_id:
+                t["status"] = "processing"; save_topics(topics); return t
+        raise RuntimeError(f"Topic {topic_id} not found")
+    for t in topics:
+        if t.get("status") == "new":
+            t["status"] = "processing"; save_topics(topics); return t
+    raise RuntimeError("No new topics - add topics or generate with AI")
+
+def update_topic_status(topic_id, status, extra=None):
+    topics = load_topics()
+    for t in topics:
+        if t.get("id") == topic_id:
+            t["status"] = status
+            if extra: t.update(extra)
+            break
+    save_topics(topics)
+
+def generate_topics_ai(count=10):
+    """Generate topics via GPT-4o."""
+    log.info(f"Generating {count} topics via GPT-4o...")
+    prompt = (f"Generate {count} unique viral short-form video topics for a Christian mens faith channel called Gods Knights. "
+              "The brand voice is a battle-hardened medieval knight speaking to modern men about real daily struggles through scripture and warfare metaphors. "
+              "CATEGORIES: Shocking Revelations, Shocking Reveal, Behind-the-Scenes, Myths Debunked, Deep Dive Analysis. "
+              "Each topic must address a REAL daily battle men face: finances, marriage, temptation, lust, anger, fatherhood, discipline, doubt, purpose, leadership, addiction, laziness, fear. "
+              'Return ONLY a JSON array: [{"idea":"topic title","category":"one category","scripture":"verse ref"}]. '
+              "Make them provocative and scroll-stopping. No generic churchy language.")
+    r = requests.post("https://api.openai.com/v1/chat/completions",
+        headers={"Authorization": f"Bearer {Config.OPENAI_KEY}", "Content-Type": "application/json"},
+        json={"model": "gpt-4o", "messages": [{"role": "user", "content": prompt}], "temperature": 0.9, "max_tokens": 3000}, timeout=30)
+    r.raise_for_status()
+    text = r.json()["choices"][0]["message"]["content"]
+    raw = re.sub(r'^```json\s*\n?', '', text, flags=re.IGNORECASE)
+    raw = re.sub(r'\n?```\s*$', '', raw).strip()
+    try: items = json.loads(raw)
+    except: return []
+    added = []
+    for item in items:
+        if isinstance(item, dict) and item.get("idea"):
+            added.append(add_topic(item["idea"], item.get("category", random.choice(CATEGORIES)), item.get("scripture", "")))
+    log.info(f"   Generated {len(added)} topics")
+    return added
+
+def seed_default_topics():
+    """Seed 100 default topics if DB is empty."""
+    if load_topics(): return
+    log.info("Seeding 100 default topics...")
+    defaults = [
+        ("The Sword You Never Picked Up","Shocking Revelations","Ephesians 6:17"),
+        ("Your Silence Is Killing Your Family","Shocking Reveal","Joshua 24:15"),
+        ("Why Most Christian Men Are Losing","Myths Debunked","1 Corinthians 16:13"),
+        ("The Battle Before Sunrise","Behind-the-Scenes","Mark 1:35"),
+        ("Armor of God Is Not Decoration","Deep Dive Analysis","Ephesians 6:11"),
+        ("Stop Praying Safe Prayers","Shocking Revelations","James 5:16"),
+        ("The Enemy Knows Your Routine","Shocking Reveal","1 Peter 5:8"),
+        ("Discipline Is the Weapon You Lack","Myths Debunked","Proverbs 25:28"),
+        ("Your Wife Needs a Warrior Not a Roommate","Behind-the-Scenes","Ephesians 5:25"),
+        ("The Cost of Comfortable Christianity","Deep Dive Analysis","Revelation 3:16"),
+        ("Lust Is a Siege Not a Surprise","Shocking Revelations","James 1:14-15"),
+        ("You Were Built for War Not Comfort","Shocking Reveal","2 Timothy 2:3-4"),
+        ("The Shield of Faith Is Not Optional","Deep Dive Analysis","Ephesians 6:16"),
+        ("Anger Unchanneled Destroys Everything","Myths Debunked","Proverbs 29:11"),
+        ("Rise Before the Enemy Does","Behind-the-Scenes","Psalm 5:3"),
+        ("Debt Is a Chain Not a Tool","Shocking Revelations","Proverbs 22:7"),
+        ("Your Sons Are Watching Your Fight","Shocking Reveal","Deuteronomy 6:7"),
+        ("The Night Watch No One Sees","Behind-the-Scenes","Psalm 130:6"),
+        ("Doubt Is Not the Opposite of Faith","Deep Dive Analysis","Mark 9:24"),
+        ("Forgiveness Is a Battlefield Decision","Myths Debunked","Matthew 6:14-15"),
+        ("The Helmet of Salvation Protects Your Mind","Deep Dive Analysis","Ephesians 6:17"),
+        ("Pornography Is the Silent Siege","Shocking Revelations","Matthew 5:28"),
+        ("Most Men Die Without Purpose","Shocking Reveal","Proverbs 29:18"),
+        ("The Forge That Makes the Sword","Behind-the-Scenes","Isaiah 48:10"),
+        ("Patience Is Not Passive","Myths Debunked","James 1:4"),
+        ("Stop Waiting for Permission to Lead","Shocking Reveal","1 Timothy 4:12"),
+        ("The Graveyard of Wasted Potential","Shocking Revelations","Matthew 25:25"),
+        ("One Decision Away from Ruin","Behind-the-Scenes","Proverbs 14:12"),
+        ("Brotherhood Was Never Optional","Myths Debunked","Ecclesiastes 4:9-10"),
+        ("The Weight Only You Can Carry","Deep Dive Analysis","Galatians 6:5"),
+        ("Fear Dressed as Wisdom","Shocking Revelations","2 Timothy 1:7"),
+        ("The Morning Ritual That Changes Everything","Behind-the-Scenes","Psalm 143:8"),
+        ("Your Excuses Sound Like Retreat","Shocking Reveal","Judges 6:15-16"),
+        ("The Belt of Truth Holds Everything Together","Deep Dive Analysis","Ephesians 6:14"),
+        ("Comparison Is the Thief of Calling","Myths Debunked","Galatians 6:4"),
+        ("Lead Your Home or Someone Else Will","Shocking Reveal","1 Timothy 5:8"),
+        ("Fatigue Is Not an Excuse to Surrender","Behind-the-Scenes","Galatians 6:9"),
+        ("The Cross Was Not Comfortable","Shocking Revelations","Luke 9:23"),
+        ("Obedience Over Understanding","Deep Dive Analysis","Proverbs 3:5-6"),
+        ("Pride Goes Before the Ambush","Myths Debunked","Proverbs 16:18"),
+        ("Your Marriage Is a Fortress","Behind-the-Scenes","Ecclesiastes 4:12"),
+        ("The Breastplate Guards What Matters","Deep Dive Analysis","Ephesians 6:14"),
+        ("Addiction Is a Stronghold Not a Habit","Shocking Revelations","2 Corinthians 10:4"),
+        ("The Narrow Path Was Never Popular","Shocking Reveal","Matthew 7:14"),
+        ("Guard Your Eyes Like the City Gate","Behind-the-Scenes","Job 31:1"),
+        ("Surrender Is Not Weakness","Myths Debunked","Romans 12:1"),
+        ("Built for the Storm","Deep Dive Analysis","Matthew 7:25"),
+        ("Every Knight Has Scars","Behind-the-Scenes","2 Corinthians 11:25"),
+        ("The Sword of the Spirit Is Your Only Offense","Deep Dive Analysis","Ephesians 6:17"),
+        ("Stop Negotiating with Temptation","Shocking Reveal","Genesis 39:12"),
+        ("The Watch That Never Ends","Behind-the-Scenes","1 Thessalonians 5:6"),
+        ("Grace Is Not a License to Be Soft","Myths Debunked","Romans 6:1-2"),
+        ("Prepare in Secret Win in Public","Shocking Revelations","Matthew 6:6"),
+        ("Your Prayer Life Is Your Battle Plan","Deep Dive Analysis","Ephesians 6:18"),
+        ("Laziness Wears a Crown of Excuses","Shocking Reveal","Proverbs 13:4"),
+        ("The Desert Was Always Part of the Journey","Behind-the-Scenes","Deuteronomy 8:2"),
+        ("Truth Without Love Is a Weapon Misused","Myths Debunked","Ephesians 4:15"),
+        ("Every Day Is a Battle Whether You Show Up or Not","Shocking Revelations","Ephesians 6:12"),
+        ("You Cannot Protect What You Will Not Face","Shocking Reveal","Nehemiah 4:14"),
+        ("The Campfire Before the War","Behind-the-Scenes","Psalm 27:3"),
+        ("Faith Without Works Is a Dull Sword","Myths Debunked","James 2:26"),
+        ("The River You Must Cross Alone","Deep Dive Analysis","Joshua 3:13"),
+        ("Tithing Is Training Not Taxation","Shocking Revelations","Malachi 3:10"),
+        ("Your Anger Belongs to God Not You","Myths Debunked","Ephesians 4:26"),
+        ("The Gatekeeper of Your Household","Behind-the-Scenes","Psalm 101:2"),
+        ("Endurance Is Not Glamorous","Deep Dive Analysis","Hebrews 12:1"),
+        ("The Battle You Are Avoiding Is the One You Need","Shocking Reveal","1 Samuel 17:32"),
+        ("Social Media Is the New Colosseum","Shocking Revelations","Romans 12:2"),
+        ("Fasting Is the Weapon You Forgot","Myths Debunked","Matthew 17:21"),
+        ("The Quiet Obedience Nobody Celebrates","Behind-the-Scenes","1 Samuel 15:22"),
+        ("Financial Stewardship Is Spiritual Warfare","Deep Dive Analysis","Luke 16:11"),
+        ("The Tower You Built Without God","Shocking Reveal","Genesis 11:4"),
+        ("Grief Is Not Defeat","Myths Debunked","Psalm 34:18"),
+        ("Standing Alone When Everyone Retreats","Behind-the-Scenes","2 Timothy 4:16"),
+        ("The Covenant You Made and Forgot","Shocking Revelations","Ecclesiastes 5:5"),
+        ("Teach Your Sons to Fight","Shocking Reveal","Proverbs 22:6"),
+        ("The Midnight Hour Before Breakthrough","Deep Dive Analysis","Acts 16:25"),
+        ("Comfort Is the Enemy of Calling","Myths Debunked","Hebrews 11:8"),
+        ("The March Nobody Sees","Behind-the-Scenes","Hebrews 11:1"),
+        ("Integrity Is Armor Not Image","Shocking Revelations","Proverbs 10:9"),
+        ("You Were Called to Build Not Just Believe","Shocking Reveal","Nehemiah 2:18"),
+        ("Rest Is a Command Not a Reward","Myths Debunked","Mark 6:31"),
+        ("The Valley of the Shadow Is a Path Not a Prison","Deep Dive Analysis","Psalm 23:4"),
+        ("Your Legacy Starts Today Not Tomorrow","Shocking Reveal","Psalm 78:4"),
+        ("Lukewarm Men Build Nothing","Shocking Revelations","Revelation 3:16"),
+        ("The Shield Wall Requires Brothers","Behind-the-Scenes","Proverbs 27:17"),
+        ("Suffering Produces Something You Cannot Buy","Deep Dive Analysis","Romans 5:3-4"),
+        ("The Idol You Call Normal","Myths Debunked","Exodus 20:3"),
+        ("Guard the Gate of Your Mouth","Behind-the-Scenes","Proverbs 18:21"),
+        ("Victory Was Already Decided","Deep Dive Analysis","1 Corinthians 15:57"),
+        ("The Man Who Knelt Before He Stood","Shocking Reveal","Daniel 6:10"),
+        ("Generosity Is a Weapon Against Greed","Myths Debunked","2 Corinthians 9:7"),
+        ("The Long Road Home","Behind-the-Scenes","Luke 15:20"),
+        ("Wolves Dress Like Shepherds","Shocking Revelations","Matthew 7:15"),
+        ("The Test You Cannot Cheat","Deep Dive Analysis","James 1:12"),
+        ("Your Body Is a Temple Not a Playground","Myths Debunked","1 Corinthians 6:19"),
+        ("The Preparation That Takes Years","Behind-the-Scenes","Galatians 1:17-18"),
+        ("You Do Not Need Permission to Obey God","Shocking Reveal","Acts 5:29"),
+        ("The Fire That Purifies Not Destroys","Deep Dive Analysis","1 Peter 1:7"),
+        ("Repentance Is Strength Not Shame","Myths Debunked","Acts 3:19"),
+    ]
+    for idea, cat, scripture in defaults:
+        add_topic(idea, cat, scripture)
+    log.info(f"   Seeded {len(defaults)} topics")
+
 
 def fetch_topic() -> dict:
-    """Get next 'New' item from Airtable Scripture Topics."""
-    log.info("📋 Phase 1: Fetching topic from Airtable...")
-
-    url = f"https://api.airtable.com/v0/{Config.AIRTABLE_BASE}/{Config.AIRTABLE_TABLE}"
-    r = requests.get(url, headers={
-        "Authorization": f"Bearer {Config.AIRTABLE_KEY}",
-    }, params={
-        "filterByFormula": "{Status} = 'New'",
-        "maxRecords": 1,
-    })
-    r.raise_for_status()
-    records = r.json().get("records", [])
-
-    if not records:
-        raise RuntimeError("No new topics in Airtable")
-
-    rec = records[0]
-    fields = rec["fields"]
-    topic = {
-        "airtable_id": rec["id"],
-        "idea": fields.get("Idea", ""),
-        "category": fields.get("Category", ""),
-        "scripture": fields.get("Scripture", ""),
-    }
-    log.info(f"   Topic: {topic['idea']} [{topic['category']}]")
-    return topic
+    """Get next new topic from local DB (backward compat wrapper)."""
+    return fetch_next_topic()
 
 
 def update_airtable(record_id: str, fields: dict):
-    """Update an Airtable record."""
-    url = f"https://api.airtable.com/v0/{Config.AIRTABLE_BASE}/{Config.AIRTABLE_TABLE}/{record_id}"
-    requests.patch(url, headers={
-        "Authorization": f"Bearer {Config.AIRTABLE_KEY}",
-        "Content-Type": "application/json",
-    }, json={"fields": fields})
+    """Update topic status (backward compat wrapper)."""
+    status = fields.get("Status", "").lower()
+    if status:
+        update_topic_status(record_id, status, fields)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -711,6 +867,31 @@ def generate_videos(clips: list) -> list:
 
 
 # ══════════════════════════════════════════════════════════════
+# PHASE 5b: REGENERATE SINGLE VIDEO CLIP
+# ══════════════════════════════════════════════════════════════
+
+def generate_video_single(clip: dict) -> dict:
+    """Regenerate a single video clip. Used by video approval gate."""
+    model = Config.VIDEO_MODEL
+    log.info(f"🎥 Regenerating clip {clip.get('index','')} via {model}...")
+
+    if "grok-imagine" in model.lower():
+        params = {"image_url": clip["image_url"], "prompt": clip["motion_prompt"], "mode": "normal"}
+    elif "minimax" in model.lower():
+        params = {"first_frame_image": clip["image_url"], "prompt": clip["motion_prompt"]}
+    else:
+        params = {"image": clip["image_url"], "prompt": clip["motion_prompt"]}
+    if "seedance" in model.lower() or "wan" in model.lower():
+        params["aspect_ratio"] = "9:16"
+
+    url = replicate_create(model, params)
+    clip["video_poll_url"] = url
+    clip["video_url"] = replicate_poll(url, timeout=600)
+    log.info(f"   Clip {clip.get('index','')}: video regenerated ✓")
+    return clip
+
+
+# ══════════════════════════════════════════════════════════════
 # PHASE 6: VOICEOVER (ElevenLabs)
 # ══════════════════════════════════════════════════════════════
 
@@ -800,25 +981,6 @@ def upload_to_r2(folder: str, filename: str, data, content_type: str) -> str:
             filename = filename.rsplit(".", 1)[0] + ".webm"
             content_type = "video/webm"
             key = f"{folder}/{filename}"
-        # Check audio format — ElevenLabs should return MP3 but verify
-        if filename.endswith(".mp3"):
-            is_mp3 = (len(data) >= 3 and (data[:3] == b'ID3' or data[:2] in (b'\xff\xfb', b'\xff\xf3', b'\xff\xe3')))
-            if not is_mp3:
-                log.warning(f"   ⚠️ Audio file {filename} may not be MP3 (magic={data[:4].hex()})")
-                # Check if it's actually WAV
-                if data[:4] == b'RIFF' and len(data) >= 12 and data[8:12] == b'WAVE':
-                    filename = filename.rsplit(".", 1)[0] + ".wav"
-                    content_type = "audio/wav"
-                    key = f"{folder}/{filename}"
-                    log.info(f"   Renamed to {filename} (WAV detected)")
-                # Check if it's OGG
-                elif data[:4] == b'OggS':
-                    filename = filename.rsplit(".", 1)[0] + ".ogg"
-                    content_type = "audio/ogg"
-                    key = f"{folder}/{filename}"
-                    log.info(f"   Renamed to {filename} (OGG detected)")
-            else:
-                log.info(f"   Audio verified: MP3 ({len(data)//1024}KB, magic={data[:4].hex()})")
         s3.put_object(Bucket=Config.R2_BUCKET, Key=key, Body=data, ContentType=content_type)
     elif isinstance(data, str) and data.startswith("http"):
         # URL — download first, detect real format
@@ -888,42 +1050,18 @@ def upload_assets(folder: str, clips: list, audio: bytes, srt: str) -> dict:
 # PHASE 9: FINAL RENDER (Shotstack)
 # ══════════════════════════════════════════════════════════════
 
-def create_srt(transcription: dict, words_per_group: int = 4) -> str:
-    """Create SRT with word-level timestamps from Whisper transcription.
-    Groups words into short chunks for punchy on-screen captions.
-    Falls back to single-block SRT if no word data available.
-    """
-    words = transcription.get("words", [])
-    if not words:
-        # Fallback: single block from full text
-        text = transcription.get("text", "")
-        return f"1\n00:00:00,000 --> 00:59:59,000\n{text}\n"
-
-    def fmt_ts(seconds: float) -> str:
-        h = int(seconds // 3600)
-        m = int((seconds % 3600) // 60)
-        s = int(seconds % 60)
-        ms = int((seconds % 1) * 1000)
-        return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
-
-    srt_blocks = []
-    idx = 1
-    i = 0
-    while i < len(words):
-        group = words[i:i + words_per_group]
-        start = group[0].get("start", 0)
-        end = group[-1].get("end", start + 1)
-        text = " ".join(w.get("word", "") for w in group).strip().upper()
-        if text:
-            srt_blocks.append(f"{idx}\n{fmt_ts(start)} --> {fmt_ts(end)}\n{text}\n")
-            idx += 1
-        i += words_per_group
-
-    return "\n".join(srt_blocks)
+def create_srt(script_text: str) -> str:
+    """Create simple SRT content."""
+    return f"1\n00:00:00,000 --> 00:59:59,000\n{script_text}\n"
 
 
-def _build_shotstack_payload(clips: list, voiceover_url: str = None, logo_url: str = None, srt_url: str = None) -> dict:
-    """Build Shotstack render payload. Separates build from submit for retry logic."""
+def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
+    """Render final video via Shotstack. Returns download URL."""
+    ss_env = getattr(Config, 'SHOTSTACK_ENV', 'stage')
+    ss_base = f"https://api.shotstack.io/{ss_env}"
+    log.info(f"🎞️  Phase 9: Rendering final video via Shotstack ({ss_env}) | {Config.RENDER_RES}p {Config.RENDER_ASPECT} {Config.RENDER_FPS}fps")
+
+    # Build video clips timeline
     video_clips = []
     cursor = 0.0
     for clip in clips:
@@ -936,285 +1074,141 @@ def _build_shotstack_payload(clips: list, voiceover_url: str = None, logo_url: s
         })
         cursor += dur
 
-    # Append static CTA clip at the end
-    if Config.CTA_ENABLED and Config.CTA_URL:
-        cta_dur = Config.CTA_DURATION
+    # CTA clip at end (static image held for CTA_DURATION)
+    if getattr(Config, 'CTA_ENABLED', False) and getattr(Config, 'CTA_URL', ''):
+        cta_dur = getattr(Config, 'CTA_DURATION', 4.0)
         video_clips.append({
-            "asset": {"type": "video", "src": Config.CTA_URL, "volume": 1, "transcode": True},
+            "asset": {"type": "image", "src": Config.CTA_URL},
             "start": round(cursor, 3),
             "length": cta_dur,
             "fit": "cover",
         })
         cursor += cta_dur
-        log.info(f"   CTA clip appended: {cta_dur}s at {round(cursor - cta_dur, 3)}s")
+        log.info(f"   CTA clip: {cta_dur}s from {Config.CTA_URL}")
 
     total_dur = round(cursor, 3)
 
     tracks = []
 
-    # Caption/subtitle overlay (must be ABOVE video track)
-    if srt_url:
-        tracks.append({"clips": [{
-            "asset": {
-                "type": "caption",
-                "src": srt_url,
-                "font": {
-                    "family": "Montserrat ExtraBold",
-                    "color": "#ffffff",
-                    "size": 34,
-                    "lineHeight": 0.9,
-                    "stroke": "#000000",
-                    "strokeWidth": 1.5,
-                },
-                "background": {
-                    "color": "#00000000",
-                    "padding": 8,
-                    "borderRadius": 4,
-                },
-                "margin": {
-                    "bottom": 0.18,
-                    "left": 0.08,
-                    "right": 0.08,
-                },
-            },
-            "start": 0,
-            "length": "end",
-            "position": "bottom",
-        }]})
+    # Logo overlay (conditional)
+    if Config.LOGO_ENABLED and Config.LOGO_URL:
+        logo_url = Config.LOGO_URL
+        # Re-upload logo to our working R2 bucket to guarantee Shotstack can access it
+        try:
+            log.info(f"   Fetching logo from {logo_url}...")
+            lr = requests.get(logo_url, timeout=15)
+            lr.raise_for_status()
+            # Detect format from content-type or magic bytes
+            ct = lr.headers.get("content-type", "image/png").split(";")[0].strip()
+            body = lr.content
+            ext = "png"
+            if body[:4] == b'\x89PNG':
+                ct = "image/png"; ext = "png"
+            elif body[:2] == b'\xff\xd8':
+                ct = "image/jpeg"; ext = "jpg"
+            elif body[:4] == b'RIFF' and body[8:12] == b'WEBP':
+                ct = "image/webp"; ext = "webp"
+            s3 = get_s3_client()
+            logo_key = f"_assets/logo.{ext}"
+            s3.put_object(Bucket=Config.R2_BUCKET, Key=logo_key, Body=body, ContentType=ct)
+            logo_url = f"{Config.R2_PUBLIC_URL}/{logo_key}"
+            log.info(f"   Logo re-uploaded to {logo_url} ({ct}, {len(body)//1024}KB)")
+        except Exception as e:
+            log.warning(f"   Logo fetch/upload failed: {e}, skipping logo overlay")
+            logo_url = None
 
-    # Logo overlay
-    if logo_url:
-        offsets = {
-            "topRight": {"x": -0.03, "y": 0.03}, "topLeft": {"x": 0.03, "y": 0.03},
-            "bottomRight": {"x": -0.03, "y": -0.03}, "bottomLeft": {"x": 0.03, "y": -0.03},
-            "center": {"x": 0, "y": 0},
-        }
-        tracks.append({"clips": [{
-            "asset": {"type": "image", "src": logo_url},
-            "start": 0, "length": total_dur,
-            "position": Config.LOGO_POSITION,
-            "offset": offsets.get(Config.LOGO_POSITION, {"x": -0.03, "y": 0.03}),
-            "scale": Config.LOGO_SCALE, "opacity": Config.LOGO_OPACITY,
-        }]})
+        if logo_url:
+            # Offset map for positions
+            offsets = {
+                "topRight": {"x": -0.03, "y": 0.03},
+                "topLeft": {"x": 0.03, "y": 0.03},
+                "bottomRight": {"x": -0.03, "y": -0.03},
+                "bottomLeft": {"x": 0.03, "y": -0.03},
+                "center": {"x": 0, "y": 0},
+            }
+            tracks.append({"clips": [{
+                "asset": {"type": "image", "src": logo_url},
+                "start": 0, "length": total_dur,
+                "position": Config.LOGO_POSITION,
+                "offset": offsets.get(Config.LOGO_POSITION, {"x": -0.03, "y": 0.03}),
+                "scale": Config.LOGO_SCALE, "opacity": Config.LOGO_OPACITY,
+            }]})
 
+    # Video clips
     tracks.append({"clips": video_clips})
 
-    if voiceover_url:
-        tracks.append({"clips": [{
-            "asset": {"type": "audio", "src": voiceover_url},
-            "start": 0, "length": total_dur,
-        }]})
+    # Audio
+    tracks.append({"clips": [{
+        "asset": {"type": "audio", "src": voiceover_url},
+        "start": 0, "length": total_dur,
+    }]})
 
-    return {
-        "timeline": {"tracks": tracks, "background": Config.RENDER_BG},
+    timeline = {
+        "tracks": tracks,
+        "background": Config.RENDER_BG,
+    }
+
+    payload = {
+        "timeline": timeline,
         "output": {
-            "format": "mp4", "resolution": Config.RENDER_RES,
-            "aspectRatio": Config.RENDER_ASPECT, "fps": Config.RENDER_FPS,
+            "format": "mp4",
+            "resolution": Config.RENDER_RES,
+            "aspectRatio": Config.RENDER_ASPECT,
+            "fps": Config.RENDER_FPS,
         },
     }
 
+    # Pre-flight: probe all asset URLs to catch format issues early
+    all_asset_urls = []
+    for track in tracks:
+        for clip in track.get("clips", []):
+            asset = clip.get("asset", {})
+            src = asset.get("src", "")
+            if src:
+                all_asset_urls.append((asset.get("type", "?"), src))
 
-def _submit_and_poll_shotstack(payload: dict, label: str = "") -> str:
-    """Submit a Shotstack render and poll until done. Returns download URL or raises."""
-    # Use stage (sandbox) or v1 (production) based on config
-    ss_env = getattr(Config, 'SHOTSTACK_ENV', 'stage')
-    r = requests.post(f"https://api.shotstack.io/edit/{ss_env}/render", headers={
+    for atype, aurl in all_asset_urls:
+        try:
+            encoded_url = requests.utils.quote(aurl, safe='')
+            probe_r = requests.get(f"{ss_base}/probe/{aurl}",
+                                   headers={"x-api-key": Config.SHOTSTACK_KEY}, timeout=15)
+            if probe_r.status_code == 200:
+                probe_data = probe_r.json().get("response", {}).get("metadata", {})
+                streams = probe_data.get("streams", [])
+                fmt = probe_data.get("format", {}).get("format_name", "?")
+                log.info(f"   Probe OK: {atype} — {fmt} — {aurl.split('/')[-1]}")
+            else:
+                log.warning(f"   Probe FAIL ({probe_r.status_code}): {atype} — {aurl}")
+                log.warning(f"   Response: {probe_r.text[:300]}")
+        except Exception as e:
+            log.warning(f"   Probe error for {aurl}: {e}")
+
+    r = requests.post(f"{ss_base}/render", headers={
         "x-api-key": Config.SHOTSTACK_KEY,
         "Content-Type": "application/json",
     }, json=payload, timeout=30)
     r.raise_for_status()
     job_id = r.json()["response"]["id"]
-    log.info(f"   Render job{' ('+label+')' if label else ''}: {job_id} [env={ss_env}]")
+    log.info(f"   Render job: {job_id}")
 
+    # Poll for completion
     for _ in range(60):
         time.sleep(15)
-        r = requests.get(f"https://api.shotstack.io/edit/{ss_env}/render/{job_id}", headers={
+        r = requests.get(f"{ss_base}/render/{job_id}", headers={
             "x-api-key": Config.SHOTSTACK_KEY,
         })
         r.raise_for_status()
         data = r.json()["response"]
         status = data.get("status")
+
         if status == "done":
+            download_url = data["url"]
             log.info(f"   Render complete ✓")
-            return data["url"]
+            return download_url
         elif status == "failed":
             raise RuntimeError(f"Shotstack render failed: {data}")
 
     raise TimeoutError("Shotstack render timed out")
-
-
-def _probe_asset(url: str) -> dict | None:
-    """Probe a media URL via Shotstack to get codec/format info."""
-    try:
-        ss_env = getattr(Config, 'SHOTSTACK_ENV', 'stage')
-        r = requests.get(
-            f"https://api.shotstack.io/edit/{ss_env}/probe/{requests.utils.quote(url, safe='')}",
-            headers={"x-api-key": Config.SHOTSTACK_KEY},
-            timeout=20,
-        )
-        if r.status_code == 200:
-            return r.json().get("response", {}).get("metadata", {})
-        else:
-            log.warning(f"   Probe failed ({r.status_code}): {url.split('/')[-1]}")
-            return None
-    except Exception as e:
-        log.warning(f"   Probe error: {e}")
-        return None
-
-
-def _prepare_logo() -> str | None:
-    """Download, validate, and re-upload logo. Returns R2 URL or None."""
-    if not Config.LOGO_ENABLED or not Config.LOGO_URL:
-        return None
-    try:
-        logo_url = Config.LOGO_URL
-        log.info(f"   Fetching logo from {logo_url}...")
-        lr = requests.get(logo_url, timeout=15)
-        lr.raise_for_status()
-        body = lr.content
-        ct = lr.headers.get("content-type", "").split(";")[0].strip().lower()
-
-        # Detect ACTUAL format from magic bytes (authoritative)
-        ext = None
-        if body[:4] == b'\x89PNG':
-            ext = "png"; ct = "image/png"
-        elif body[:2] == b'\xff\xd8':
-            ext = "jpg"; ct = "image/jpeg"
-        elif body[:4] == b'RIFF' and len(body) >= 12 and body[8:12] == b'WEBP':
-            ext = "webp"; ct = "image/webp"
-        elif body[:4] == b'GIF8':
-            ext = "gif"; ct = "image/gif"
-        elif body[:5] == b'<?xml' or body[:4] == b'<svg' or b'<svg' in body[:200]:
-            log.warning("   Logo is SVG — not supported by Shotstack, skipping")
-            return None
-        else:
-            # Unknown format — log bytes for debugging and skip
-            log.warning(f"   Logo unknown format: magic={body[:8].hex()}, ct={ct}, skipping")
-            return None
-
-        log.info(f"   Logo validated: {ext} ({ct}, {len(body)//1024}KB, magic={body[:4].hex()})")
-
-        s3 = get_s3_client()
-        logo_key = f"_assets/logo.{ext}"
-        s3.put_object(Bucket=Config.R2_BUCKET, Key=logo_key, Body=body, ContentType=ct)
-        result_url = f"{Config.R2_PUBLIC_URL}/{logo_key}"
-        log.info(f"   Logo uploaded to {result_url}")
-        return result_url
-    except Exception as e:
-        log.warning(f"   Logo prep failed: {e}, skipping")
-        return None
-
-
-def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
-    """Render final video via Shotstack. Retries without logo on format error."""
-    log.info(f"🎞️  Phase 9: Rendering final video via Shotstack | {Config.RENDER_RES}p {Config.RENDER_ASPECT} {Config.RENDER_FPS}fps")
-
-    # Prepare logo
-    logo_url = _prepare_logo()
-
-    # Prepare CTA clip — re-upload to main bucket if from different source
-    if Config.CTA_ENABLED and Config.CTA_URL:
-        cta_src = Config.CTA_URL
-        if Config.R2_PUBLIC_URL not in cta_src or "_assets/ChristCTA.mp4" not in cta_src:
-            try:
-                log.info(f"   Re-uploading CTA clip to main bucket...")
-                cr = requests.get(cta_src, timeout=30)
-                cr.raise_for_status()
-                s3 = get_s3_client()
-                s3.put_object(Bucket=Config.R2_BUCKET, Key="_assets/ChristCTA.mp4", Body=cr.content, ContentType="video/mp4")
-                Config.CTA_URL = f"{Config.R2_PUBLIC_URL}/_assets/ChristCTA.mp4"
-                log.info(f"   CTA clip ready: {Config.CTA_URL} ({len(cr.content)//1024}KB)")
-            except Exception as e:
-                log.warning(f"   CTA re-upload failed: {e}, using original URL")
-
-    # Log all asset info for debugging
-    log.info(f"   Assets: {len(clips)} clips, voiceover={voiceover_url.split('/')[-1]}, logo={'YES' if logo_url else 'NO'}")
-    for clip in clips:
-        log.info(f"   Clip {clip['index']}: {clip.get('r2_url', '?')}")
-    log.info(f"   Voiceover: {voiceover_url}")
-
-    # Probe assets to detect codec issues BEFORE rendering
-    log.info(f"   Probing assets via Shotstack...")
-    for clip in clips:
-        meta = _probe_asset(clip.get("r2_url", ""))
-        if meta:
-            streams = meta.get("streams", [])
-            fmt = meta.get("format", {})
-            fmt_name = fmt.get("format_name", "?")
-            for s in streams:
-                if s.get("codec_type") == "video":
-                    log.info(f"   Clip {clip['index']} codec: {s.get('codec_name','?')} ({s.get('width')}x{s.get('height')}) container={fmt_name}")
-                elif s.get("codec_type") == "audio":
-                    log.info(f"   Clip {clip['index']} audio: {s.get('codec_name','?')}")
-        else:
-            log.warning(f"   Clip {clip['index']}: probe failed — Shotstack can't access this file!")
-
-    vo_meta = _probe_asset(voiceover_url)
-    if vo_meta:
-        for s in vo_meta.get("streams", []):
-            log.info(f"   Voiceover codec: {s.get('codec_name','?')} rate={s.get('sample_rate','?')}")
-    else:
-        log.warning(f"   Voiceover: probe failed!")
-
-    # Log SRT for captions
-    log.info(f"   SRT: {srt_url if srt_url else 'NONE'}")
-
-    # Attempt 1: Full render with logo + captions
-    payload = _build_shotstack_payload(clips, voiceover_url, logo_url, srt_url=srt_url)
-    try:
-        return _submit_and_poll_shotstack(payload, "with logo" if logo_url else "no logo")
-    except RuntimeError as e:
-        err_str = str(e)
-        if "file extension does not match" not in err_str.lower() and "file format is not supported" not in err_str.lower():
-            raise  # Not a format error — don't retry
-
-        # Check if we're on freeTrial/stage — common cause
-        if "'plan': 'freetrial'" in err_str.lower() or "'plan': 'freeTrial'" in err_str:
-            log.error(f"   ⚠️ SHOTSTACK KEY IS ON FREE TRIAL / STAGE PLAN!")
-            log.error(f"   Your API key maps to 'freeTrial'. Use your PRODUCTION API key from Shotstack dashboard.")
-            log.error(f"   Go to: shotstack.io → API Keys → copy the Production key")
-
-        log.warning(f"   ⚠️ Shotstack format error — isolating culprit...")
-
-        # Attempt 2: Retry WITHOUT logo (most common culprit)
-        if logo_url:
-            log.info(f"   Retry 1: Removing logo overlay...")
-            payload_no_logo = _build_shotstack_payload(clips, voiceover_url, logo_url=None, srt_url=srt_url)
-            try:
-                url = _submit_and_poll_shotstack(payload_no_logo, "no logo retry")
-                log.warning(f"   ✓ Render succeeded without logo — logo.png is the culprit!")
-                return url
-            except RuntimeError:
-                log.warning(f"   Retry without logo also failed — issue is clips or voiceover")
-
-        # Attempt 3: Video only — NO audio (isolates voiceover)
-        log.info(f"   Retry 2: Single clip, NO audio, no logo...")
-        video_only_payload = _build_shotstack_payload(clips[:1], voiceover_url=None, logo_url=None)
-        try:
-            url = _submit_and_poll_shotstack(video_only_payload, "video only")
-            log.warning(f"   ✓ Video-only works — THE VOICEOVER IS THE CULPRIT")
-            log.warning(f"   Voiceover URL: {voiceover_url}")
-            log.warning(f"   Check: is this actually an MP3 file? Extension must match content.")
-
-            # Attempt 3b: Full clips + audio (since video works, maybe it's audio format)
-            log.info(f"   Retry 3: All clips + voiceover, no logo...")
-            full_no_logo = _build_shotstack_payload(clips, voiceover_url, logo_url=None, srt_url=srt_url)
-            try:
-                url2 = _submit_and_poll_shotstack(full_no_logo, "clips+audio no logo")
-                return url2
-            except RuntimeError:
-                log.error(f"   Confirmed: voiceover.mp3 format mismatch — returning video-only render")
-                return url
-        except RuntimeError:
-            log.error(f"   ✗ Even video-only failed — VIDEO CLIPS are the culprit")
-            log.error(f"   Clips are likely encoded with unsupported codec (VP9/AV1/HEVC)")
-            log.error(f"   Seedance output may need transcoding before Shotstack can use it")
-            raise RuntimeError(
-                f"Shotstack format error: video clips use unsupported codec. "
-                f"Seedance-1-Lite may output VP9/AV1 which Shotstack freeTrial cannot decode. "
-                f"Fix: Use production API key, or switch to a model that outputs H.264. "
-                f"Original: {err_str[:200]}"
-            )
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1396,14 +1390,19 @@ def publish_everywhere(final_video_url: str, captions: dict, topic: dict):
 # MAIN PIPELINE
 # ══════════════════════════════════════════════════════════════
 
-def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
-    """Execute the full pipeline with checkpoint/resume support.
+def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None) -> dict:
+    """Execute the full pipeline with checkpoint/resume and approval gates.
     
     resume_from: Phase index to resume from (0 = start fresh).
-    Checkpoints are saved after each phase to /tmp/pipeline_checkpoint.json
+    topic_id: Specific topic ID to use (None = next available).
+    
+    Gates:
+      - After phase 2 (Scene Engine): pauses for prompt editing (gate="prompts")
+      - After phase 4 (Generate Videos): pauses for video approval (gate="videos")
+    
+    Checkpoints saved after each phase to DATA_DIR/pipeline_checkpoint.json
     """
-    _data_dir = Path("/var/data") if Path("/var/data").exists() else Path(__file__).parent / "data"
-    CHECKPOINT_FILE = str(_data_dir / "pipeline_checkpoint.json")
+    CHECKPOINT_FILE = str(DATA_DIR / "pipeline_checkpoint.json")
     start = time.time()
     result = {"status": "running", "phases": [], "error": None}
 
@@ -1434,10 +1433,10 @@ def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
             except: pass
 
     try:
-        # ── Phase 1: Fetch topic ────────────────────────────────
+        # ── Phase 0: Fetch topic ────────────────────────────────
         if resume_from <= 0:
             notify(0, "Fetch Topic", "running")
-            topic = fetch_topic()
+            topic = fetch_topic(topic_id)
             update_airtable(topic["airtable_id"], {"Status": "Processing"})
             result["phases"].append({"name": "Fetch Topic", "status": "done"})
             result["topic"] = topic
@@ -1449,7 +1448,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
             result["phases"].append({"name": "Fetch Topic", "status": "done"})
             notify(0, "Fetch Topic", "done")
 
-        # ── Phase 2: Generate script ────────────────────────────
+        # ── Phase 1: Generate script ────────────────────────────
         if resume_from <= 1:
             notify(1, "Generate Script", "running")
             script = generate_script(topic) if resume_from < 1 else ckpt.get("script") or generate_script(topic)
@@ -1463,19 +1462,30 @@ def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
             result["phases"].append({"name": "Generate Script", "status": "done"})
             notify(1, "Generate Script", "done")
 
-        # ── Phase 3: Scene engine ───────────────────────────────
+        # ── Phase 2: Scene engine ───────────────────────────────
         if resume_from <= 2:
             notify(2, "Scene Engine", "running")
             clips = scene_engine(script, topic) if resume_from < 2 else ckpt.get("clips") or scene_engine(script, topic)
             result["phases"].append({"name": "Scene Engine", "status": "done"})
             save_checkpoint(2, {"clips": clips})
             notify(2, "Scene Engine", "done")
+
+            # ═══ GATE 1: Prompt Editing ═══
+            # Pause pipeline so user can review/edit image & motion prompts
+            result["status"] = "awaiting_prompt_approval"
+            result["gate"] = "prompts"
+            result["gate_phase"] = 3  # resume from here after approval
+            result["clips"] = clips
+            result["script"] = script
+            log.info("⏸️  Gate 1: Awaiting prompt approval — edit prompts then resume")
+            return result
         else:
-            clips = ckpt["clips"]
+            # Resuming past the prompt gate — check for edited clips
+            clips = ckpt.get("clips_edited") or ckpt.get("clips")
             result["phases"].append({"name": "Scene Engine", "status": "done"})
             notify(2, "Scene Engine", "done")
 
-        # ── Phase 4: Generate images ────────────────────────────
+        # ── Phase 3: Generate images ────────────────────────────
         if resume_from <= 3:
             notify(3, "Generate Images", "running")
             clips = generate_images(clips) if resume_from < 3 else (ckpt.get("clips_with_images") or generate_images(clips))
@@ -1489,7 +1499,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
             result["phases"].append({"name": "Generate Images", "status": "done"})
             notify(3, "Generate Images", "done")
 
-        # ── Phase 5: Generate videos ────────────────────────────
+        # ── Phase 4: Generate videos ────────────────────────────
         if resume_from <= 4:
             notify(4, "Generate Videos", "running")
             clips = generate_videos(clips) if resume_from < 4 else (ckpt.get("clips_with_videos") or generate_videos(clips))
@@ -1497,30 +1507,38 @@ def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
             result["videos"] = [{"index": c["index"], "url": c["video_url"]} for c in clips]
             save_checkpoint(4, {"clips_with_videos": clips})
             notify(4, "Generate Videos", "done")
+
+            # ═══ GATE 2: Video Approval ═══
+            # Pause pipeline so user can review videos, approve or regenerate clips
+            result["status"] = "awaiting_video_approval"
+            result["gate"] = "videos"
+            result["gate_phase"] = 5  # resume from here after approval
+            result["clips"] = clips
+            result["images"] = [{"index": c["index"], "url": c["image_url"], "prompt": c.get("image_prompt","")} for c in clips]
+            result["script"] = script
+            log.info("⏸️  Gate 2: Awaiting video approval — review clips then resume")
+            return result
         else:
-            clips = ckpt["clips_with_videos"]
+            clips = ckpt.get("clips_approved") or ckpt.get("clips_with_videos")
             result["videos"] = [{"index": c["index"], "url": c["video_url"]} for c in clips]
             result["phases"].append({"name": "Generate Videos", "status": "done"})
             notify(4, "Generate Videos", "done")
 
-        # ── Phase 6: Voiceover ──────────────────────────────────
+        # ── Phase 5: Voiceover ──────────────────────────────────
         if resume_from <= 5:
             notify(5, "Voiceover", "running")
             audio = generate_voiceover(script)
             result["phases"].append({"name": "Voiceover", "status": "done"})
             result["voiceover_size"] = len(audio)
-            # Save audio as base64 in checkpoint (it's bytes)
-            import base64
             save_checkpoint(5, {"audio_b64": base64.b64encode(audio).decode()})
             notify(5, "Voiceover", "done")
         else:
-            import base64
             audio = base64.b64decode(ckpt["audio_b64"])
             result["voiceover_size"] = len(audio)
             result["phases"].append({"name": "Voiceover", "status": "done"})
             notify(5, "Voiceover", "done")
 
-        # ── Phase 7: Transcribe ─────────────────────────────────
+        # ── Phase 6: Transcribe ─────────────────────────────────
         if resume_from <= 6:
             notify(6, "Transcribe", "running")
             transcription = transcribe_voiceover(audio)
@@ -1532,12 +1550,12 @@ def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
             result["phases"].append({"name": "Transcribe", "status": "done"})
             notify(6, "Transcribe", "done")
 
-        # ── Phase 8: Upload to R2 ──────────────────────────────
+        # ── Phase 7: Upload to R2 ──────────────────────────────
         if resume_from <= 7:
             notify(7, "Upload Assets", "running")
             folder = f"{topic['airtable_id']}_{topic['idea'][:30]}"
             folder = re.sub(r'[^a-zA-Z0-9_-]', '_', folder)
-            srt = create_srt(transcription)
+            srt = create_srt(script["script_full"])
             urls = upload_assets(folder, clips, audio, srt)
             result["phases"].append({"name": "Upload to R2", "status": "done"})
             save_checkpoint(7, {"folder": folder, "urls": urls, "clips_uploaded": clips})
@@ -1549,7 +1567,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
             result["phases"].append({"name": "Upload to R2", "status": "done"})
             notify(7, "Upload Assets", "done")
 
-        # ── Phase 9: Final render ──────────────────────────────
+        # ── Phase 8: Final render ──────────────────────────────
         if resume_from <= 8:
             notify(8, "Final Render", "running")
             # Fix-up: ensure R2 clips have correct format/extension
@@ -1559,12 +1577,8 @@ def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
                 if not r2_url or not r2_url.endswith(".mp4"):
                     continue
                 try:
-                    # Download first 64 bytes for reliable format detection
                     pr = requests.get(r2_url, timeout=15, headers={"Range": "bytes=0-63"})
-                    # Some R2 configs don't support Range — fallback to HEAD
-                    if pr.status_code == 200:
-                        sample = pr.content[:64]
-                    elif pr.status_code == 206:
+                    if pr.status_code in (200, 206):
                         sample = pr.content[:64]
                     else:
                         sample = b''
@@ -1576,7 +1590,6 @@ def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
                     )
                     log.info(f"   Format check {r2_url.split('/')[-1]}: ct={ct}, magic={sample[:4].hex() if sample else '?'}, webm={is_webm}")
                     if is_webm:
-                        # It's WebM but named .mp4 — re-upload with correct key
                         log.warning(f"   Fixing {r2_url} — WebM detected, renaming to .webm")
                         full = requests.get(r2_url, timeout=120)
                         old_key = r2_url.split(Config.R2_PUBLIC_URL + "/")[-1]
@@ -1599,7 +1612,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
             result["phases"].append({"name": "Final Render", "status": "done"})
             notify(8, "Final Render", "done")
 
-        # ── Phase 10: Captions ──────────────────────────────────
+        # ── Phase 9: Captions ──────────────────────────────────
         if resume_from <= 9:
             notify(9, "Captions", "running")
             captions = generate_captions(script, topic)
@@ -1611,13 +1624,13 @@ def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
             result["phases"].append({"name": "Generate Captions", "status": "done"})
             notify(9, "Captions", "done")
 
-        # ── Phase 11: Publish ───────────────────────────────────
+        # ── Phase 10: Publish ───────────────────────────────────
         notify(10, "Publish", "running")
         publish_everywhere(final_r2_url, captions, topic)
         result["phases"].append({"name": "Publish", "status": "done"})
         notify(10, "Publish", "done")
 
-        # Update Airtable
+        # Update topic status
         update_airtable(topic["airtable_id"], {
             "Status": "Published",
             "Final Video URL": final_r2_url,
@@ -1635,11 +1648,9 @@ def run_pipeline(progress_cb=None, resume_from: int = 0) -> dict:
     except Exception as e:
         result["status"] = "failed"
         result["error"] = str(e)
-        # Track which phase we were on for resume
         result["failed_phase"] = ckpt.get("_last_phase", 0) + 1 if ckpt.get("_last_phase") is not None else 0
         log.error(f"\n❌ Pipeline failed at phase {result['failed_phase']}: {e}")
 
-        # Update Airtable if we have the topic
         if "topic" in result:
             update_airtable(result["topic"]["airtable_id"], {
                 "Status": "Failed",
