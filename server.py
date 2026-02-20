@@ -92,6 +92,8 @@ def apply_model_settings():
     if s.get("logo_opacity"):   Config.LOGO_OPACITY = float(s["logo_opacity"])
     # Video timeout
     if s.get("video_timeout"):  Config.VIDEO_TIMEOUT = int(s["video_timeout"])
+    # Shotstack
+    if s.get("shotstack_env"):  Config.SHOTSTACK_ENV = s["shotstack_env"]
     # Platforms
     for pk in ["on_tt","on_yt","on_ig","on_fb","on_tw","on_th","on_pn"]:
         if pk in s: setattr(Config, pk.upper(), s[pk] in (True, "true", "True"))

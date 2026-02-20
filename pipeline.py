@@ -85,6 +85,7 @@ class Config:
 
     # Shotstack
     SHOTSTACK_KEY     = env("SHOTSTACK_API_KEY")
+    SHOTSTACK_ENV     = env("SHOTSTACK_ENV", "stage")  # stage (sandbox/watermark) or v1 (production/no watermark)
 
     # Cloudflare R2
     R2_ACCESS_KEY     = env("R2_ACCESS_KEY")
@@ -938,17 +939,19 @@ def _build_shotstack_payload(clips: list, voiceover_url: str = None, logo_url: s
 
 def _submit_and_poll_shotstack(payload: dict, label: str = "") -> str:
     """Submit a Shotstack render and poll until done. Returns download URL or raises."""
-    r = requests.post("https://api.shotstack.io/edit/v1/render", headers={
+    # Use stage (sandbox) or v1 (production) based on config
+    ss_env = getattr(Config, 'SHOTSTACK_ENV', 'stage')
+    r = requests.post(f"https://api.shotstack.io/edit/{ss_env}/render", headers={
         "x-api-key": Config.SHOTSTACK_KEY,
         "Content-Type": "application/json",
     }, json=payload, timeout=30)
     r.raise_for_status()
     job_id = r.json()["response"]["id"]
-    log.info(f"   Render job{' ('+label+')' if label else ''}: {job_id}")
+    log.info(f"   Render job{' ('+label+')' if label else ''}: {job_id} [env={ss_env}]")
 
     for _ in range(60):
         time.sleep(15)
-        r = requests.get(f"https://api.shotstack.io/edit/v1/render/{job_id}", headers={
+        r = requests.get(f"https://api.shotstack.io/edit/{ss_env}/render/{job_id}", headers={
             "x-api-key": Config.SHOTSTACK_KEY,
         })
         r.raise_for_status()
@@ -966,8 +969,9 @@ def _submit_and_poll_shotstack(payload: dict, label: str = "") -> str:
 def _probe_asset(url: str) -> dict | None:
     """Probe a media URL via Shotstack to get codec/format info."""
     try:
+        ss_env = getattr(Config, 'SHOTSTACK_ENV', 'stage')
         r = requests.get(
-            f"https://api.shotstack.io/edit/v1/probe/{requests.utils.quote(url, safe='')}",
+            f"https://api.shotstack.io/edit/{ss_env}/probe/{requests.utils.quote(url, safe='')}",
             headers={"x-api-key": Config.SHOTSTACK_KEY},
             timeout=20,
         )
