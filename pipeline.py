@@ -794,6 +794,25 @@ def upload_to_r2(folder: str, filename: str, data, content_type: str) -> str:
             filename = filename.rsplit(".", 1)[0] + ".webm"
             content_type = "video/webm"
             key = f"{folder}/{filename}"
+        # Check audio format — ElevenLabs should return MP3 but verify
+        if filename.endswith(".mp3"):
+            is_mp3 = (len(data) >= 3 and (data[:3] == b'ID3' or data[:2] in (b'\xff\xfb', b'\xff\xf3', b'\xff\xe3')))
+            if not is_mp3:
+                log.warning(f"   ⚠️ Audio file {filename} may not be MP3 (magic={data[:4].hex()})")
+                # Check if it's actually WAV
+                if data[:4] == b'RIFF' and len(data) >= 12 and data[8:12] == b'WAVE':
+                    filename = filename.rsplit(".", 1)[0] + ".wav"
+                    content_type = "audio/wav"
+                    key = f"{folder}/{filename}"
+                    log.info(f"   Renamed to {filename} (WAV detected)")
+                # Check if it's OGG
+                elif data[:4] == b'OggS':
+                    filename = filename.rsplit(".", 1)[0] + ".ogg"
+                    content_type = "audio/ogg"
+                    key = f"{folder}/{filename}"
+                    log.info(f"   Renamed to {filename} (OGG detected)")
+            else:
+                log.info(f"   Audio verified: MP3 ({len(data)//1024}KB, magic={data[:4].hex()})")
         s3.put_object(Bucket=Config.R2_BUCKET, Key=key, Body=data, ContentType=content_type)
     elif isinstance(data, str) and data.startswith("http"):
         # URL — download first, detect real format
@@ -868,11 +887,8 @@ def create_srt(script_text: str) -> str:
     return f"1\n00:00:00,000 --> 00:59:59,000\n{script_text}\n"
 
 
-def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
-    """Render final video via Shotstack. Returns download URL."""
-    log.info(f"🎞️  Phase 9: Rendering final video via Shotstack | {Config.RENDER_RES}p {Config.RENDER_ASPECT} {Config.RENDER_FPS}fps")
-
-    # Build video clips timeline
+def _build_shotstack_payload(clips: list, voiceover_url: str, logo_url: str = None) -> dict:
+    """Build Shotstack render payload. Separates build from submit for retry logic."""
     video_clips = []
     cursor = 0.0
     for clip in clips:
@@ -884,113 +900,50 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
             "fit": "cover",
         })
         cursor += dur
-
     total_dur = round(cursor, 3)
 
     tracks = []
 
-    # Logo overlay (conditional)
-    if Config.LOGO_ENABLED and Config.LOGO_URL:
-        logo_url = Config.LOGO_URL
-        # Re-upload logo to our working R2 bucket to guarantee Shotstack can access it
-        try:
-            log.info(f"   Fetching logo from {logo_url}...")
-            lr = requests.get(logo_url, timeout=15)
-            lr.raise_for_status()
-            # Detect format from content-type or magic bytes
-            ct = lr.headers.get("content-type", "image/png").split(";")[0].strip()
-            body = lr.content
-            ext = "png"
-            if body[:4] == b'\x89PNG':
-                ct = "image/png"; ext = "png"
-            elif body[:2] == b'\xff\xd8':
-                ct = "image/jpeg"; ext = "jpg"
-            elif body[:4] == b'RIFF' and body[8:12] == b'WEBP':
-                ct = "image/webp"; ext = "webp"
-            s3 = get_s3_client()
-            logo_key = f"_assets/logo.{ext}"
-            s3.put_object(Bucket=Config.R2_BUCKET, Key=logo_key, Body=body, ContentType=ct)
-            logo_url = f"{Config.R2_PUBLIC_URL}/{logo_key}"
-            log.info(f"   Logo re-uploaded to {logo_url} ({ct}, {len(body)//1024}KB)")
-        except Exception as e:
-            log.warning(f"   Logo fetch/upload failed: {e}, skipping logo overlay")
-            logo_url = None
+    # Logo overlay
+    if logo_url:
+        offsets = {
+            "topRight": {"x": -0.03, "y": 0.03}, "topLeft": {"x": 0.03, "y": 0.03},
+            "bottomRight": {"x": -0.03, "y": -0.03}, "bottomLeft": {"x": 0.03, "y": -0.03},
+            "center": {"x": 0, "y": 0},
+        }
+        tracks.append({"clips": [{
+            "asset": {"type": "image", "src": logo_url},
+            "start": 0, "length": total_dur,
+            "position": Config.LOGO_POSITION,
+            "offset": offsets.get(Config.LOGO_POSITION, {"x": -0.03, "y": 0.03}),
+            "scale": Config.LOGO_SCALE, "opacity": Config.LOGO_OPACITY,
+        }]})
 
-        if logo_url:
-            # Offset map for positions
-            offsets = {
-                "topRight": {"x": -0.03, "y": 0.03},
-                "topLeft": {"x": 0.03, "y": 0.03},
-                "bottomRight": {"x": -0.03, "y": -0.03},
-                "bottomLeft": {"x": 0.03, "y": -0.03},
-                "center": {"x": 0, "y": 0},
-            }
-            tracks.append({"clips": [{
-                "asset": {"type": "image", "src": logo_url},
-                "start": 0, "length": total_dur,
-                "position": Config.LOGO_POSITION,
-                "offset": offsets.get(Config.LOGO_POSITION, {"x": -0.03, "y": 0.03}),
-                "scale": Config.LOGO_SCALE, "opacity": Config.LOGO_OPACITY,
-            }]})
-
-    # Video clips
     tracks.append({"clips": video_clips})
-
-    # Audio
     tracks.append({"clips": [{
         "asset": {"type": "audio", "src": voiceover_url},
         "start": 0, "length": total_dur,
     }]})
 
-    timeline = {
-        "tracks": tracks,
-        "background": Config.RENDER_BG,
-    }
-
-    payload = {
-        "timeline": timeline,
+    return {
+        "timeline": {"tracks": tracks, "background": Config.RENDER_BG},
         "output": {
-            "format": "mp4",
-            "resolution": Config.RENDER_RES,
-            "aspectRatio": Config.RENDER_ASPECT,
-            "fps": Config.RENDER_FPS,
+            "format": "mp4", "resolution": Config.RENDER_RES,
+            "aspectRatio": Config.RENDER_ASPECT, "fps": Config.RENDER_FPS,
         },
     }
 
-    # Pre-flight: probe all asset URLs to catch format issues early
-    all_asset_urls = []
-    for track in tracks:
-        for clip in track.get("clips", []):
-            asset = clip.get("asset", {})
-            src = asset.get("src", "")
-            if src:
-                all_asset_urls.append((asset.get("type", "?"), src))
 
-    for atype, aurl in all_asset_urls:
-        try:
-            encoded_url = requests.utils.quote(aurl, safe='')
-            probe_r = requests.get(f"https://api.shotstack.io/v1/probe/{aurl}",
-                                   headers={"x-api-key": Config.SHOTSTACK_KEY}, timeout=15)
-            if probe_r.status_code == 200:
-                probe_data = probe_r.json().get("response", {}).get("metadata", {})
-                streams = probe_data.get("streams", [])
-                fmt = probe_data.get("format", {}).get("format_name", "?")
-                log.info(f"   Probe OK: {atype} — {fmt} — {aurl.split('/')[-1]}")
-            else:
-                log.warning(f"   Probe FAIL ({probe_r.status_code}): {atype} — {aurl}")
-                log.warning(f"   Response: {probe_r.text[:300]}")
-        except Exception as e:
-            log.warning(f"   Probe error for {aurl}: {e}")
-
+def _submit_and_poll_shotstack(payload: dict, label: str = "") -> str:
+    """Submit a Shotstack render and poll until done. Returns download URL or raises."""
     r = requests.post("https://api.shotstack.io/v1/render", headers={
         "x-api-key": Config.SHOTSTACK_KEY,
         "Content-Type": "application/json",
     }, json=payload, timeout=30)
     r.raise_for_status()
     job_id = r.json()["response"]["id"]
-    log.info(f"   Render job: {job_id}")
+    log.info(f"   Render job{' ('+label+')' if label else ''}: {job_id}")
 
-    # Poll for completion
     for _ in range(60):
         time.sleep(15)
         r = requests.get(f"https://api.shotstack.io/v1/render/{job_id}", headers={
@@ -999,15 +952,106 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
         r.raise_for_status()
         data = r.json()["response"]
         status = data.get("status")
-
         if status == "done":
-            download_url = data["url"]
             log.info(f"   Render complete ✓")
-            return download_url
+            return data["url"]
         elif status == "failed":
             raise RuntimeError(f"Shotstack render failed: {data}")
 
     raise TimeoutError("Shotstack render timed out")
+
+
+def _prepare_logo() -> str | None:
+    """Download, validate, and re-upload logo. Returns R2 URL or None."""
+    if not Config.LOGO_ENABLED or not Config.LOGO_URL:
+        return None
+    try:
+        logo_url = Config.LOGO_URL
+        log.info(f"   Fetching logo from {logo_url}...")
+        lr = requests.get(logo_url, timeout=15)
+        lr.raise_for_status()
+        body = lr.content
+        ct = lr.headers.get("content-type", "").split(";")[0].strip().lower()
+
+        # Detect ACTUAL format from magic bytes (authoritative)
+        ext = None
+        if body[:4] == b'\x89PNG':
+            ext = "png"; ct = "image/png"
+        elif body[:2] == b'\xff\xd8':
+            ext = "jpg"; ct = "image/jpeg"
+        elif body[:4] == b'RIFF' and len(body) >= 12 and body[8:12] == b'WEBP':
+            ext = "webp"; ct = "image/webp"
+        elif body[:4] == b'GIF8':
+            ext = "gif"; ct = "image/gif"
+        elif body[:5] == b'<?xml' or body[:4] == b'<svg' or b'<svg' in body[:200]:
+            log.warning("   Logo is SVG — not supported by Shotstack, skipping")
+            return None
+        else:
+            # Unknown format — log bytes for debugging and skip
+            log.warning(f"   Logo unknown format: magic={body[:8].hex()}, ct={ct}, skipping")
+            return None
+
+        log.info(f"   Logo validated: {ext} ({ct}, {len(body)//1024}KB, magic={body[:4].hex()})")
+
+        s3 = get_s3_client()
+        logo_key = f"_assets/logo.{ext}"
+        s3.put_object(Bucket=Config.R2_BUCKET, Key=logo_key, Body=body, ContentType=ct)
+        result_url = f"{Config.R2_PUBLIC_URL}/{logo_key}"
+        log.info(f"   Logo uploaded to {result_url}")
+        return result_url
+    except Exception as e:
+        log.warning(f"   Logo prep failed: {e}, skipping")
+        return None
+
+
+def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
+    """Render final video via Shotstack. Retries without logo on format error."""
+    log.info(f"🎞️  Phase 9: Rendering final video via Shotstack | {Config.RENDER_RES}p {Config.RENDER_ASPECT} {Config.RENDER_FPS}fps")
+
+    # Prepare logo
+    logo_url = _prepare_logo()
+
+    # Log all asset info for debugging
+    log.info(f"   Assets: {len(clips)} clips, voiceover={voiceover_url.split('/')[-1]}, logo={'YES' if logo_url else 'NO'}")
+
+    # Attempt 1: Full render with logo
+    payload = _build_shotstack_payload(clips, voiceover_url, logo_url)
+    try:
+        return _submit_and_poll_shotstack(payload, "with logo" if logo_url else "no logo")
+    except RuntimeError as e:
+        err_str = str(e)
+        if "file extension does not match" not in err_str.lower() and "file format is not supported" not in err_str.lower():
+            raise  # Not a format error — don't retry
+
+        log.warning(f"   ⚠️ Shotstack format error — isolating culprit...")
+
+        # Attempt 2: Retry WITHOUT logo (most common culprit)
+        if logo_url:
+            log.info(f"   Retry 1: Removing logo overlay...")
+            payload_no_logo = _build_shotstack_payload(clips, voiceover_url, logo_url=None)
+            try:
+                url = _submit_and_poll_shotstack(payload_no_logo, "no logo retry")
+                log.warning(f"   ✓ Render succeeded without logo — logo.png is the culprit!")
+                log.warning(f"   Fix: Check that {Config.LOGO_URL} is a real PNG/JPG file")
+                return url
+            except RuntimeError:
+                log.warning(f"   Retry without logo also failed — issue is clips or voiceover")
+
+        # Attempt 3: Try with just ONE clip + no logo (isolate video vs audio)
+        log.info(f"   Retry 2: Single clip + voiceover, no logo...")
+        single_clip_payload = _build_shotstack_payload(clips[:1], voiceover_url, logo_url=None)
+        try:
+            url = _submit_and_poll_shotstack(single_clip_payload, "single clip")
+            log.warning(f"   ✓ Single clip works — issue is with clip 2 or 3")
+            return url
+        except RuntimeError:
+            log.error(f"   Single clip + voiceover also failed — check video codec and audio format")
+            raise RuntimeError(
+                f"Shotstack format error on all attempts. "
+                f"Check: 1) Video clips may use unsupported codec (VP9/AV1). "
+                f"2) Voiceover may not be valid MP3. "
+                f"3) Logo format mismatch. Original error: {err_str[:300]}"
+            )
 
 
 # ══════════════════════════════════════════════════════════════
