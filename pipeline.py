@@ -887,7 +887,7 @@ def create_srt(script_text: str) -> str:
     return f"1\n00:00:00,000 --> 00:59:59,000\n{script_text}\n"
 
 
-def _build_shotstack_payload(clips: list, voiceover_url: str, logo_url: str = None) -> dict:
+def _build_shotstack_payload(clips: list, voiceover_url: str = None, logo_url: str = None) -> dict:
     """Build Shotstack render payload. Separates build from submit for retry logic."""
     video_clips = []
     cursor = 0.0
@@ -920,10 +920,12 @@ def _build_shotstack_payload(clips: list, voiceover_url: str, logo_url: str = No
         }]})
 
     tracks.append({"clips": video_clips})
-    tracks.append({"clips": [{
-        "asset": {"type": "audio", "src": voiceover_url},
-        "start": 0, "length": total_dur,
-    }]})
+
+    if voiceover_url:
+        tracks.append({"clips": [{
+            "asset": {"type": "audio", "src": voiceover_url},
+            "start": 0, "length": total_dur,
+        }]})
 
     return {
         "timeline": {"tracks": tracks, "background": Config.RENDER_BG},
@@ -1013,6 +1015,9 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
 
     # Log all asset info for debugging
     log.info(f"   Assets: {len(clips)} clips, voiceover={voiceover_url.split('/')[-1]}, logo={'YES' if logo_url else 'NO'}")
+    for clip in clips:
+        log.info(f"   Clip {clip['index']}: {clip.get('r2_url', '?')}")
+    log.info(f"   Voiceover: {voiceover_url}")
 
     # Attempt 1: Full render with logo
     payload = _build_shotstack_payload(clips, voiceover_url, logo_url)
@@ -1023,6 +1028,12 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
         if "file extension does not match" not in err_str.lower() and "file format is not supported" not in err_str.lower():
             raise  # Not a format error — don't retry
 
+        # Check if we're on freeTrial/stage — common cause
+        if "'plan': 'freetrial'" in err_str.lower() or "'plan': 'freeTrial'" in err_str:
+            log.error(f"   ⚠️ SHOTSTACK KEY IS ON FREE TRIAL / STAGE PLAN!")
+            log.error(f"   Your API key maps to 'freeTrial'. Use your PRODUCTION API key from Shotstack dashboard.")
+            log.error(f"   Go to: shotstack.io → API Keys → copy the Production key")
+
         log.warning(f"   ⚠️ Shotstack format error — isolating culprit...")
 
         # Attempt 2: Retry WITHOUT logo (most common culprit)
@@ -1032,25 +1043,37 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
             try:
                 url = _submit_and_poll_shotstack(payload_no_logo, "no logo retry")
                 log.warning(f"   ✓ Render succeeded without logo — logo.png is the culprit!")
-                log.warning(f"   Fix: Check that {Config.LOGO_URL} is a real PNG/JPG file")
                 return url
             except RuntimeError:
                 log.warning(f"   Retry without logo also failed — issue is clips or voiceover")
 
-        # Attempt 3: Try with just ONE clip + no logo (isolate video vs audio)
-        log.info(f"   Retry 2: Single clip + voiceover, no logo...")
-        single_clip_payload = _build_shotstack_payload(clips[:1], voiceover_url, logo_url=None)
+        # Attempt 3: Video only — NO audio (isolates voiceover)
+        log.info(f"   Retry 2: Single clip, NO audio, no logo...")
+        video_only_payload = _build_shotstack_payload(clips[:1], voiceover_url=None, logo_url=None)
         try:
-            url = _submit_and_poll_shotstack(single_clip_payload, "single clip")
-            log.warning(f"   ✓ Single clip works — issue is with clip 2 or 3")
-            return url
+            url = _submit_and_poll_shotstack(video_only_payload, "video only")
+            log.warning(f"   ✓ Video-only works — THE VOICEOVER IS THE CULPRIT")
+            log.warning(f"   Voiceover URL: {voiceover_url}")
+            log.warning(f"   Check: is this actually an MP3 file? Extension must match content.")
+
+            # Attempt 3b: Full clips + audio (since video works, maybe it's audio format)
+            log.info(f"   Retry 3: All clips + voiceover, no logo...")
+            full_no_logo = _build_shotstack_payload(clips, voiceover_url, logo_url=None)
+            try:
+                url2 = _submit_and_poll_shotstack(full_no_logo, "clips+audio no logo")
+                return url2
+            except RuntimeError:
+                log.error(f"   Confirmed: voiceover.mp3 format mismatch — returning video-only render")
+                return url
         except RuntimeError:
-            log.error(f"   Single clip + voiceover also failed — check video codec and audio format")
+            log.error(f"   ✗ Even video-only failed — VIDEO CLIPS are the culprit")
+            log.error(f"   Clips are likely encoded with unsupported codec (VP9/AV1/HEVC)")
+            log.error(f"   Seedance output may need transcoding before Shotstack can use it")
             raise RuntimeError(
-                f"Shotstack format error on all attempts. "
-                f"Check: 1) Video clips may use unsupported codec (VP9/AV1). "
-                f"2) Voiceover may not be valid MP3. "
-                f"3) Logo format mismatch. Original error: {err_str[:300]}"
+                f"Shotstack format error: video clips use unsupported codec. "
+                f"Seedance-1-Lite may output VP9/AV1 which Shotstack freeTrial cannot decode. "
+                f"Fix: Use production API key, or switch to a model that outputs H.264. "
+                f"Original: {err_str[:200]}"
             )
 
 
