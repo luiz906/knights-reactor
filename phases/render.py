@@ -199,28 +199,25 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
         "start": 0, "length": total_dur,
     }]})
 
-    # Subtitle overlay (word-level captions from SRT)
+    # Subtitle overlay (captions from SRT)
     if srt_url:
         tracks.append({"clips": [{
             "asset": {
-                "type": "subtitle",
+                "type": "caption",
                 "src": srt_url,
                 "font": {
-                    "family": "Montserrat ExtraBold",
                     "color": "#ffffff",
-                    "size": 38,
-                    "lineHeight": 1.0,
+                    "size": 30,
                 },
                 "background": {
                     "color": "#000000",
-                    "padding": {"x": 12, "y": 6},
+                    "padding": 12,
                     "borderRadius": 4,
-                    "opacity": 0.6,
                 },
-                "position": "center",
-                "offset": {"y": 0.2},
             },
             "start": 0, "length": total_dur,
+            "position": "center",
+            "offset": {"y": 0.2},
         }]})
         log.info(f"   Subtitles: {srt_url}")
 
