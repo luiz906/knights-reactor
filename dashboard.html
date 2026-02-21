@@ -39,7 +39,7 @@ button{font-family:var(--f3);cursor:pointer}input,select,textarea{font-family:va
 select.fin{-webkit-appearance:none;-moz-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23e3a028'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-color:var(--bg);padding-right:28px;cursor:pointer}
 html.light select.fin{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a6010'/%3E%3C/svg%3E")}
 select.fin option{background:var(--bg2);color:var(--amb);padding:6px}
-.fin-slider{-webkit-appearance:none;appearance:none;touch-action:none;background:var(--bg3);border-radius:3px;outline:none;height:.5em;cursor:pointer;width:100%}
+.fin-slider{-webkit-appearance:none;appearance:none;background:var(--bg3);border-radius:3px;outline:none;height:.5em;cursor:pointer;width:100%}
 .fin-slider::-webkit-slider-thumb{-webkit-appearance:none;width:1.3em;height:1.3em;border-radius:50%;background:var(--amb);border:2px solid var(--bg);cursor:pointer}
 .fin-slider::-moz-range-thumb{width:1.3em;height:1.3em;border-radius:50%;background:var(--amb);border:2px solid var(--bg)}
 .tg{width:3em;height:1.5em;border-radius:1px;border:1px solid var(--bd);position:relative;transition:background .2s}
@@ -133,9 +133,6 @@ body{overflow:auto}
 .tg{width:3.4em;height:1.85em}.td{top:.2em;width:1.4em;height:1.4em}
 .tg.on .td{left:1.7em!important}.tg.off .td{left:.2em!important}
 .pgrid{grid-template-columns:repeat(2,1fr)}
-.fin-slider{height:.7em;margin:8px 0}
-.fin-slider::-webkit-slider-thumb{width:1.8em;height:1.8em}
-.fin-slider::-moz-range-thumb{width:1.8em;height:1.8em}
 .logp{max-height:28em;overflow-y:auto;font-size:.7em;line-height:1.8;background:var(--panel);border:1px solid var(--bd2);padding:10px}
 }
 </style></head><body>
@@ -561,7 +558,7 @@ function rSt(){
         ff+=`<div class="fi w" style="border:1px solid var(--bd2);padding:8px;background:rgba(227,160,40,.03)"><div style="display:flex;justify-content:space-between"><div style="font-family:var(--f1);font-size:.6em;letter-spacing:.15em;color:var(--txtd)">TOTAL VIDEO</div><div style="font-family:var(--f1);font-size:1.15em;font-weight:800;color:var(--amb)">${tot}s</div></div><div style="display:flex;justify-content:space-between;margin-top:3px"><div style="font-size:.55em;color:var(--txtdd)">${clips}×${dur}s</div><div style="font-size:.55em;color:${wc}">${warn}</div></div></div>`;
       }else if(f.tp==='slider'){
         const mn=f.min||30,mx=f.max||180,stp=f.step||5,cv=parseInt(v)||f.d,secs=Math.round(cv/3),pct=((cv-mn)/(mx-mn))*100;
-        ff+=`<div class="fi w"><div class="fl">${f.l}</div><div style="display:flex;align-items:center;gap:.55em"><input type="range" min="${mn}" max="${mx}" step="${stp}" value="${cv}" class="fin-slider" style="flex:1" oninput="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'"><div id="sl_${f.k}" style="min-width:6em;font-family:var(--f1);font-size:.65em;letter-spacing:1px;color:var(--amb);text-align:right">${cv} words ≈ ${secs}s</div></div></div>`;
+        ff+=`<div class="fi w"><div class="fl">${f.l}</div><div style="display:flex;align-items:center;gap:.55em"><input type="range" min="${mn}" max="${mx}" step="${stp}" value="${cv}" class="fin-slider" style="flex:1" oninput="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'" onchange="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'" ontouchmove="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'"><div id="sl_${f.k}" style="min-width:6em;font-family:var(--f1);font-size:.65em;letter-spacing:1px;color:var(--amb);text-align:right">${cv} words ≈ ${secs}s</div></div></div>`;
       }else{
         ff+=`<div class="fi"><div class="fl">${f.l}</div><input class="fin" value="${v||''}" onchange="ST['${f.k}']=this.value"></div>`;
       }
