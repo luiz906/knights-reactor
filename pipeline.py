@@ -260,7 +260,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None) -
         notify(10, "Publish", "done")
 
         # Update topic status
-        update_topic(topic["id"], {"Status": "Published", "Final Video URL": final_r2_url})
+        update_topic(topic["id"], {"Status": "Executed", "Final Video URL": final_r2_url})
 
         result["status"] = "complete"
         elapsed = round(time.time() - start, 1)
