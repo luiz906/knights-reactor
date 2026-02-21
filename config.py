@@ -53,7 +53,7 @@ class Config:
     ON_TT = True; ON_YT = True; ON_IG = True; ON_FB = True
     ON_TW = True; ON_TH = True; ON_PN = False
     SHOTSTACK_KEY     = env("SHOTSTACK_API_KEY")
-    SHOTSTACK_ENV     = env("SHOTSTACK_ENV", "stage")
+    SHOTSTACK_ENV     = env("SHOTSTACK_ENV", "v1")
     R2_ACCESS_KEY     = env("R2_ACCESS_KEY")
     R2_SECRET_KEY     = env("R2_SECRET_KEY")
     R2_ENDPOINT       = env("R2_ENDPOINT")
