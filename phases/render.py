@@ -104,7 +104,7 @@ def create_srt(script_text: str) -> str:
 def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
     """Render final video via Shotstack. Returns download URL."""
     ss_env = getattr(Config, 'SHOTSTACK_ENV', 'v1')
-    ss_base = f"https://api.shotstack.io/{ss_env}"
+    ss_base = f"https://api.shotstack.io/edit/{ss_env}"
     log.info(f"🎞️  Phase 9: Rendering final video via Shotstack ({ss_env}) | {Config.RENDER_RES}p {Config.RENDER_ASPECT} {Config.RENDER_FPS}fps")
 
     # Build video clips timeline
