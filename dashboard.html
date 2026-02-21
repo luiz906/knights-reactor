@@ -276,6 +276,7 @@ body{overflow:auto}
 <script>
 let RN=false,PH=0,PD=[],ST={},LAST_RESULT=null,GATE=null;
 const $=id=>document.getElementById(id);
+const TB=(s)=>{const m={new:'m',processing:'b',executed:'g',published:'g',failed:'r'};const l={new:'NEW',processing:'ACTIVE',executed:'DONE',published:'DONE',failed:'FAIL'};const c=m[(s||'new').toLowerCase()]||'m';return '<span class="bg bg-'+c+'"><span class="bd2"></span>'+(l[(s||'new').toLowerCase()]||s)+'</span>';};
 const B=(s,l)=>{const c={done:'g',running:'b',failed:'r',configured:'g',missing:'r',waiting:'m',gated:'o'}[s]||'m';return`<span class="bg bg-${c}"><span class="bd2"></span>${l||s}</span>`};
 const PHS=[{n:"FETCH TOPIC",a:"LOCAL DB",i:"⬡",d:"~1s"},{n:"GENERATE SCRIPT",a:"GPT-4o",i:"⬢",d:"~3s"},{n:"SCENE ENGINE",a:"LOCAL",i:"◈",d:"<1s"},{n:"GENERATE IMAGES",a:"REPLICATE",i:"◉",d:"~30s"},{n:"GENERATE VIDEOS",a:"REPLICATE",i:"▶",d:"~120s"},{n:"VOICEOVER",a:"ELEVENLABS",i:"◎",d:"~4s"},{n:"TRANSCRIBE",a:"WHISPER",i:"▤",d:"~3s"},{n:"UPLOAD ASSETS",a:"R2",i:"⬆",d:"~8s"},{n:"FINAL RENDER",a:"SHOTSTACK",i:"⬡",d:"~90s"},{n:"CAPTIONS",a:"GPT-4o",i:"✎",d:"~4s"},{n:"PUBLISH",a:"BLOTATO",i:"◇",d:"~6s"}];
 
@@ -456,7 +457,7 @@ async function poll(){
 async function loadTopics(){
   try{
     const _tr=await(await fetch('/api/topics')).json();const topics=_tr.topics||_tr;
-    const h=topics.length?topics.map(t=>`<div class="topic-row"><div style="flex:1"><div style="font-family:var(--f2);font-size:.85em;font-weight:600;color:var(--wht)">${t.idea}</div><div style="font-size:.55em;color:var(--txtd);margin-top:.05em">${t.category}${t.scripture?' · '+t.scripture:''}</div></div><div style="display:flex;gap:4px"><button class="btn-sm btn-grn" onclick="runNow('${t.id}')" title="Run pipeline with this topic">▶</button><button class="btn-sm btn-red" onclick="deleteTopic('${t.id}')" title="Delete">✕</button></div></div>`).join(''):'<div class="topic-row" style="color:var(--txtd)">No topics — seed defaults or add manually</div>';
+    const h=topics.length?topics.map(t=>`<div class="topic-row"><div style="flex:1"><div style="font-family:var(--f2);font-size:.85em;font-weight:600;color:var(--wht)">${t.idea}</div><div style="font-size:.55em;color:var(--txtd);margin-top:.05em">${t.category}${t.scripture?' · '+t.scripture:''}</div></div><div style="flex-shrink:0;margin-right:.5em">${TB(t.status||'new')}</div><div style="display:flex;gap:4px"><button class="btn-sm btn-grn" onclick="runNow('${t.id}')" title="Run pipeline with this topic">▶</button><button class="btn-sm btn-red" onclick="deleteTopic('${t.id}')" title="Delete">✕</button></div></div>`).join(''):'<div class="topic-row" style="color:var(--txtd)">No topics — seed defaults or add manually</div>';
     ['d-tl','m-tl'].forEach(id=>{if($(id))$(id).innerHTML=h;});
   }catch(e){console.error('loadTopics:',e);}
 }
