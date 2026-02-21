@@ -144,7 +144,10 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
     tracks = []
 
     # Logo overlay (conditional)
-    if Config.LOGO_ENABLED and Config.LOGO_URL:
+    logo_on = getattr(Config, "LOGO_ENABLED", True)
+    if logo_on in (False, "false", "False", 0, "0", "off"):
+        logo_on = False
+    if logo_on and Config.LOGO_URL:
         logo_url = Config.LOGO_URL
         # Re-upload logo to our working R2 bucket to guarantee Shotstack can access it
         try:
@@ -195,6 +198,31 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
         "asset": {"type": "audio", "src": voiceover_url},
         "start": 0, "length": total_dur,
     }]})
+
+    # Subtitle overlay (word-level captions from SRT)
+    if srt_url:
+        tracks.append({"clips": [{
+            "asset": {
+                "type": "subtitle",
+                "src": srt_url,
+                "font": {
+                    "family": "Montserrat ExtraBold",
+                    "color": "#ffffff",
+                    "size": 38,
+                    "lineHeight": 1.0,
+                },
+                "background": {
+                    "color": "#000000",
+                    "padding": {"x": 12, "y": 6},
+                    "borderRadius": 4,
+                    "opacity": 0.6,
+                },
+                "position": "center",
+                "offset": {"y": 0.2},
+            },
+            "start": 0, "length": total_dur,
+        }]})
+        log.info(f"   Subtitles: {srt_url}")
 
     timeline = {
         "tracks": tracks,
