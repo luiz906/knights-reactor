@@ -174,6 +174,22 @@ body{overflow:auto}
 <div class="dpage on" id="dp-pipeline">
 <div id="d-gate"></div>
 <div class="g4" id="d-stats" style="margin-bottom:12px"></div>
+<!-- Manual Upload Section -->
+<div class="sec" id="d-manual-sec">
+<button class="sec-h" onclick="document.getElementById('d-manual-body').classList.toggle('shut');this.querySelector('.sec-a').style.transform=document.getElementById('d-manual-body').classList.contains('shut')?'':'rotate(90deg)'">
+<span class="sec-t">📦 MANUAL CLIPS</span><span class="sec-a">›</span></button>
+<div class="sec-b shut" id="d-manual-body" style="display:block;padding:1em 1.2em">
+<div style="font-size:.65em;color:var(--txtd);margin-bottom:.6em;letter-spacing:.08em">Paste video URLs (mp4/webm). Skips AI image & video generation — keeps script + voiceover + captions.</div>
+<div id="d-mclips" style="display:flex;flex-direction:column;gap:6px">
+<input class="fin mc-url" placeholder="Clip 1 URL (https://...)" style="font-size:.8em">
+<input class="fin mc-url" placeholder="Clip 2 URL (https://...)" style="font-size:.8em">
+<input class="fin mc-url" placeholder="Clip 3 URL (https://...)" style="font-size:.8em">
+</div>
+<div style="display:flex;gap:6px;margin-top:8px">
+<button onclick="addClipSlot('d')" style="flex:1;padding:6px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.65em;letter-spacing:.1em">+ ADD CLIP</button>
+<button onclick="manualRun()" style="flex:2;padding:8px;background:rgba(40,224,96,.08);border:1px solid rgba(40,224,96,.2);color:var(--grn);font-family:var(--f1);font-size:.65em;font-weight:600;letter-spacing:.15em">📦 MANUAL RUN</button>
+</div>
+</div></div>
 <div class="phgrid" id="d-pl"></div>
 </div>
 
@@ -233,7 +249,24 @@ body{overflow:auto}
 </div>
 <div class="mcont">
 
-<div class="mpage on" id="mp-pipeline"><div id="m-gate"></div><div id="m-pl"></div></div>
+<div class="mpage on" id="mp-pipeline"><div id="m-gate"></div>
+<!-- Manual Upload Section Mobile -->
+<div class="sec" style="margin-bottom:6px">
+<button class="sec-h" onclick="document.getElementById('m-manual-body').classList.toggle('shut');this.querySelector('.sec-a').style.transform=document.getElementById('m-manual-body').classList.contains('shut')?'':'rotate(90deg)'">
+<span class="sec-t">📦 MANUAL CLIPS</span><span class="sec-a">›</span></button>
+<div class="sec-b shut" id="m-manual-body" style="display:block;padding:.7em">
+<div style="font-size:.6em;color:var(--txtd);margin-bottom:.5em">Paste video URLs — skips AI generation</div>
+<div id="m-mclips" style="display:flex;flex-direction:column;gap:5px">
+<input class="fin mc-url" placeholder="Clip 1 URL" style="font-size:.85em">
+<input class="fin mc-url" placeholder="Clip 2 URL" style="font-size:.85em">
+<input class="fin mc-url" placeholder="Clip 3 URL" style="font-size:.85em">
+</div>
+<div style="display:flex;gap:5px;margin-top:6px">
+<button onclick="addClipSlot('m')" style="flex:1;padding:8px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.65em">+ ADD</button>
+<button onclick="manualRun()" style="flex:2;padding:10px;background:rgba(40,224,96,.08);border:1px solid rgba(40,224,96,.2);color:var(--grn);font-family:var(--f1);font-size:.6em;font-weight:600;letter-spacing:.12em;min-height:3em">📦 MANUAL RUN</button>
+</div>
+</div></div>
+<div id="m-pl"></div></div>
 
 <div class="mpage" id="mp-topics">
 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.5em">
@@ -438,6 +471,31 @@ async function resumeNow(){
   const d=await r.json();
   if(r.ok){RN=true;GATE=null;PD=[];rP();poll();}
   else{alert(d.error||'Resume failed');}
+}
+function addClipSlot(prefix){
+  const container=$(prefix+'-mclips');
+  const count=container.querySelectorAll('input').length;
+  if(count>=6)return;
+  const inp=document.createElement('input');
+  inp.className='fin mc-url';
+  inp.placeholder=`Clip ${count+1} URL (https://...)`;
+  inp.style.fontSize=prefix==='m'?'.85em':'.8em';
+  container.appendChild(inp);
+}
+async function manualRun(){
+  if(RN)return;
+  // Gather URLs from both desktop and mobile inputs
+  const urls=[];
+  document.querySelectorAll('.mc-url').forEach(inp=>{
+    const v=inp.value.trim();
+    if(v&&v.startsWith('http'))urls.push(v);
+  });
+  if(!urls.length){alert('Paste at least 1 video URL');return;}
+  const body={clips:urls};
+  const r=await fetch('/api/manual-run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(r.ok){RN=true;PH=0;PD=[];GATE=null;rP();poll();}
+  else{alert(d.error||'Manual run failed');}
 }
 async function poll(){
   if(!RN)return;
