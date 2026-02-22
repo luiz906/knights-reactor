@@ -96,9 +96,38 @@ def upload_assets(folder: str, clips: list, audio: bytes, srt: str) -> dict:
 # PHASE 9: FINAL RENDER (Shotstack)
 # ══════════════════════════════════════════════════════════════
 
-def create_srt(script_text: str) -> str:
-    """Create simple SRT content."""
-    return f"1\n00:00:00,000 --> 00:59:59,000\n{script_text}\n"
+def create_srt(script_text: str, transcription: dict = None) -> str:
+    """Create SRT from Whisper word timestamps (3-4 words per cue) or fallback."""
+    if not transcription or "words" not in transcription:
+        return f"1\n00:00:00,000 --> 00:59:59,000\n{script_text}\n"
+
+    words = transcription["words"]
+    if not words:
+        return f"1\n00:00:00,000 --> 00:59:59,000\n{script_text}\n"
+
+    # Group words into 3-4 word chunks for readable captions
+    srt_lines = []
+    chunk_size = 4
+
+    def fmt(t):
+        h = int(t // 3600)
+        m = int((t % 3600) // 60)
+        s = int(t % 60)
+        ms = int((t % 1) * 1000)
+        return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+    idx = 1
+    for i in range(0, len(words), chunk_size):
+        chunk = words[i:i + chunk_size]
+        start_t = chunk[0].get("start", 0)
+        end_t = chunk[-1].get("end", start_t + 1)
+        text_chunk = " ".join(w.get("word", "") for w in chunk).strip()
+        if not text_chunk:
+            continue
+        srt_lines.append(f"{idx}\n{fmt(start_t)} --> {fmt(end_t)}\n{text_chunk}\n")
+        idx += 1
+
+    return "\n".join(srt_lines) if srt_lines else f"1\n00:00:00,000 --> 00:59:59,000\n{script_text}\n"
 
 
 def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
@@ -141,7 +170,34 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
 
     total_dur = round(cursor, 3)
 
+    caption_track = None
+    # Subtitle overlay — built first, inserted as top (front) layer
+    if srt_url:
+        caption_track = {"clips": [{
+            "asset": {
+                "type": "caption",
+                "src": srt_url,
+                "font": {
+                    "color": "#ffffff",
+                    "size": 30,
+                },
+                "background": {
+                    "color": "#000000",
+                    "padding": 12,
+                    "borderRadius": 4,
+                },
+            },
+            "start": 0, "length": total_dur,
+            "position": "center",
+            "offset": {"y": 0.2},
+        }]}
+        log.info(f"   Subtitles: {srt_url}")
+
     tracks = []
+
+    # Captions on top (front layer)
+    if caption_track:
+        tracks.append(caption_track)
 
     # Logo overlay (conditional)
     logo_on = getattr(Config, "LOGO_ENABLED", True)
@@ -199,27 +255,6 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
         "start": 0, "length": total_dur,
     }]})
 
-    # Subtitle overlay (captions from SRT)
-    if srt_url:
-        tracks.append({"clips": [{
-            "asset": {
-                "type": "caption",
-                "src": srt_url,
-                "font": {
-                    "color": "#ffffff",
-                    "size": 30,
-                },
-                "background": {
-                    "color": "#000000",
-                    "padding": 12,
-                    "borderRadius": 4,
-                },
-            },
-            "start": 0, "length": total_dur,
-            "position": "center",
-            "offset": {"y": 0.2},
-        }]})
-        log.info(f"   Subtitles: {srt_url}")
 
     timeline = {
         "tracks": tracks,
