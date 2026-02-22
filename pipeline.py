@@ -183,7 +183,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None) -
             notify(7, "Upload Assets", "running")
             folder = f"{topic['id']}_{topic['idea'][:30]}"
             folder = re.sub(r'[^a-zA-Z0-9_-]', '_', folder)
-            srt = create_srt(script["script_full"])
+            srt = create_srt(script["script_full"], transcription)
             urls = upload_assets(folder, clips, audio, srt)
             result["phases"].append({"name": "Upload to R2", "status": "done"})
             save_checkpoint(7, {"folder": folder, "urls": urls, "clips_uploaded": clips})
