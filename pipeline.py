@@ -22,11 +22,13 @@ from phases.topics import (
 )
 
 
-def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None) -> dict:
+def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None, manual_clips: list = None) -> dict:
     """Execute the full pipeline with checkpoint/resume and approval gates.
 
     resume_from: Phase index to resume from (0 = start fresh).
     topic_id: Specific topic ID to use (None = next available).
+    manual_clips: List of video URLs to use instead of AI generation.
+                  When provided, skips phases 2-4 (scene, images, videos).
 
     Gates:
       - After phase 2 (Scene Engine): pauses for prompt editing (gate="prompts")
@@ -93,64 +95,84 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None) -
             result["phases"].append({"name": "Generate Script", "status": "done"})
             notify(1, "Generate Script", "done")
 
-        # ── Phase 2: Scene engine ───────────────────────────────
-        if resume_from <= 2:
-            notify(2, "Scene Engine", "running")
-            clips = scene_engine(script, topic) if resume_from < 2 else ckpt.get("clips") or scene_engine(script, topic)
-            result["phases"].append({"name": "Scene Engine", "status": "done"})
-            save_checkpoint(2, {"clips": clips})
-            notify(2, "Scene Engine", "done")
-
-            # ═══ GATE 1: Prompt Editing ═══
-            result["status"] = "awaiting_prompt_approval"
-            result["gate"] = "prompts"
-            result["gate_phase"] = 3
-            result["clips"] = clips
-            result["script"] = script
-            log.info("⏸️  Gate 1: Awaiting prompt approval — edit prompts then resume")
-            return result
-        else:
-            clips = ckpt.get("clips_edited") or ckpt.get("clips")
-            result["phases"].append({"name": "Scene Engine", "status": "done"})
-            notify(2, "Scene Engine", "done")
-
-        # ── Phase 3: Generate images ────────────────────────────
-        if resume_from <= 3:
-            notify(3, "Generate Images", "running")
-            clips = generate_images(clips) if resume_from < 3 else (ckpt.get("clips_with_images") or generate_images(clips))
-            result["phases"].append({"name": "Generate Images", "status": "done"})
-            result["images"] = [{"index": c["index"], "url": c["image_url"], "prompt": c.get("image_prompt","")} for c in clips]
-            save_checkpoint(3, {"clips_with_images": clips})
-            notify(3, "Generate Images", "done")
-        else:
-            clips = ckpt["clips_with_images"]
-            result["images"] = [{"index": c["index"], "url": c["image_url"], "prompt": c.get("image_prompt","")} for c in clips]
-            result["phases"].append({"name": "Generate Images", "status": "done"})
-            notify(3, "Generate Images", "done")
-
-        # ── Phase 4: Generate videos ────────────────────────────
-        if resume_from <= 4:
-            notify(4, "Generate Videos", "running")
-            clips = generate_videos(clips) if resume_from < 4 else (ckpt.get("clips_with_videos") or generate_videos(clips))
-            result["phases"].append({"name": "Generate Videos", "status": "done"})
+        # ── Phase 2-4: SKIP if manual clips provided ─────────────
+        if manual_clips and resume_from <= 4:
+            log.info(f"📦 Manual mode: {len(manual_clips)} clips provided, skipping phases 2-4")
+            clips = []
+            for i, url in enumerate(manual_clips):
+                clips.append({
+                    "index": i + 1,
+                    "image_prompt": "manual upload",
+                    "motion_prompt": "manual upload",
+                    "image_url": "",
+                    "video_url": url,
+                })
+            for ph_idx, ph_name in [(2, "Scene Engine"), (3, "Generate Images"), (4, "Generate Videos")]:
+                result["phases"].append({"name": ph_name, "status": "skipped"})
+                notify(ph_idx, ph_name, "running")
+                notify(ph_idx, ph_name, "done")
             result["videos"] = [{"index": c["index"], "url": c["video_url"]} for c in clips]
-            save_checkpoint(4, {"clips_with_videos": clips})
-            notify(4, "Generate Videos", "done")
+            save_checkpoint(4, {"clips_with_videos": clips, "manual_mode": True})
 
-            # ═══ GATE 2: Video Approval ═══
-            result["status"] = "awaiting_video_approval"
-            result["gate"] = "videos"
-            result["gate_phase"] = 5
-            result["clips"] = clips
-            result["images"] = [{"index": c["index"], "url": c["image_url"], "prompt": c.get("image_prompt","")} for c in clips]
-            result["script"] = script
-            log.info("⏸️  Gate 2: Awaiting video approval — review clips then resume")
-            return result
         else:
-            clips = ckpt.get("clips_approved") or ckpt.get("clips_with_videos")
-            result["videos"] = [{"index": c["index"], "url": c["video_url"]} for c in clips]
-            result["phases"].append({"name": "Generate Videos", "status": "done"})
-            notify(4, "Generate Videos", "done")
+            # ── Phase 2: Scene engine ───────────────────────────────
+            if resume_from <= 2:
+                notify(2, "Scene Engine", "running")
+                clips = scene_engine(script, topic) if resume_from < 2 else ckpt.get("clips") or scene_engine(script, topic)
+                result["phases"].append({"name": "Scene Engine", "status": "done"})
+                save_checkpoint(2, {"clips": clips})
+                notify(2, "Scene Engine", "done")
+
+                # ═══ GATE 1: Prompt Editing ═══
+                result["status"] = "awaiting_prompt_approval"
+                result["gate"] = "prompts"
+                result["gate_phase"] = 3
+                result["clips"] = clips
+                result["script"] = script
+                log.info("⏸️  Gate 1: Awaiting prompt approval — edit prompts then resume")
+                return result
+            else:
+                clips = ckpt.get("clips_edited") or ckpt.get("clips")
+                result["phases"].append({"name": "Scene Engine", "status": "done"})
+                notify(2, "Scene Engine", "done")
+
+            # ── Phase 3: Generate images ────────────────────────────
+            if resume_from <= 3:
+                notify(3, "Generate Images", "running")
+                clips = generate_images(clips) if resume_from < 3 else (ckpt.get("clips_with_images") or generate_images(clips))
+                result["phases"].append({"name": "Generate Images", "status": "done"})
+                result["images"] = [{"index": c["index"], "url": c["image_url"], "prompt": c.get("image_prompt","")} for c in clips]
+                save_checkpoint(3, {"clips_with_images": clips})
+                notify(3, "Generate Images", "done")
+            else:
+                clips = ckpt["clips_with_images"]
+                result["images"] = [{"index": c["index"], "url": c["image_url"], "prompt": c.get("image_prompt","")} for c in clips]
+                result["phases"].append({"name": "Generate Images", "status": "done"})
+                notify(3, "Generate Images", "done")
+
+            # ── Phase 4: Generate videos ────────────────────────────
+            if resume_from <= 4:
+                notify(4, "Generate Videos", "running")
+                clips = generate_videos(clips) if resume_from < 4 else (ckpt.get("clips_with_videos") or generate_videos(clips))
+                result["phases"].append({"name": "Generate Videos", "status": "done"})
+                result["videos"] = [{"index": c["index"], "url": c["video_url"]} for c in clips]
+                save_checkpoint(4, {"clips_with_videos": clips})
+                notify(4, "Generate Videos", "done")
+
+                # ═══ GATE 2: Video Approval ═══
+                result["status"] = "awaiting_video_approval"
+                result["gate"] = "videos"
+                result["gate_phase"] = 5
+                result["clips"] = clips
+                result["images"] = [{"index": c["index"], "url": c["image_url"], "prompt": c.get("image_prompt","")} for c in clips]
+                result["script"] = script
+                log.info("⏸️  Gate 2: Awaiting video approval — review clips then resume")
+                return result
+            else:
+                clips = ckpt.get("clips_approved") or ckpt.get("clips_with_videos")
+                result["videos"] = [{"index": c["index"], "url": c["video_url"]} for c in clips]
+                result["phases"].append({"name": "Generate Videos", "status": "done"})
+                notify(4, "Generate Videos", "done")
 
         # ── Phase 5: Voiceover ──────────────────────────────────
         if resume_from <= 5:

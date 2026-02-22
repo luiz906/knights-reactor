@@ -120,12 +120,13 @@ def log_entry(phase, level, msg):
     LOGS.append({"t": datetime.now().strftime("%H:%M:%S"), "phase": phase, "level": level, "msg": msg})
     if len(LOGS) > 500: LOGS.pop(0)
 
-def execute_pipeline(resume_from: int = 0, topic_id: str = None):
+def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: list = None):
     apply_model_settings()  # Reload model selections before each run
+    mode = "manual" if manual_clips else ("resume" if resume_from > 0 else "normal")
     CURRENT_RUN.update({"active": True, "started": datetime.now().isoformat(), "result": None, "phase": 0, "phase_name": "", "phases_done": []})
     if resume_from == 0:
         LOGS.clear()
-    log_entry("System", "info", f"Pipeline {'resumed from phase ' + str(resume_from) if resume_from else 'started'}{' (topic: '+topic_id+')' if topic_id else ''}")
+    log_entry("System", "info", f"Pipeline {mode} mode{' (topic: '+topic_id+')' if topic_id else ''}{' — '+str(len(manual_clips))+' manual clips' if manual_clips else ''}")
 
     def on_phase(phase_index, phase_name, status):
         if status == "running":
@@ -137,7 +138,7 @@ def execute_pipeline(resume_from: int = 0, topic_id: str = None):
                 CURRENT_RUN["phases_done"].append(phase_index)
             log_entry(phase_name, "ok", f"Complete ✓")
 
-    result = run_pipeline(progress_cb=on_phase, resume_from=resume_from, topic_id=topic_id)
+    result = run_pipeline(progress_cb=on_phase, resume_from=resume_from, topic_id=topic_id, manual_clips=manual_clips)
 
     # Handle gate pauses (pipeline returned early, not finished)
     gate = result.get("gate")
@@ -237,6 +238,22 @@ async def trigger_resume(bg: BackgroundTasks):
         return JSONResponse({"error": "No checkpoint found — run fresh pipeline instead"}, 400)
     bg.add_task(execute_pipeline, resume_phase)
     return {"status": "resuming", "from_phase": resume_phase}
+
+@app.post("/api/manual-run")
+async def trigger_manual_run(bg: BackgroundTasks, req: Request):
+    """Run pipeline with user-provided video clips, skipping AI generation."""
+    if CURRENT_RUN["active"]: return JSONResponse({"error": "Already running"}, 409)
+    body = await req.json()
+    clip_urls = body.get("clips", [])
+    topic_id = body.get("topic_id")
+    if not clip_urls or len(clip_urls) < 1:
+        return JSONResponse({"error": "Provide at least 1 clip URL"}, 400)
+    # Validate URLs
+    valid = [u.strip() for u in clip_urls if u and u.strip().startswith("http")]
+    if not valid:
+        return JSONResponse({"error": "No valid URLs provided"}, 400)
+    bg.add_task(execute_pipeline, 0, topic_id, valid)
+    return {"status": "started", "mode": "manual", "clips": len(valid), "topic_id": topic_id}
 
 # ─── TOPIC DATABASE ──────────────────────────────────────────
 
