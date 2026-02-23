@@ -130,8 +130,12 @@ def create_srt(script_text: str, transcription: dict = None) -> str:
     return "\n".join(srt_lines) if srt_lines else f"1\n00:00:00,000 --> 00:59:59,000\n{script_text}\n"
 
 
-def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
-    """Render final video via Shotstack. Returns download URL."""
+def render_video(clips: list, voiceover_url: str, srt_url: str, audio_duration: float = 0) -> str:
+    """Render final video via Shotstack. Returns download URL.
+    
+    audio_duration: actual voiceover length in seconds (from Whisper).
+                    If provided, the timeline auto-adjusts so audio never gets cut off.
+    """
     ss_env = getattr(Config, 'SHOTSTACK_ENV', 'v1')
     ss_base = f"https://api.shotstack.io/edit/{ss_env}"
     log.info(f"🎞️  Phase 9: Rendering final video via Shotstack ({ss_env}) | {Config.RENDER_RES}p {Config.RENDER_ASPECT} {Config.RENDER_FPS}fps")
@@ -150,6 +154,7 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
         cursor += dur
 
     # CTA clip at end
+    cta_dur = 0
     if getattr(Config, 'CTA_ENABLED', False) and getattr(Config, 'CTA_URL', ''):
         cta_dur = getattr(Config, 'CTA_DURATION', 4.0)
         cta_url = Config.CTA_URL
@@ -176,6 +181,66 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
         log.info(f"   CTA clip: {cta_dur}s from {cta_url}")
 
     total_dur = round(cursor, 3)
+
+    # ── AUDIO-DRIVEN TIMING ──────────────────────────────────
+    # If we know the real audio length, adjust video timeline to match.
+    # Audio is the source of truth — video must be long enough to cover it.
+    if audio_duration and audio_duration > 0:
+        # Audio needs: voiceover + CTA silence (CTA plays after voice ends)
+        audio_needs = round(audio_duration + cta_dur + 1.0, 3)  # +1s padding
+        clip_total = total_dur
+
+        log.info(f"   ⏱️  TIMING: audio={audio_duration:.1f}s | clips={clip_total:.1f}s | cta={cta_dur:.1f}s | need={audio_needs:.1f}s")
+
+        if audio_needs > clip_total:
+            # Audio is longer than video — extend last content clip (not CTA)
+            gap = round(audio_needs - clip_total, 3)
+            # Find last non-CTA clip
+            last_content_idx = len(video_clips) - 1
+            if cta_dur > 0:
+                last_content_idx = len(video_clips) - 2
+
+            if last_content_idx >= 0:
+                old_len = video_clips[last_content_idx]["length"]
+                new_len = round(old_len + gap, 3)
+                video_clips[last_content_idx]["length"] = new_len
+                log.info(f"   ⏱️  EXTENDED clip {last_content_idx+1}: {old_len}s → {new_len}s (+{gap}s)")
+
+                # Recalculate CTA start if present
+                if cta_dur > 0 and last_content_idx + 1 < len(video_clips):
+                    new_cta_start = round(video_clips[last_content_idx]["start"] + new_len, 3)
+                    video_clips[last_content_idx + 1]["start"] = new_cta_start
+
+                total_dur = round(audio_needs, 3)
+            else:
+                log.warning(f"   ⏱️  No content clip to extend!")
+
+        elif clip_total > audio_needs + 5:
+            # Video is way longer than audio — trim last content clip
+            excess = round(clip_total - audio_needs, 3)
+            last_content_idx = len(video_clips) - 1
+            if cta_dur > 0:
+                last_content_idx = len(video_clips) - 2
+
+            if last_content_idx >= 0:
+                old_len = video_clips[last_content_idx]["length"]
+                new_len = max(round(old_len - excess, 3), 3.0)  # min 3s
+                actual_trim = round(old_len - new_len, 3)
+                if actual_trim > 0:
+                    video_clips[last_content_idx]["length"] = new_len
+                    log.info(f"   ⏱️  TRIMMED clip {last_content_idx+1}: {old_len}s → {new_len}s (-{actual_trim}s)")
+
+                    # Recalculate CTA start
+                    if cta_dur > 0 and last_content_idx + 1 < len(video_clips):
+                        new_cta_start = round(video_clips[last_content_idx]["start"] + new_len, 3)
+                        video_clips[last_content_idx + 1]["start"] = new_cta_start
+
+                    total_dur = round(total_dur - actual_trim, 3)
+
+        else:
+            log.info(f"   ⏱️  TIMING OK — within tolerance")
+    else:
+        log.info(f"   ⏱️  No audio duration provided — using fixed clip timing ({total_dur}s)")
 
     caption_track = None
     # Subtitle overlay — built first, inserted as top (front) layer

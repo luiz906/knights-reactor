@@ -227,7 +227,13 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
             notify(6, "Transcribe", "running")
             transcription = transcribe_voiceover(audio)
             result["phases"].append({"name": "Transcribe", "status": "done"})
-            save_checkpoint(6, {"transcription": transcription})
+            # Extract actual audio duration from Whisper
+            audio_duration = transcription.get("duration", 0)
+            if not audio_duration and transcription.get("words"):
+                # Fallback: last word's end timestamp
+                audio_duration = transcription["words"][-1].get("end", 0)
+            log.info(f"   ⏱️  Audio duration: {audio_duration:.1f}s")
+            save_checkpoint(6, {"transcription": transcription, "audio_duration": audio_duration})
             notify(6, "Transcribe", "done")
 
             # Full manual mode — derive topic & script from transcript
@@ -273,9 +279,12 @@ Return JSON only:
                     # Update script with actual transcript
                     script["script_full"] = transcript_text
                     result["script"] = script
-                    save_checkpoint(6, {"transcription": transcription, "topic": topic, "script": script})
+                    save_checkpoint(6, {"transcription": transcription, "audio_duration": audio_duration, "topic": topic, "script": script})
         else:
             transcription = ckpt["transcription"]
+            audio_duration = ckpt.get("audio_duration", 0)
+            if not audio_duration and transcription.get("duration"):
+                audio_duration = transcription["duration"]
             result["phases"].append({"name": "Transcribe", "status": "done"})
             notify(6, "Transcribe", "done")
 
@@ -330,7 +339,7 @@ Return JSON only:
                 except Exception as e:
                     log.warning(f"   Format check failed for {r2_url}: {e}")
 
-            final_url = render_video(clips, urls["voiceover"], urls["srt"])
+            final_url = render_video(clips, urls["voiceover"], urls["srt"], audio_duration=audio_duration)
             final_r2_url = upload_to_r2(folder, "final.mp4", final_url, "video/mp4")
             result["phases"].append({"name": "Final Render", "status": "done"})
             result["final_video"] = final_r2_url
