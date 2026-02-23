@@ -386,7 +386,12 @@ def render_video(clips: list, voiceover_url: str, srt_url: str, audio_duration: 
         "Content-Type": "application/json",
     }, json=payload, timeout=30)
     if r.status_code >= 400:
-        log.error(f"   Shotstack error {r.status_code}: {r.text[:500]}")
+        log.error(f"   Shotstack error {r.status_code}: {r.text[:1000]}")
+        # Dump the payload for debugging
+        try:
+            payload_dump = json.dumps(payload, indent=2)
+            log.error(f"   Shotstack payload:\n{payload_dump[:3000]}")
+        except: pass
     r.raise_for_status()
     job_id = r.json()["response"]["id"]
     log.info(f"   Render job: {job_id}")
