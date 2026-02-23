@@ -135,6 +135,15 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
             result["videos"] = [{"index": c["index"], "url": c["video_url"]} for c in clips]
             save_checkpoint(4, {"clips_with_videos": clips, "manual_mode": True})
 
+        elif ckpt.get("manual_mode") and resume_from > 4:
+            # Resuming a manual run — reload clips from checkpoint, skip phases 2-4
+            log.info(f"📦 Manual mode resume: loading clips from checkpoint")
+            clips = ckpt["clips_with_videos"]
+            for ph_idx, ph_name in [(2, "Scene Engine"), (3, "Generate Images"), (4, "Generate Videos")]:
+                result["phases"].append({"name": ph_name, "status": "skipped"})
+                notify(ph_idx, ph_name, "done")
+            result["videos"] = [{"index": c["index"], "url": c["video_url"]} for c in clips]
+
         else:
             # ── Phase 2: Scene engine ───────────────────────────────
             if resume_from <= 2:
