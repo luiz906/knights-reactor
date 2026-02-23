@@ -177,17 +177,21 @@ body{overflow:auto}
 <!-- Manual Upload Section -->
 <div class="sec" id="d-manual-sec">
 <button class="sec-h" onclick="document.getElementById('d-manual-body').classList.toggle('shut');this.querySelector('.sec-a').style.transform=document.getElementById('d-manual-body').classList.contains('shut')?'':'rotate(90deg)'">
-<span class="sec-t">📦 MANUAL CLIPS</span><span class="sec-a">›</span></button>
+<span class="sec-t">📦 MANUAL UPLOAD</span><span class="sec-a">›</span></button>
 <div class="sec-b shut" id="d-manual-body" style="display:block;padding:1em 1.2em">
-<div style="font-size:.65em;color:var(--txtd);margin-bottom:.6em;letter-spacing:.08em">Paste video URLs (mp4/webm). Skips AI image & video generation — keeps script + voiceover + captions.</div>
+<div style="font-size:.65em;color:var(--txtd);margin-bottom:.6em;letter-spacing:.08em">Paste video clips + optional voiceover. With voiceover = fully free run (~$0.02).</div>
+<div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.15em;margin-bottom:4px">VIDEO CLIPS</div>
 <div id="d-mclips" style="display:flex;flex-direction:column;gap:6px">
 <input class="fin mc-url" placeholder="Clip 1 URL (https://...)" style="font-size:.8em">
 <input class="fin mc-url" placeholder="Clip 2 URL (https://...)" style="font-size:.8em">
 <input class="fin mc-url" placeholder="Clip 3 URL (https://...)" style="font-size:.8em">
 </div>
-<div style="display:flex;gap:6px;margin-top:8px">
-<button onclick="addClipSlot('d')" style="flex:1;padding:6px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.65em;letter-spacing:.1em">+ ADD CLIP</button>
-<button onclick="manualRun()" style="flex:2;padding:8px;background:rgba(40,224,96,.08);border:1px solid rgba(40,224,96,.2);color:var(--grn);font-family:var(--f1);font-size:.65em;font-weight:600;letter-spacing:.15em">📦 MANUAL RUN</button>
+<button onclick="addClipSlot('d')" style="width:100%;padding:4px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.6em;letter-spacing:.1em;margin-top:4px">+ ADD CLIP</button>
+<div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.15em;margin:10px 0 4px">VOICEOVER (OPTIONAL)</div>
+<input class="fin mc-vo" placeholder="Voiceover audio URL (mp3/wav/m4a)" style="font-size:.8em">
+<div style="font-size:.55em;color:var(--txtdd);margin-top:3px">With voiceover: skips ALL AI generation. Whisper transcribes → GPT generates title & captions.</div>
+<div style="display:flex;gap:6px;margin-top:10px">
+<button onclick="manualRun()" style="flex:1;padding:8px;background:rgba(40,224,96,.08);border:1px solid rgba(40,224,96,.2);color:var(--grn);font-family:var(--f1);font-size:.65em;font-weight:600;letter-spacing:.15em">📦 MANUAL RUN</button>
 </div>
 </div></div>
 <div class="phgrid" id="d-pl"></div>
@@ -253,18 +257,20 @@ body{overflow:auto}
 <!-- Manual Upload Section Mobile -->
 <div class="sec" style="margin-bottom:6px">
 <button class="sec-h" onclick="document.getElementById('m-manual-body').classList.toggle('shut');this.querySelector('.sec-a').style.transform=document.getElementById('m-manual-body').classList.contains('shut')?'':'rotate(90deg)'">
-<span class="sec-t">📦 MANUAL CLIPS</span><span class="sec-a">›</span></button>
+<span class="sec-t">📦 MANUAL UPLOAD</span><span class="sec-a">›</span></button>
 <div class="sec-b shut" id="m-manual-body" style="display:block;padding:.7em">
-<div style="font-size:.6em;color:var(--txtd);margin-bottom:.5em">Paste video URLs — skips AI generation</div>
+<div style="font-size:.6em;color:var(--txtd);margin-bottom:.5em">Paste clips + voiceover for fully free run</div>
+<div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.12em;margin-bottom:3px">VIDEO CLIPS</div>
 <div id="m-mclips" style="display:flex;flex-direction:column;gap:5px">
 <input class="fin mc-url" placeholder="Clip 1 URL" style="font-size:.85em">
 <input class="fin mc-url" placeholder="Clip 2 URL" style="font-size:.85em">
 <input class="fin mc-url" placeholder="Clip 3 URL" style="font-size:.85em">
 </div>
-<div style="display:flex;gap:5px;margin-top:6px">
-<button onclick="addClipSlot('m')" style="flex:1;padding:8px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.65em">+ ADD</button>
-<button onclick="manualRun()" style="flex:2;padding:10px;background:rgba(40,224,96,.08);border:1px solid rgba(40,224,96,.2);color:var(--grn);font-family:var(--f1);font-size:.6em;font-weight:600;letter-spacing:.12em;min-height:3em">📦 MANUAL RUN</button>
-</div>
+<button onclick="addClipSlot('m')" style="width:100%;padding:6px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.6em;margin-top:4px">+ ADD CLIP</button>
+<div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.12em;margin:8px 0 3px">VOICEOVER (OPTIONAL)</div>
+<input class="fin mc-vo" placeholder="Voiceover audio URL" style="font-size:.85em">
+<div style="font-size:.5em;color:var(--txtdd);margin-top:2px">With VO: skips all AI gen. Whisper + GPT only (~$0.02)</div>
+<button onclick="manualRun()" style="width:100%;padding:10px;background:rgba(40,224,96,.08);border:1px solid rgba(40,224,96,.2);color:var(--grn);font-family:var(--f1);font-size:.6em;font-weight:600;letter-spacing:.12em;min-height:3em;margin-top:8px">📦 MANUAL RUN</button>
 </div></div>
 <div id="m-pl"></div></div>
 
@@ -484,14 +490,23 @@ function addClipSlot(prefix){
 }
 async function manualRun(){
   if(RN)return;
-  // Gather URLs from both desktop and mobile inputs
+  // Gather clip URLs from both desktop and mobile inputs
   const urls=[];
   document.querySelectorAll('.mc-url').forEach(inp=>{
     const v=inp.value.trim();
     if(v&&v.startsWith('http'))urls.push(v);
   });
   if(!urls.length){alert('Paste at least 1 video URL');return;}
+  // Gather voiceover URL
+  let vo='';
+  document.querySelectorAll('.mc-vo').forEach(inp=>{
+    const v=inp.value.trim();
+    if(v&&v.startsWith('http'))vo=v;
+  });
   const body={clips:urls};
+  if(vo)body.voiceover=vo;
+  const mode=vo?'FULL MANUAL (clips + voiceover)':'MANUAL (clips only)';
+  if(!confirm(`Start ${mode} run?\n\n${urls.length} clip(s)${vo?'\n+ voiceover':''}${vo?'\n\nSkips ALL AI generation (~$0.02)':''}`))return;
   const r=await fetch('/api/manual-run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const d=await r.json();
   if(r.ok){RN=true;PH=0;PD=[];GATE=null;rP();poll();}

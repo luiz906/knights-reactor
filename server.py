@@ -121,13 +121,13 @@ def log_entry(phase, level, msg):
     LOGS.append({"t": datetime.now().strftime("%H:%M:%S"), "phase": phase, "level": level, "msg": msg})
     if len(LOGS) > 500: LOGS.pop(0)
 
-def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: list = None):
+def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: list = None, manual_voiceover: str = None):
     apply_model_settings()  # Reload model selections before each run
-    mode = "manual" if manual_clips else ("resume" if resume_from > 0 else "normal")
+    mode = "full-manual" if (manual_clips and manual_voiceover) else ("manual" if manual_clips else ("resume" if resume_from > 0 else "normal"))
     CURRENT_RUN.update({"active": True, "started": datetime.now().isoformat(), "result": None, "phase": 0, "phase_name": "", "phases_done": []})
     if resume_from == 0:
         LOGS.clear()
-    log_entry("System", "info", f"Pipeline {mode} mode{' (topic: '+topic_id+')' if topic_id else ''}{' — '+str(len(manual_clips))+' manual clips' if manual_clips else ''}")
+    log_entry("System", "info", f"Pipeline {mode} mode{' (topic: '+topic_id+')' if topic_id else ''}{' — '+str(len(manual_clips))+' clips' if manual_clips else ''}{' + voiceover' if manual_voiceover else ''}")
 
     def on_phase(phase_index, phase_name, status):
         if status == "running":
@@ -139,7 +139,7 @@ def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: l
                 CURRENT_RUN["phases_done"].append(phase_index)
             log_entry(phase_name, "ok", f"Complete ✓")
 
-    result = run_pipeline(progress_cb=on_phase, resume_from=resume_from, topic_id=topic_id, manual_clips=manual_clips)
+    result = run_pipeline(progress_cb=on_phase, resume_from=resume_from, topic_id=topic_id, manual_clips=manual_clips, manual_voiceover=manual_voiceover)
 
     # Handle gate pauses (pipeline returned early, not finished)
     gate = result.get("gate")
@@ -242,19 +242,27 @@ async def trigger_resume(bg: BackgroundTasks):
 
 @app.post("/api/manual-run")
 async def trigger_manual_run(bg: BackgroundTasks, req: Request):
-    """Run pipeline with user-provided video clips, skipping AI generation."""
+    """Run pipeline with user-provided video clips and optional voiceover."""
     if CURRENT_RUN["active"]: return JSONResponse({"error": "Already running"}, 409)
     body = await req.json()
     clip_urls = body.get("clips", [])
+    voiceover_url = body.get("voiceover", "").strip()
     topic_id = body.get("topic_id")
     if not clip_urls or len(clip_urls) < 1:
         return JSONResponse({"error": "Provide at least 1 clip URL"}, 400)
-    # Validate URLs
+    # Validate clip URLs
     valid = [u.strip() for u in clip_urls if u and u.strip().startswith("http")]
     if not valid:
-        return JSONResponse({"error": "No valid URLs provided"}, 400)
-    bg.add_task(execute_pipeline, 0, topic_id, valid)
-    return {"status": "started", "mode": "manual", "clips": len(valid), "topic_id": topic_id}
+        return JSONResponse({"error": "No valid clip URLs provided"}, 400)
+    # Validate voiceover URL if provided
+    vo = voiceover_url if voiceover_url.startswith("http") else None
+    # Full manual = clips + voiceover (skip all AI gen)
+    # Partial manual = clips only (still generates script + voiceover via AI)
+    mode = "full-manual" if vo else "manual"
+    if vo:
+        topic_id = None  # Full manual doesn't need a topic
+    bg.add_task(execute_pipeline, 0, topic_id, valid, vo)
+    return {"status": "started", "mode": mode, "clips": len(valid), "voiceover": bool(vo)}
 
 # ─── TOPIC DATABASE ──────────────────────────────────────────
 

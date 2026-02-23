@@ -22,13 +22,17 @@ from phases.topics import (
 )
 
 
-def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None, manual_clips: list = None) -> dict:
+def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None, 
+                 manual_clips: list = None, manual_voiceover: str = None) -> dict:
     """Execute the full pipeline with checkpoint/resume and approval gates.
 
     resume_from: Phase index to resume from (0 = start fresh).
     topic_id: Specific topic ID to use (None = next available).
     manual_clips: List of video URLs to use instead of AI generation.
                   When provided, skips phases 2-4 (scene, images, videos).
+    manual_voiceover: URL to voiceover audio file.
+                      When provided with manual_clips, skips phases 0-5.
+                      Whisper transcribes it, GPT derives topic/captions from transcript.
 
     Gates:
       - After phase 2 (Scene Engine): pauses for prompt editing (gate="prompts")
@@ -36,6 +40,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None, m
 
     Checkpoints saved after each phase to DATA_DIR/pipeline_checkpoint.json
     """
+    full_manual = bool(manual_clips and manual_voiceover)
     CHECKPOINT_FILE = str(DATA_DIR / "pipeline_checkpoint.json")
     start = time.time()
     result = {"status": "running", "phases": [], "error": None}
@@ -67,7 +72,15 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None, m
 
     try:
         # ── Phase 0: Fetch topic ────────────────────────────────
-        if resume_from <= 0:
+        if full_manual:
+            # Full manual mode — no topic needed yet, will derive from voiceover
+            notify(0, "Fetch Topic", "running")
+            topic = {"id": f"manual_{int(time.time())}", "idea": "Manual Upload", "category": "Manual", "scripture": ""}
+            result["phases"].append({"name": "Fetch Topic", "status": "skipped"})
+            result["topic"] = topic
+            save_checkpoint(0, {"topic": topic})
+            notify(0, "Fetch Topic", "done")
+        elif resume_from <= 0:
             notify(0, "Fetch Topic", "running")
             topic = fetch_topic(topic_id)
             update_topic(topic["id"], {"Status": "Processing"})
@@ -82,7 +95,15 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None, m
             notify(0, "Fetch Topic", "done")
 
         # ── Phase 1: Generate script ────────────────────────────
-        if resume_from <= 1:
+        if full_manual:
+            # Full manual mode — skip script, will derive from voiceover transcript later
+            notify(1, "Generate Script", "running")
+            script = {"hook": "", "build": "", "reveal": "", "command": "", "script_full": "", "tone": "manual"}
+            result["phases"].append({"name": "Generate Script", "status": "skipped"})
+            result["script"] = script
+            save_checkpoint(1, {"script": script})
+            notify(1, "Generate Script", "done")
+        elif resume_from <= 1:
             notify(1, "Generate Script", "running")
             script = generate_script(topic) if resume_from < 1 else ckpt.get("script") or generate_script(topic)
             result["phases"].append({"name": "Generate Script", "status": "done"})
@@ -175,7 +196,20 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None, m
                 notify(4, "Generate Videos", "done")
 
         # ── Phase 5: Voiceover ──────────────────────────────────
-        if resume_from <= 5:
+        if manual_voiceover:
+            # Full manual mode — download provided voiceover
+            notify(5, "Voiceover", "running")
+            log.info(f"🔊 Phase 5: Using manual voiceover: {manual_voiceover[:80]}...")
+            import requests as rq
+            vo_r = rq.get(manual_voiceover, timeout=120, allow_redirects=True)
+            vo_r.raise_for_status()
+            audio = vo_r.content
+            log.info(f"   Manual voiceover: {len(audio)} bytes ({len(audio)//1024}KB)")
+            result["phases"].append({"name": "Voiceover", "status": "done"})
+            result["voiceover_size"] = len(audio)
+            save_checkpoint(5, {"audio_b64": base64.b64encode(audio).decode()})
+            notify(5, "Voiceover", "done")
+        elif resume_from <= 5:
             notify(5, "Voiceover", "running")
             audio = generate_voiceover(script)
             result["phases"].append({"name": "Voiceover", "status": "done"})
@@ -195,6 +229,51 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None, m
             result["phases"].append({"name": "Transcribe", "status": "done"})
             save_checkpoint(6, {"transcription": transcription})
             notify(6, "Transcribe", "done")
+
+            # Full manual mode — derive topic & script from transcript
+            if full_manual:
+                transcript_text = transcription.get("text", "")
+                if transcript_text:
+                    log.info(f"🧠 Deriving topic from transcript ({len(transcript_text)} chars)...")
+                    import requests as rq
+                    derive_prompt = f"""Listen to this voiceover transcript and extract:
+1. A short topic/title (5-10 words) that describes what this is about
+2. A category from this list: Shocking Revelations, Behind-the-Scenes, Myths Debunked, Deep Dive Analysis, Shocking Reveal
+3. Any scripture reference mentioned (or "none")
+
+Transcript: "{transcript_text}"
+
+Return JSON only:
+{{"idea": "short topic title", "category": "category name", "scripture": "verse or none"}}"""
+                    try:
+                        dr = rq.post("https://api.openai.com/v1/chat/completions", headers={
+                            "Authorization": f"Bearer {Config.OPENAI_KEY}",
+                            "Content-Type": "application/json",
+                        }, json={
+                            "model": "gpt-4o-mini",
+                            "messages": [{"role": "user", "content": derive_prompt}],
+                            "temperature": 0.3,
+                            "max_tokens": 200,
+                        }, timeout=30)
+                        dr.raise_for_status()
+                        raw = dr.json()["choices"][0]["message"]["content"]
+                        raw = re.sub(r'^```json\s*\n?', '', raw, flags=re.IGNORECASE)
+                        raw = re.sub(r'\n?```\s*$', '', raw).strip()
+                        derived = json.loads(raw)
+                        topic["idea"] = derived.get("idea", topic["idea"])
+                        topic["category"] = derived.get("category", topic["category"])
+                        topic["scripture"] = derived.get("scripture", "")
+                        result["topic"] = topic
+                        log.info(f"   Derived topic: {topic['idea']} [{topic['category']}]")
+                    except Exception as e:
+                        log.warning(f"   Topic derivation failed: {e}, using transcript as title")
+                        topic["idea"] = transcript_text[:80]
+                        result["topic"] = topic
+
+                    # Update script with actual transcript
+                    script["script_full"] = transcript_text
+                    result["script"] = script
+                    save_checkpoint(6, {"transcription": transcription, "topic": topic, "script": script})
         else:
             transcription = ckpt["transcription"]
             result["phases"].append({"name": "Transcribe", "status": "done"})
