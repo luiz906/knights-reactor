@@ -44,6 +44,7 @@ class Config:
     RENDER_BG         = "#000000"
     LOGO_URL          = env("LOGO_URL", "https://pub-8d4a1338211a44a7875ebe6ac8487129.r2.dev/gods_knights.png")
     LOGO_ENABLED      = True
+    CAPTIONS_ENABLED  = True
     LOGO_POSITION     = "topRight"
     LOGO_SCALE        = 0.12
     LOGO_OPACITY      = 0.8

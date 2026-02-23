@@ -89,7 +89,8 @@ def apply_model_settings():
     if s.get("render_bg"):      Config.RENDER_BG = s["render_bg"]
     # Logo/Watermark
     if s.get("logo_url"):       Config.LOGO_URL = s["logo_url"]
-    if s.get("logo_enabled"):   Config.LOGO_ENABLED = s["logo_enabled"] in (True, "true", "True")
+    if "logo_enabled" in s:    Config.LOGO_ENABLED = s["logo_enabled"] in (True, "true", "True")
+    if "captions_enabled" in s: Config.CAPTIONS_ENABLED = s["captions_enabled"] in (True, "true", "True")
     if s.get("logo_position"):  Config.LOGO_POSITION = s["logo_position"]
     if s.get("logo_scale"):     Config.LOGO_SCALE = float(s["logo_scale"])
     if s.get("logo_opacity"):   Config.LOGO_OPACITY = float(s["logo_opacity"])

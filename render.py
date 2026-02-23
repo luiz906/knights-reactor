@@ -172,8 +172,11 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
 
     caption_track = None
     # Subtitle overlay — built first, inserted as top (front) layer
-    # Format matches Shotstack's YouTube Shorts caption example exactly
-    if srt_url:
+    # Position: lower-center of screen (above bottom safe zone)
+    captions_on = getattr(Config, "CAPTIONS_ENABLED", True)
+    if captions_on in (False, "false", "False", 0, "0", "off"):
+        captions_on = False
+    if srt_url and captions_on:
         caption_track = {"clips": [{
             "asset": {
                 "type": "caption",
@@ -191,10 +194,11 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
                     "lineHeight": 1.5,
                 },
                 "margin": {
-                    "top": 0.1,
+                    "bottom": 0.18,
                 },
             },
             "start": 0, "length": "end",
+            "position": "bottom",
         }]}
         log.info(f"   Subtitles: {srt_url}")
 
@@ -247,8 +251,9 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
                 "asset": {"type": "image", "src": logo_url},
                 "start": 0, "length": total_dur,
                 "position": Config.LOGO_POSITION,
-                "offset": offsets.get(Config.LOGO_POSITION, {"x": -0.03, "y": 0.03}),
-                "scale": Config.LOGO_SCALE, "opacity": Config.LOGO_OPACITY,
+                "offset": offsets.get(Config.LOGO_POSITION, {"x": -0.05, "y": 0.05}),
+                "scale": 0.08, "opacity": Config.LOGO_OPACITY,
+                "fit": "none",
             }]})
 
     # Video clips
