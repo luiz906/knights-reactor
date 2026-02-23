@@ -153,7 +153,14 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
     if getattr(Config, 'CTA_ENABLED', False) and getattr(Config, 'CTA_URL', ''):
         cta_dur = getattr(Config, 'CTA_DURATION', 4.0)
         cta_url = Config.CTA_URL
-        # Detect type from URL extension
+        # Re-upload CTA to working bucket with correct format detection
+        try:
+            cta_r2_url = upload_to_r2("_assets", "cta_clip.mp4", cta_url, "video/mp4")
+            cta_url = cta_r2_url
+            log.info(f"   CTA re-uploaded: {cta_url}")
+        except Exception as e:
+            log.warning(f"   CTA re-upload failed: {e}, using original URL")
+        # Detect type from final URL extension
         cta_type = "video" if cta_url.lower().endswith(('.mp4','.webm','.mov')) else "image"
         cta_asset = {"type": cta_type, "src": cta_url}
         if cta_type == "video":
@@ -166,7 +173,7 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
             "fit": "cover",
         })
         cursor += cta_dur
-        log.info(f"   CTA clip: {cta_dur}s from {Config.CTA_URL}")
+        log.info(f"   CTA clip: {cta_dur}s from {cta_url}")
 
     total_dur = round(cursor, 3)
 
