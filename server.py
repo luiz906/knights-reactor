@@ -264,6 +264,23 @@ async def trigger_manual_run(bg: BackgroundTasks, req: Request):
     bg.add_task(execute_pipeline, 0, topic_id, valid, vo)
     return {"status": "started", "mode": mode, "clips": len(valid), "voiceover": bool(vo)}
 
+@app.post("/api/script-only")
+async def generate_script_only(req: Request):
+    """Generate script + scene prompts for a topic — no media, no render."""
+    from phases.topics import fetch_topic
+    from phases.script import generate_script
+    from phases.scenes import scene_engine
+    apply_model_settings()
+    body = await req.json()
+    topic_id = body.get("topic_id")
+    try:
+        topic = fetch_topic(topic_id)
+        script = generate_script(topic)
+        clips = scene_engine(script, topic)
+        return {"status": "ok", "topic": topic, "script": script, "clips": clips}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
+
 # ─── TOPIC DATABASE ──────────────────────────────────────────
 
 @app.get("/api/topics")

@@ -153,7 +153,14 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
     if getattr(Config, 'CTA_ENABLED', False) and getattr(Config, 'CTA_URL', ''):
         cta_dur = getattr(Config, 'CTA_DURATION', 4.0)
         cta_url = Config.CTA_URL
-        # Detect type from URL extension
+        # Re-upload CTA to working bucket with correct format detection
+        try:
+            cta_r2_url = upload_to_r2("_assets", "cta_clip.mp4", cta_url, "video/mp4")
+            cta_url = cta_r2_url
+            log.info(f"   CTA re-uploaded: {cta_url}")
+        except Exception as e:
+            log.warning(f"   CTA re-upload failed: {e}, using original URL")
+        # Detect type from final URL extension
         cta_type = "video" if cta_url.lower().endswith(('.mp4','.webm','.mov')) else "image"
         cta_asset = {"type": cta_type, "src": cta_url}
         if cta_type == "video":
@@ -166,30 +173,39 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
             "fit": "cover",
         })
         cursor += cta_dur
-        log.info(f"   CTA clip: {cta_dur}s from {Config.CTA_URL}")
+        log.info(f"   CTA clip: {cta_dur}s from {cta_url}")
 
     total_dur = round(cursor, 3)
 
     caption_track = None
     # Subtitle overlay — built first, inserted as top (front) layer
-    if srt_url:
+    # Position: lower-center of screen (above bottom safe zone)
+    captions_on = getattr(Config, "CAPTIONS_ENABLED", True)
+    if captions_on in (False, "false", "False", 0, "0", "off"):
+        captions_on = False
+    if srt_url and captions_on:
         caption_track = {"clips": [{
             "asset": {
                 "type": "caption",
                 "src": srt_url,
-                "font": {
-                    "color": "#ffffff",
-                    "size": 30,
-                },
                 "background": {
                     "color": "#000000",
-                    "padding": 12,
-                    "borderRadius": 4,
+                    "padding": 50,
+                    "borderRadius": 18,
+                    "opacity": 0.6,
+                },
+                "font": {
+                    "color": "#ffffff",
+                    "family": "Montserrat ExtraBold",
+                    "size": 35,
+                    "lineHeight": 1.5,
+                },
+                "margin": {
+                    "bottom": 0.18,
                 },
             },
-            "start": 0, "length": total_dur,
-            "position": "center",
-            "offset": {"y": 0.2},
+            "start": 0, "length": "end",
+            "position": "bottom",
         }]}
         log.info(f"   Subtitles: {srt_url}")
 
@@ -242,8 +258,9 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
                 "asset": {"type": "image", "src": logo_url},
                 "start": 0, "length": total_dur,
                 "position": Config.LOGO_POSITION,
-                "offset": offsets.get(Config.LOGO_POSITION, {"x": -0.03, "y": 0.03}),
-                "scale": Config.LOGO_SCALE, "opacity": Config.LOGO_OPACITY,
+                "offset": offsets.get(Config.LOGO_POSITION, {"x": -0.05, "y": 0.05}),
+                "scale": 0.08, "opacity": Config.LOGO_OPACITY,
+                "fit": "none",
             }]})
 
     # Video clips
@@ -281,6 +298,9 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
                 all_asset_urls.append((asset.get("type", "?"), src))
 
     for atype, aurl in all_asset_urls:
+        if atype == "caption":
+            log.info(f"   Caption SRT: {aurl.split('/')[-1]} (skip probe)")
+            continue
         try:
             encoded_url = requests.utils.quote(aurl, safe='')
             probe_r = requests.get(f"{ss_base}/probe/{aurl}",
@@ -300,6 +320,8 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
         "x-api-key": Config.SHOTSTACK_KEY,
         "Content-Type": "application/json",
     }, json=payload, timeout=30)
+    if r.status_code >= 400:
+        log.error(f"   Shotstack error {r.status_code}: {r.text[:500]}")
     r.raise_for_status()
     job_id = r.json()["response"]["id"]
     log.info(f"   Render job: {job_id}")

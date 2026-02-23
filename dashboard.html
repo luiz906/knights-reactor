@@ -194,6 +194,16 @@ body{overflow:auto}
 <button onclick="manualRun()" style="flex:1;padding:8px;background:rgba(40,224,96,.08);border:1px solid rgba(40,224,96,.2);color:var(--grn);font-family:var(--f1);font-size:.65em;font-weight:600;letter-spacing:.15em">📦 MANUAL RUN</button>
 </div>
 </div></div>
+<!-- Script Only -->
+<div style="margin-bottom:6px">
+<button onclick="scriptOnly()" style="width:100%;padding:.7em;background:rgba(40,160,224,.06);border:1px solid rgba(40,160,224,.15);color:var(--blu);font-family:var(--f1);font-size:.6em;font-weight:600;letter-spacing:.15em">📝 SCRIPT ONLY — Generate script for next topic</button>
+</div>
+<div id="d-script-result" class="hd" style="background:var(--panel);border:1px solid var(--bd2);padding:1em;margin-bottom:6px">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5em"><span style="font-family:var(--f1);font-size:.6em;color:var(--amb);letter-spacing:.15em" id="d-scr-title"></span><button onclick="$('d-script-result').classList.add('hd')" style="background:none;border:none;color:var(--txtd);font-size:.8em">✕</button></div>
+<div id="d-scr-text" style="font-size:.8em;color:var(--wht);line-height:1.7;margin-bottom:.7em"></div>
+<div id="d-scr-meta" style="font-size:.6em;color:var(--txtd);margin-bottom:.7em"></div>
+<div id="d-scr-prompts"></div>
+</div>
 <div class="phgrid" id="d-pl"></div>
 </div>
 
@@ -272,6 +282,14 @@ body{overflow:auto}
 <div style="font-size:.5em;color:var(--txtdd);margin-top:2px">With VO: skips all AI gen. Whisper + GPT only (~$0.02)</div>
 <button onclick="manualRun()" style="width:100%;padding:10px;background:rgba(40,224,96,.08);border:1px solid rgba(40,224,96,.2);color:var(--grn);font-family:var(--f1);font-size:.6em;font-weight:600;letter-spacing:.12em;min-height:3em;margin-top:8px">📦 MANUAL RUN</button>
 </div></div>
+<!-- Script Only -->
+<button onclick="scriptOnly()" style="width:100%;padding:10px;background:rgba(40,160,224,.06);border:1px solid rgba(40,160,224,.15);color:var(--blu);font-family:var(--f1);font-size:.6em;font-weight:600;letter-spacing:.12em;min-height:3em;margin-bottom:6px">📝 SCRIPT ONLY</button>
+<div id="m-script-result" class="hd" style="background:var(--panel);border:1px solid var(--bd2);padding:.7em;margin-bottom:6px">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4em"><span style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.12em" id="m-scr-title"></span><button onclick="$('m-script-result').classList.add('hd')" style="background:none;border:none;color:var(--txtd);font-size:.8em">✕</button></div>
+<div id="m-scr-text" style="font-size:.8em;color:var(--wht);line-height:1.7;margin-bottom:.5em"></div>
+<div id="m-scr-meta" style="font-size:.55em;color:var(--txtd);margin-bottom:.5em"></div>
+<div id="m-scr-prompts"></div>
+</div>
 <div id="m-pl"></div></div>
 
 <div class="mpage" id="mp-topics">
@@ -511,6 +529,37 @@ async function manualRun(){
   const d=await r.json();
   if(r.ok){RN=true;PH=0;PD=[];GATE=null;rP();poll();}
   else{alert(d.error||'Manual run failed');}
+}
+async function scriptOnly(){
+  const btn=event.target;btn.textContent='⏳ GENERATING...';btn.disabled=true;
+  try{
+    const r=await fetch('/api/script-only',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    const d=await r.json();
+    if(r.ok&&d.script){
+      ['d-','m-'].forEach(px=>{
+        const el=$(px+'script-result');if(el)el.classList.remove('hd');
+        const t=$(px+'scr-title');if(t)t.textContent=d.topic.idea||'Script';
+        const txt=$(px+'scr-text');if(txt)txt.textContent=d.script.script_full||'';
+        const meta=$(px+'scr-meta');if(meta)meta.textContent=`${d.topic.category||''} · ${(d.script.script_full||'').split(' ').length} words · Tone: ${d.script.tone||'?'}`;
+        // Render prompts
+        const pr=$(px+'scr-prompts');
+        if(pr&&d.clips&&d.clips.length){
+          let ph='<div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.15em;margin-bottom:.4em">SCENE PROMPTS</div>';
+          d.clips.forEach(c=>{
+            ph+=`<div style="background:var(--bg);border:1px solid var(--bd2);padding:.6em;margin-bottom:5px">
+              <div style="font-family:var(--f1);font-size:.5em;color:var(--blu);letter-spacing:.12em;margin-bottom:.3em">CLIP ${c.index}</div>
+              <div style="font-size:.6em;color:var(--txtd);margin-bottom:.2em">🖼️ IMAGE</div>
+              <div style="font-size:.7em;color:var(--wht);line-height:1.5;margin-bottom:.4em;cursor:pointer;user-select:all" title="Click to select">${c.image_prompt}</div>
+              <div style="font-size:.6em;color:var(--txtd);margin-bottom:.2em">🎥 MOTION</div>
+              <div style="font-size:.7em;color:var(--wht);line-height:1.5;cursor:pointer;user-select:all" title="Click to select">${c.motion_prompt}</div>
+            </div>`;
+          });
+          pr.innerHTML=ph;
+        }
+      });
+    }else{alert(d.error||'Script generation failed');}
+  }catch(e){alert('Error: '+e);}
+  btn.textContent='📝 SCRIPT ONLY';btn.disabled=false;
 }
 async function poll(){
   if(!RN)return;
