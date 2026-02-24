@@ -127,15 +127,55 @@ def caption_case(text: str, is_first_chunk: bool = False) -> str:
 
 
 def create_srt(script_text: str, transcription: dict = None) -> str:
-    """Create SRT from Whisper word timestamps (3-4 words per cue) or fallback."""
+    """Create SRT from Whisper word timestamps (3-4 words per cue).
+    Uses original script_text for punctuation, Whisper for timing.
+    """
     if not transcription or "words" not in transcription:
         return f"1\n00:00:00,000 --> 00:59:59,000\n{caption_case(script_text, is_first_chunk=True)}\n"
 
-    words = transcription["words"]
-    if not words:
+    whisper_words = transcription["words"]
+    if not whisper_words:
         return f"1\n00:00:00,000 --> 00:59:59,000\n{caption_case(script_text, is_first_chunk=True)}\n"
 
-    # Group words into 3-4 word chunks for readable captions
+    # Build punctuation map from original script
+    # Split script into words, preserving trailing punctuation
+    import re as _re
+    script_tokens = script_text.split()
+    # Map: lowercase clean word → full token with punctuation (use first match)
+    punct_map = {}
+    for tok in script_tokens:
+        clean = _re.sub(r'[^a-zA-Z\']', '', tok).lower()
+        if clean and clean not in punct_map:
+            punct_map[clean] = tok  # keeps "moved." "starts." etc.
+
+    # Rebuild whisper words with punctuation from script
+    enriched = []
+    script_idx = 0
+    for ww in whisper_words:
+        raw = ww.get("word", "").strip()
+        clean = _re.sub(r'[^a-zA-Z\']', '', raw).lower()
+
+        # Try to match against script tokens in order
+        matched = False
+        search_start = max(0, script_idx - 2)
+        search_end = min(len(script_tokens), script_idx + 5)
+        for si in range(search_start, search_end):
+            st_clean = _re.sub(r'[^a-zA-Z\']', '', script_tokens[si]).lower()
+            if st_clean == clean:
+                enriched.append({
+                    "word": script_tokens[si],
+                    "start": ww.get("start", 0),
+                    "end": ww.get("end", 0),
+                })
+                script_idx = si + 1
+                matched = True
+                break
+
+        if not matched:
+            # Fallback: use whisper word as-is
+            enriched.append(ww)
+
+    # Group into 3-4 word chunks
     srt_lines = []
     chunk_size = 4
 
@@ -147,8 +187,8 @@ def create_srt(script_text: str, transcription: dict = None) -> str:
         return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
     idx = 1
-    for i in range(0, len(words), chunk_size):
-        chunk = words[i:i + chunk_size]
+    for i in range(0, len(enriched), chunk_size):
+        chunk = enriched[i:i + chunk_size]
         start_t = chunk[0].get("start", 0)
         end_t = chunk[-1].get("end", start_t + 1)
         text_chunk = " ".join(w.get("word", "") for w in chunk).strip()
