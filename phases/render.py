@@ -96,34 +96,31 @@ def upload_assets(folder: str, clips: list, audio: bytes, srt: str) -> dict:
 # PHASE 9: FINAL RENDER (Shotstack)
 # ══════════════════════════════════════════════════════════════
 
-def caption_case(text: str) -> str:
-    """Lowercase captions with first letter + proper nouns capitalized.
-    Style: 'the battle rages within. You fight not against flesh but spirit.'
+def caption_case(text: str, is_first_chunk: bool = False) -> str:
+    """Lowercase captions. Only the very first letter of the entire text
+    and proper nouns are capitalized. Sentence starts are NOT capitalized.
+    Example: 'the battle rages within. you fight not against flesh but spirit.'
+    Only the first chunk gets a capital first letter.
     """
-    # Proper nouns / sacred words to always capitalize
     PROPER = {
         "god", "jesus", "christ", "lord", "holy", "spirit", "bible", "scripture",
         "father", "son", "ephesians", "psalms", "proverbs", "romans", "matthew",
         "mark", "luke", "john", "genesis", "revelation", "isaiah", "david",
         "moses", "paul", "peter", "abraham", "solomon", "israel", "satan",
-        "heaven", "hell", "sunday", "monday", "tuesday", "wednesday",
-        "thursday", "friday", "saturday", "king", "knight", "knights",
+        "heaven", "hell", "king", "knight", "knights",
     }
     text = text.lower()
     words = text.split()
     for i, w in enumerate(words):
-        # First word of caption — capitalize
-        if i == 0:
-            words[i] = w[0].upper() + w[1:] if w else w
-        # First word after sentence-ending punctuation
-        elif i > 0 and words[i-1] and words[i-1][-1] in '.!?':
+        # First word of first chunk only
+        if i == 0 and is_first_chunk:
             words[i] = w[0].upper() + w[1:] if w else w
         # Proper nouns
-        elif w.rstrip('.,!?;:') in PROPER:
-            clean = w.rstrip('.,!?;:')
+        elif w.rstrip('.,!?;:\'\"') in PROPER:
+            clean = w.rstrip('.,!?;:\'\"')
             trail = w[len(clean):]
             words[i] = clean.capitalize() + trail
-        # "I" as standalone word
+        # "I" standalone
         elif w in ('i', "i'm", "i've", "i'll", "i'd"):
             words[i] = w[0].upper() + w[1:]
     return " ".join(words)
@@ -132,11 +129,11 @@ def caption_case(text: str) -> str:
 def create_srt(script_text: str, transcription: dict = None) -> str:
     """Create SRT from Whisper word timestamps (3-4 words per cue) or fallback."""
     if not transcription or "words" not in transcription:
-        return f"1\n00:00:00,000 --> 00:59:59,000\n{caption_case(script_text)}\n"
+        return f"1\n00:00:00,000 --> 00:59:59,000\n{caption_case(script_text, is_first_chunk=True)}\n"
 
     words = transcription["words"]
     if not words:
-        return f"1\n00:00:00,000 --> 00:59:59,000\n{caption_case(script_text)}\n"
+        return f"1\n00:00:00,000 --> 00:59:59,000\n{caption_case(script_text, is_first_chunk=True)}\n"
 
     # Group words into 3-4 word chunks for readable captions
     srt_lines = []
@@ -157,11 +154,11 @@ def create_srt(script_text: str, transcription: dict = None) -> str:
         text_chunk = " ".join(w.get("word", "") for w in chunk).strip()
         if not text_chunk:
             continue
-        text_chunk = caption_case(text_chunk)
+        text_chunk = caption_case(text_chunk, is_first_chunk=(i == 0))
         srt_lines.append(f"{idx}\n{fmt(start_t)} --> {fmt(end_t)}\n{text_chunk}\n")
         idx += 1
 
-    return "\n".join(srt_lines) if srt_lines else f"1\n00:00:00,000 --> 00:59:59,000\n{caption_case(script_text)}\n"
+    return "\n".join(srt_lines) if srt_lines else f"1\n00:00:00,000 --> 00:59:59,000\n{caption_case(script_text, is_first_chunk=True)}\n"
 
 
 def render_video(clips: list, voiceover_url: str, srt_url: str, audio_duration: float = 0) -> str:
