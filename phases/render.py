@@ -96,14 +96,47 @@ def upload_assets(folder: str, clips: list, audio: bytes, srt: str) -> dict:
 # PHASE 9: FINAL RENDER (Shotstack)
 # ══════════════════════════════════════════════════════════════
 
+def caption_case(text: str) -> str:
+    """Lowercase captions with first letter + proper nouns capitalized.
+    Style: 'the battle rages within. You fight not against flesh but spirit.'
+    """
+    # Proper nouns / sacred words to always capitalize
+    PROPER = {
+        "god", "jesus", "christ", "lord", "holy", "spirit", "bible", "scripture",
+        "father", "son", "ephesians", "psalms", "proverbs", "romans", "matthew",
+        "mark", "luke", "john", "genesis", "revelation", "isaiah", "david",
+        "moses", "paul", "peter", "abraham", "solomon", "israel", "satan",
+        "heaven", "hell", "sunday", "monday", "tuesday", "wednesday",
+        "thursday", "friday", "saturday", "king", "knight", "knights",
+    }
+    text = text.lower()
+    words = text.split()
+    for i, w in enumerate(words):
+        # First word of caption — capitalize
+        if i == 0:
+            words[i] = w[0].upper() + w[1:] if w else w
+        # First word after sentence-ending punctuation
+        elif i > 0 and words[i-1] and words[i-1][-1] in '.!?':
+            words[i] = w[0].upper() + w[1:] if w else w
+        # Proper nouns
+        elif w.rstrip('.,!?;:') in PROPER:
+            clean = w.rstrip('.,!?;:')
+            trail = w[len(clean):]
+            words[i] = clean.capitalize() + trail
+        # "I" as standalone word
+        elif w in ('i', "i'm", "i've", "i'll", "i'd"):
+            words[i] = w[0].upper() + w[1:]
+    return " ".join(words)
+
+
 def create_srt(script_text: str, transcription: dict = None) -> str:
     """Create SRT from Whisper word timestamps (3-4 words per cue) or fallback."""
     if not transcription or "words" not in transcription:
-        return f"1\n00:00:00,000 --> 00:59:59,000\n{script_text}\n"
+        return f"1\n00:00:00,000 --> 00:59:59,000\n{caption_case(script_text)}\n"
 
     words = transcription["words"]
     if not words:
-        return f"1\n00:00:00,000 --> 00:59:59,000\n{script_text}\n"
+        return f"1\n00:00:00,000 --> 00:59:59,000\n{caption_case(script_text)}\n"
 
     # Group words into 3-4 word chunks for readable captions
     srt_lines = []
@@ -124,10 +157,11 @@ def create_srt(script_text: str, transcription: dict = None) -> str:
         text_chunk = " ".join(w.get("word", "") for w in chunk).strip()
         if not text_chunk:
             continue
+        text_chunk = caption_case(text_chunk)
         srt_lines.append(f"{idx}\n{fmt(start_t)} --> {fmt(end_t)}\n{text_chunk}\n")
         idx += 1
 
-    return "\n".join(srt_lines) if srt_lines else f"1\n00:00:00,000 --> 00:59:59,000\n{script_text}\n"
+    return "\n".join(srt_lines) if srt_lines else f"1\n00:00:00,000 --> 00:59:59,000\n{caption_case(script_text)}\n"
 
 
 def render_video(clips: list, voiceover_url: str, srt_url: str, audio_duration: float = 0) -> str:
