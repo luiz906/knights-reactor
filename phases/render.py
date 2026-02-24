@@ -265,12 +265,10 @@ def render_video(clips: list, voiceover_url: str, srt_url: str, audio_duration: 
                     "size": 35,
                     "lineHeight": 1.5,
                 },
-                "margin": {
-                    "bottom": 0.18,
-                },
             },
             "start": 0, "length": "end",
             "position": "bottom",
+            "offset": {"x": 0, "y": 0.18},
         }]}
         log.info(f"   Subtitles: {srt_url}")
 
