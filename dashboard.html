@@ -46,6 +46,7 @@ select.fin option{background:var(--bg2);color:var(--amb);padding:6px}
 .tg.on{background:rgba(40,224,96,.15);border-color:var(--grn)}.tg.off{background:var(--bg);border-color:var(--bd2)}
 .td{position:absolute;top:.15em;width:1.15em;height:1.15em;background:var(--amb);transition:left .2s;left:.15em}.tg.on .td{background:var(--grn);left:1.5em}.tg.off .td{left:.15em}
 .sv{width:100%;padding:.9em;border:1px solid var(--amb);background:rgba(227,160,40,.06);font-size:.85em;font-weight:600;color:var(--amb);letter-spacing:.2em;font-family:var(--f1);margin-top:1em}.sv:hover{background:rgba(227,160,40,.12)}
+.btn-upload{padding:.4em .7em;background:rgba(227,160,40,.08);border:1px solid var(--bd);color:var(--amb);font-size:.85em;cursor:pointer;white-space:nowrap;font-family:var(--f3);min-width:2.5em;text-align:center}.btn-upload:hover{background:rgba(227,160,40,.15)}.btn-upload.uploading{opacity:.5;pointer-events:none}
 .sm{background:var(--grn2);border:1px solid rgba(40,224,96,.15);padding:.5em .85em;margin-bottom:.55em;font-size:.7em;color:var(--grn)}
 .rw{padding:.7em 1em;border-bottom:1px solid var(--bd2)}
 .panel{background:var(--panel);border:1px solid var(--bd2);padding:1em;position:relative;overflow:hidden}
@@ -179,16 +180,16 @@ body{overflow:auto}
 <button class="sec-h" onclick="document.getElementById('d-manual-body').classList.toggle('shut');this.querySelector('.sec-a').style.transform=document.getElementById('d-manual-body').classList.contains('shut')?'':'rotate(90deg)'">
 <span class="sec-t">📦 MANUAL UPLOAD</span><span class="sec-a">›</span></button>
 <div class="sec-b shut" id="d-manual-body" style="display:block;padding:1em 1.2em">
-<div style="font-size:.65em;color:var(--txtd);margin-bottom:.6em;letter-spacing:.08em">Paste video clips + optional voiceover. With voiceover = fully free run (~$0.02).</div>
+<div style="font-size:.65em;color:var(--txtd);margin-bottom:.6em;letter-spacing:.08em">Upload files or paste URLs. With voiceover = fully free run (~$0.02).</div>
 <div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.15em;margin-bottom:4px">VIDEO CLIPS</div>
 <div id="d-mclips" style="display:flex;flex-direction:column;gap:6px">
-<input class="fin mc-url" placeholder="Clip 1 URL (https://...)" style="font-size:.8em">
-<input class="fin mc-url" placeholder="Clip 2 URL (https://...)" style="font-size:.8em">
-<input class="fin mc-url" placeholder="Clip 3 URL (https://...)" style="font-size:.8em">
+<div style="display:flex;gap:4px"><input class="fin mc-url" placeholder="Clip 1 URL (https://...)" style="font-size:.8em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
+<div style="display:flex;gap:4px"><input class="fin mc-url" placeholder="Clip 2 URL (https://...)" style="font-size:.8em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
+<div style="display:flex;gap:4px"><input class="fin mc-url" placeholder="Clip 3 URL (https://...)" style="font-size:.8em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
 </div>
 <button onclick="addClipSlot('d')" style="width:100%;padding:4px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.6em;letter-spacing:.1em;margin-top:4px">+ ADD CLIP</button>
 <div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.15em;margin:10px 0 4px">VOICEOVER (OPTIONAL)</div>
-<input class="fin mc-vo" placeholder="Voiceover audio URL (mp3/wav/m4a)" style="font-size:.8em">
+<div style="display:flex;gap:4px"><input class="fin mc-vo" placeholder="Voiceover audio URL (mp3/wav/m4a)" style="font-size:.8em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'audio')">📁</button></div>
 <div style="font-size:.55em;color:var(--txtdd);margin-top:3px">With voiceover: skips ALL AI generation. Whisper transcribes → GPT generates title & captions.</div>
 <div style="display:flex;gap:6px;margin-top:10px">
 <button onclick="manualRun()" style="flex:1;padding:8px;background:rgba(40,224,96,.08);border:1px solid rgba(40,224,96,.2);color:var(--grn);font-family:var(--f1);font-size:.65em;font-weight:600;letter-spacing:.15em">📦 MANUAL RUN</button>
@@ -269,16 +270,16 @@ body{overflow:auto}
 <button class="sec-h" onclick="document.getElementById('m-manual-body').classList.toggle('shut');this.querySelector('.sec-a').style.transform=document.getElementById('m-manual-body').classList.contains('shut')?'':'rotate(90deg)'">
 <span class="sec-t">📦 MANUAL UPLOAD</span><span class="sec-a">›</span></button>
 <div class="sec-b shut" id="m-manual-body" style="display:block;padding:.7em">
-<div style="font-size:.6em;color:var(--txtd);margin-bottom:.5em">Paste clips + voiceover for fully free run</div>
+<div style="font-size:.6em;color:var(--txtd);margin-bottom:.5em">Upload files or paste URLs for fully free run</div>
 <div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.12em;margin-bottom:3px">VIDEO CLIPS</div>
 <div id="m-mclips" style="display:flex;flex-direction:column;gap:5px">
-<input class="fin mc-url" placeholder="Clip 1 URL" style="font-size:.85em">
-<input class="fin mc-url" placeholder="Clip 2 URL" style="font-size:.85em">
-<input class="fin mc-url" placeholder="Clip 3 URL" style="font-size:.85em">
+<div style="display:flex;gap:4px"><input class="fin mc-url" placeholder="Clip 1 URL" style="font-size:.85em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
+<div style="display:flex;gap:4px"><input class="fin mc-url" placeholder="Clip 2 URL" style="font-size:.85em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
+<div style="display:flex;gap:4px"><input class="fin mc-url" placeholder="Clip 3 URL" style="font-size:.85em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
 </div>
 <button onclick="addClipSlot('m')" style="width:100%;padding:6px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.6em;margin-top:4px">+ ADD CLIP</button>
 <div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.12em;margin:8px 0 3px">VOICEOVER (OPTIONAL)</div>
-<input class="fin mc-vo" placeholder="Voiceover audio URL" style="font-size:.85em">
+<div style="display:flex;gap:4px"><input class="fin mc-vo" placeholder="Voiceover audio URL" style="font-size:.85em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'audio')">📁</button></div>
 <div style="font-size:.5em;color:var(--txtdd);margin-top:2px">With VO: skips all AI gen. Whisper + GPT only (~$0.02)</div>
 <button onclick="manualRun()" style="width:100%;padding:10px;background:rgba(40,224,96,.08);border:1px solid rgba(40,224,96,.2);color:var(--grn);font-family:var(--f1);font-size:.6em;font-weight:600;letter-spacing:.12em;min-height:3em;margin-top:8px">📦 MANUAL RUN</button>
 </div></div>
@@ -498,13 +499,67 @@ async function resumeNow(){
 }
 function addClipSlot(prefix){
   const container=$(prefix+'-mclips');
-  const count=container.querySelectorAll('input').length;
+  const count=container.querySelectorAll('.mc-url').length;
   if(count>=6)return;
+  const row=document.createElement('div');
+  row.style.cssText='display:flex;gap:4px';
   const inp=document.createElement('input');
   inp.className='fin mc-url';
   inp.placeholder=`Clip ${count+1} URL (https://...)`;
-  inp.style.fontSize=prefix==='m'?'.85em':'.8em';
-  container.appendChild(inp);
+  inp.style.cssText='font-size:'+(prefix==='m'?'.85em':'.8em')+';flex:1';
+  const btn=document.createElement('button');
+  btn.className='btn-upload';
+  btn.textContent='📁';
+  btn.onclick=function(){uploadFile(this,'video')};
+  row.appendChild(inp);
+  row.appendChild(btn);
+  container.appendChild(row);
+}
+async function uploadFile(btn, type){
+  const accept = type==='audio' ? 'audio/*,.mp3,.wav,.m4a,.flac,.ogg' : 'video/*,.mp4,.mov,.webm,.avi';
+  const input = document.createElement('input');
+  input.type='file';
+  input.accept=accept;
+  input.onchange=async function(){
+    const file=input.files[0];
+    if(!file)return;
+    // Find the text input next to this button
+    const row=btn.parentElement;
+    const textInput=row.querySelector('.mc-url,.mc-vo');
+    if(!textInput)return;
+    // Show uploading state
+    const origText=btn.textContent;
+    btn.textContent='⏳';
+    btn.classList.add('uploading');
+    textInput.value='uploading...';
+    textInput.style.color='var(--blu)';
+    try{
+      const form=new FormData();
+      form.append('file',file);
+      const r=await fetch('/api/upload',{method:'POST',body:form});
+      const d=await r.json();
+      if(d.url){
+        textInput.value=d.url;
+        textInput.style.color='var(--grn)';
+        btn.textContent='✓';
+        setTimeout(()=>{btn.textContent=origText;textInput.style.color='';},2000);
+      }else{
+        textInput.value='';
+        textInput.style.color='';
+        btn.textContent='✗';
+        alert(d.error||'Upload failed');
+        setTimeout(()=>btn.textContent=origText,2000);
+      }
+    }catch(e){
+      textInput.value='';
+      textInput.style.color='';
+      btn.textContent='✗';
+      alert('Upload error: '+e.message);
+      setTimeout(()=>btn.textContent=origText,2000);
+    }
+    btn.classList.remove('uploading');
+  };
+  input.click();
 }
 async function manualRun(){
   if(RN)return;

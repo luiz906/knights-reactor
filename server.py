@@ -8,7 +8,7 @@ import json, os, threading, time
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, BackgroundTasks, Request
+from fastapi import FastAPI, BackgroundTasks, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from pipeline import (
@@ -397,6 +397,52 @@ async def regen_video(req: Request):
         return {"status": "regenerated", "clip": target}
     except Exception as e:
         return JSONResponse({"error": str(e)}, 500)
+
+@app.post("/api/upload")
+async def upload_file(file: UploadFile = File(...)):
+    """Upload a video/audio file to R2, return public URL."""
+    from phases.render import get_s3_client
+    import uuid
+
+    data = await file.read()
+    if len(data) > 200 * 1024 * 1024:  # 200MB limit
+        return JSONResponse({"error": "File too large (max 200MB)"}, 413)
+
+    # Detect content type from magic bytes
+    ct = file.content_type or "application/octet-stream"
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "bin"
+
+    # Video detection
+    if data[:4] == b'\x1a\x45\xdf\xa3':
+        ct = "video/webm"; ext = "webm"
+    elif data[4:8] == b'ftyp':
+        ct = "video/mp4"; ext = "mp4"
+    # Audio detection
+    elif data[:3] == b'ID3' or data[:2] in (b'\xff\xfb', b'\xff\xf3'):
+        ct = "audio/mpeg"; ext = "mp3"
+    elif data[:4] == b'RIFF' and data[8:12] == b'WAVE':
+        ct = "audio/wav"; ext = "wav"
+    elif data[:4] == b'fLaC':
+        ct = "audio/flac"; ext = "flac"
+    elif data[4:8] == b'ftyp' and b'M4A' in data[8:16]:
+        ct = "audio/mp4"; ext = "m4a"
+
+    # Upload to R2
+    short_id = uuid.uuid4().hex[:8]
+    safe_name = file.filename.rsplit(".", 1)[0][:30].replace(" ", "_")
+    key = f"_uploads/{safe_name}_{short_id}.{ext}"
+
+    s3 = get_s3_client()
+    s3.put_object(
+        Bucket=Config.R2_BUCKET,
+        Key=key,
+        Body=data,
+        ContentType=ct,
+    )
+
+    url = f"{Config.R2_PUBLIC_URL}/{key}"
+    log_entry("Upload", "ok", f"Uploaded {file.filename} → {key} ({len(data)//1024}KB)")
+    return {"url": url, "filename": file.filename, "size": len(data), "content_type": ct}
 
 @app.get("/api/status")
 async def get_status():
