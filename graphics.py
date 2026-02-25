@@ -95,6 +95,284 @@ def _gpt(prompt, temp=0.9, max_tok=200):
     return r.json()["choices"][0]["message"]["content"].strip().strip('"')
 
 
+# ─── GRAPHICS SCENE ENGINE (ported from n8n JS v10) ──────────
+# Real-world lettering prompt builder with randomized moods,
+# carriers, scenes, typography, and brand integration.
+import random as _rng
+
+def _pick(arr): return _rng.choice(arr)
+def _pickN(arr, n):
+    copy = list(arr); out = []
+    while copy and len(out) < n:
+        out.append(copy.pop(_rng.randint(0, len(copy)-1)))
+    return out
+def _pick_weighted(items, weights):
+    total = sum(weights); r = _rng.random() * total
+    for i, w in enumerate(weights):
+        r -= w
+        if r <= 0: return items[i]
+    return items[-1]
+def _join(*parts): return " ".join(p for p in parts if p).strip()
+
+# ── MOOD POOLS ──
+_MOODS = [
+    {"key": "NATURAL_DAY", "w": 35},
+    {"key": "WARM_INTERIOR", "w": 30},
+    {"key": "NIGHT_COLOR", "w": 20},
+    {"key": "MIXED_LIGHT", "w": 15},
+]
+
+_MOOD_POOLS = {
+    "NATURAL_DAY": {
+        "lighting": [
+            "natural daylight with clean contrast and readable midtones",
+            "open shade daylight with gentle direction and natural falloff",
+            "late afternoon daylight with soft side-shadows (not moody, just real)",
+            "bright but neutral daylight with accurate white balance",
+        ],
+        "color": [
+            "natural chroma and honest color: concrete shows beige/olive/blue undertones, paint has real pigment, metal reflects ambient color, skin tones stay believable",
+            "neutral documentary color with accurate white balance and natural contrast (no stylized grading, no grey wash)",
+            "true-to-life color and exposure: avoid desaturated filters and muddy mid-greys",
+        ],
+        "exposure": "exposure is normal and balanced: no underexposure, no crushed blacks, no grey haze filter",
+    },
+    "WARM_INTERIOR": {
+        "lighting": [
+            "fluorescent interior light with real-world color temperature variation (no green cast exaggeration)",
+            "mixed indoor lighting with natural falloff and practical highlights",
+            "storefront spill light that feels real and readable, not cinematic",
+        ],
+        "color": [
+            "natural indoor color: whites stay neutral, warm tones stay believable, no muddy grey overlay",
+            "documentary indoor color with accurate white balance and clean midtones",
+            "preserve natural colors in signage/glass/skin—no bland filter",
+        ],
+        "exposure": "clean midtones and readable shadows: avoid dark, avoid wet/grey look",
+    },
+    "NIGHT_COLOR": {
+        "lighting": [
+            "night lighting with readable exposure and clean midtones (not underexposed)",
+            "streetlight + storefront spill with balanced exposure so the carrier reads clearly",
+            "neon/signage glow with realistic spill and controlled bloom, text stays crisp",
+        ],
+        "color": [
+            "natural night color (not monochrome): retain real reds/ambers/greens from street and signage without overgrading",
+            "night documentary color with clean highlights and uncrushed shadows",
+            "no teal/orange grade—keep it real",
+        ],
+        "exposure": "night exposure is lifted enough to avoid a dark, moody look; text plane is properly lit",
+    },
+    "MIXED_LIGHT": {
+        "lighting": [
+            "mixed practical lighting with believable white balance tension (fluorescent + signage), still clean",
+            "two-source lighting (cool overhead + warm spill) with normal exposure and readable midtones",
+            "dynamic light transitions (passing headlights, signage flicker) without dark underexposure",
+        ],
+        "color": [
+            "natural mixed-light color with real chroma—avoid grey wash and avoid heavy desaturation",
+            "documentary color with clean midtones and true whites",
+            "natural contrast and pigment—no bland filter",
+        ],
+        "exposure": "balanced exposure; avoid underexposed corners and muddy mid-grey haze",
+    },
+}
+
+# ── CENTER-SAFE TEXT + CAMERA RULES ──
+_CENTER_SAFE = [
+    "Text sits centered in the frame safe area for cropping safety.",
+    "Leave visible surface border around the text on all sides (at least 12-15% padding).",
+    "Keep the full message fully in-frame. No edge cropping. No cutoff letters.",
+    "Camera is level and vertically true. No Dutch angle. Architectural lines stay straight.",
+]
+_HIERARCHY = [
+    "The text plane is the sharpest point in the image. Background falls off naturally.",
+    "Strong contrast between text and its surface. No shadows, glare, or reflections obscuring letters.",
+    "No competing focal points stronger than the text.",
+]
+_CLEANLINESS = "Underground culture energy, but not dirty or fetishized grime. Real wear is fine: scuffs, dust, fingerprints, sun fade—nothing gross."
+_ANTI_MOCKUP = [
+    "No poster mockup look. No studio lighting. No centered product-shot vibe.",
+    "Observed candid framing, real depth layers, real environment.",
+    "Avoid overly perfect typography and overly perfect surfaces.",
+]
+
+# ── TYPOGRAPHY ──
+_TYPO_STYLES = [
+    "plain sans-serif lettering, clear and commercial, like a real-world sign shop would produce",
+    "bold condensed sans-serif, clean and readable at distance, uniform stroke weight",
+    "simple grotesque sans-serif, neutral tone, no personality tricks",
+    "utilitarian sans-serif, evenly spaced, legible first, style second",
+]
+
+# ── SCENES ──
+_SCENES = [
+    {"id": "S01", "desc": "city sidewalk in daylight near small storefronts, real street colors, clean concrete and glass", "tags": ["day","street","urban"]},
+    {"id": "S02", "desc": "parking lot edge in daylight with sunlit cars, natural color, no rain, no fog", "tags": ["day","street","commercial"]},
+    {"id": "S03", "desc": "industrial corridor in daylight with painted walls and metal doors, honest color", "tags": ["day","industrial"]},
+    {"id": "S04", "desc": "underpass in daylight with directional side light, normal exposure, not moody", "tags": ["day","infrastructure"]},
+    {"id": "S05", "desc": "convenience store entrance with fluorescent interior and colored signage glow outside", "tags": ["interior","mixed","commercial"]},
+    {"id": "S06", "desc": "late-night diner threshold with mixed fluorescent and window reflections (balanced exposure)", "tags": ["interior","mixed","night"]},
+    {"id": "S07", "desc": "bus interior with practical lighting and reflections, normal exposure, natural colors", "tags": ["interior","transit","mixed"]},
+    {"id": "S08", "desc": "street corner at night with storefront signage providing real color and readable exposure", "tags": ["night","street","urban"]},
+    {"id": "S09", "desc": "parking garage entrance at night with practical lights and readable midtones", "tags": ["night","industrial"]},
+]
+
+_MOOD_SCENE_PREF = {
+    "NATURAL_DAY": ["day"],
+    "WARM_INTERIOR": ["interior","mixed"],
+    "NIGHT_COLOR": ["night"],
+    "MIXED_LIGHT": ["mixed","interior","night"],
+}
+
+# ── CARRIERS ──
+_CARRIERS = [
+    {"carrier": "white vinyl cut lettering on the back window of a parked car", "cat": "vehicle"},
+    {"carrier": "a message on a car window written with paint marker (imperfect stroke edges)", "cat": "vehicle"},
+    {"carrier": "vinyl lettering on the back door of a box truck", "cat": "vehicle"},
+    {"carrier": "a cardboard sign casually held in a crowd", "cat": "human"},
+    {"carrier": "text printed across the back of a hoodie worn in public", "cat": "human"},
+    {"carrier": "a wheat-pasted poster on a clean wall (slight wrinkles, no tears)", "cat": "poster"},
+    {"carrier": "a photocopied flyer taped to glass (edges lifting slightly)", "cat": "poster"},
+    {"carrier": "an LED transit destination board", "cat": "led"},
+    {"carrier": "a dot-matrix electronic road sign (temporary message board)", "cat": "led"},
+    {"carrier": "a bulb-lit marquee sign (real bulbs, real glare control)", "cat": "light"},
+    {"carrier": "a neon tube sign photographed as a real object", "cat": "light"},
+    {"carrier": "a projected phrase cast onto a wall (real keystone and spill, readable)", "cat": "projection"},
+    {"carrier": "a sprayed stencil on concrete with visible overspray and speckling", "cat": "marking"},
+    {"carrier": "chalk lettering on pavement (slight smudge from foot traffic)", "cat": "marking"},
+]
+
+_BEHAVIORS = {
+    "vehicle": [
+        "reflections slide across glass or paint near the lettering, but do not obscure characters",
+        "small scuffs and real-world dust exist around the surface, not over the text",
+        "natural ambient color reflections appear in the glass/paint",
+    ],
+    "human": [
+        "real crowd context with unstaged posture; depth blur isolates the text plane",
+        "fabric drape or hand grip creates slight warping consistent with reality",
+        "no posing; candid street moment",
+    ],
+    "poster": [
+        "paper wrinkles create micro-shadows; surface stays clean",
+        "tape edges or paste bubbles add realism without grime",
+        "raking light reveals paper texture",
+    ],
+    "led": [
+        "visible pixel grid with slight brightness variance; characters remain crisp",
+        "controlled bloom around bright pixels; no blown-out unreadable highlights",
+        "realistic refresh/flicker implied subtly",
+    ],
+    "light": [
+        "realistic glow bloom and subtle spill onto nearby surfaces",
+        "controlled glare; readable letters",
+        "minor lens flare possible but never covers text",
+    ],
+    "projection": [
+        "keystone distortion and feathered edges from light spill; still fully readable",
+        "projection falloff across texture is visible but not destructive to legibility",
+        "faint dust/haze catches the beam lightly",
+    ],
+    "marking": [
+        "surface pores and micro-cracks interact with paint/chalk",
+        "overspray halo and speckling visible at edges if stencil",
+        "minor drip marks allowed, but letters remain readable",
+    ],
+}
+
+_LIFE_MOMENTS = [
+    "a skateboard or bike passes through the lower corner as a soft streak",
+    "a passerby crosses far background in motion blur",
+    "headlights sweep across the ground nearby, changing reflections",
+    "a quick hand movement slightly shifts the cardboard sign angle",
+    "a door opens behind the scene, changing interior spill light briefly",
+]
+
+_CAMERA_RULES = [
+    "neutral 35-50mm perspective with gentle compression",
+    "level camera, no tilt; architectural lines remain straight",
+    "handheld candid feel without crooked horizons",
+    "depth layering: soft foreground element, crisp text plane, softer background",
+]
+
+
+def build_graphics_prompt(quote_text: str, brand: dict = None) -> str:
+    """Build a full photorealistic lettering prompt from quote + brand.
+    Direct port of n8n Code in JavaScript v10.
+    """
+    TEXT = quote_text
+
+    # Brand visual directive
+    guidelines = (brand or {}).get("guidelines", "")
+    if guidelines:
+        brand_visual = f"Brand art direction: align with these guidelines — {str(guidelines)[:600]}. Translate voice into photography choices (composition, light, restraint)."
+    else:
+        brand_visual = "Overall mood: intentional, editorial, human. Not trendy. Not mockup."
+
+    # Pick mood (weighted)
+    mood_key = _pick_weighted([m["key"] for m in _MOODS], [m["w"] for m in _MOODS])
+    mood = _MOOD_POOLS[mood_key]
+
+    # Pick scene matching mood
+    pref_tags = _MOOD_SCENE_PREF.get(mood_key, ["day"])
+    compatible = [s for s in _SCENES if any(t in pref_tags for t in s["tags"])]
+    scene = _pick(compatible) if compatible else _pick(_SCENES)
+
+    # Pick carrier + behaviors
+    carrier_def = _pick(_CARRIERS)
+    cat = carrier_def["cat"]
+    behaviors = _pickN(_BEHAVIORS.get(cat, []), 2)
+
+    # Pick all random elements
+    typography = _pick(_TYPO_STYLES)
+    lighting = _pick(mood["lighting"])
+    color = _pick(mood["color"])
+    camera = _pick(_CAMERA_RULES)
+    moment = _pick(_LIFE_MOMENTS)
+
+    # Assemble prompt (same structure as JS)
+    prompt = _join(
+        "Photorealistic candid vertical photograph.",
+        f"The exact text displayed must be: {TEXT}.",
+        "Do not include quotation marks in the rendered text.",
+
+        # Center-safe + straight camera
+        _pick(_CENTER_SAFE),
+        _pick(_CENTER_SAFE),
+        "Keep the text centered in the frame safe area. Leave visible border around it on all sides.",
+
+        # Typography + legibility
+        f"Typography: {typography}.",
+        _pick(_HIERARCHY),
+        _pick(_HIERARCHY),
+
+        # Color/Exposure
+        mood["exposure"] + ".",
+        color + ".",
+
+        # Scene + lighting
+        f"Scene: {scene['desc']}.",
+        f"Lighting: {lighting}.",
+
+        # Carrier + physics
+        f"The phrase appears on {carrier_def['carrier']}.",
+        ". ".join(behaviors) + "." if behaviors else "",
+
+        # Camera + candid life
+        f"Lens/feel: {camera}.",
+        f"Include a subtle real-life moment: {moment}.",
+
+        # Brand + anti-mockup
+        _CLEANLINESS,
+        brand_visual,
+        _pick(_ANTI_MOCKUP),
+        _pick(_ANTI_MOCKUP),
+    )
+
+    return prompt
+
+
 # ─── INDIVIDUAL PHASE ENDPOINTS ──────────────────────────────
 # Each phase is its own API call so the UI controls the flow
 
@@ -120,32 +398,40 @@ async def api_phase_topic(req: Request):
 
 @gfx_app.post("/api/phase/quote")
 async def api_phase_quote(req: Request):
-    """Generate a quote from the topic."""
+    """Generate graphic copy from topic (ported from n8n Graphic Copy1 node)."""
     body = await req.json()
     brand = next((b for b in get_brands() if b["id"] == body.get("brand_id")), {})
     topic = body.get("topic", "")
+    guidelines = brand.get("guidelines", "")
     try:
         quote = _gpt(
-            f"Write a powerful quote for an image post about: {topic}. "
-            f"Brand: {brand.get('name','')}. Tone: {brand.get('tone','Bold')}. "
-            "Max 15 words. Punchy, memorable, shareable. Return ONLY the quote.", max_tok=60)
+            f"You are a senior brand designer and creative director. You design for real businesses, not creators. "
+            f"You speak plainly, confidently, and without hype.\n\n"
+            f"SOURCE TITLE (raw idea, not final copy):\n\"{topic}\"\n\n"
+            f"TASK:\nCreate NEW graphic copy derived from the title. KEEP VERY SIMPLE and common language lamen terms.\n\n"
+            f"This is not a rewrite the brand voice from:\n\n{guidelines}\n\n"
+            f"RULES:\n- 1 line only\n- Max 12 words\n- Editorial, blunt, calm confidence\n"
+            f"- Observational, not advice\n- Uncomfortable truth is acceptable\n"
+            f"- Designed to live ON a physical sign\n- Non apologetic.\n\n"
+            f"LANGUAGE RULES:\n- No emojis\n- No hashtags\n- No questions\n- No calls to action\n"
+            f"- No advice\n- No motivational language\n- No \"you should\"\n- No hype or buzzwords\n- No sales tone\n\n"
+            f"FINAL OUTPUT RULE:\nReturn ONLY the final line of text.\nNothing else. No period at the end.",
+            max_tok=60)
         return {"quote": quote}
     except Exception as e:
         return JSONResponse({"error": str(e)}, 500)
 
 @gfx_app.post("/api/phase/prompt")
 async def api_phase_prompt(req: Request):
-    """Build an image generation prompt."""
+    """Build a photorealistic lettering image prompt via Scene Engine."""
     body = await req.json()
     brand = next((b for b in get_brands() if b["id"] == body.get("brand_id")), {})
-    topic = body.get("topic", "")
     quote = body.get("quote", "")
+    if not quote:
+        return JSONResponse({"error": "Quote text is required"}, 400)
     try:
-        prompt = _gpt(
-            f"Create a detailed image generation prompt for: '{topic}'. "
-            f"Style: {brand.get('visual_style','cinematic')}. Context: {brand.get('guidelines','')}. "
-            "Social media post background. Include lighting, composition, mood. 1-3 sentences max.", max_tok=250)
-        return {"prompt": prompt}
+        prompt = build_graphics_prompt(quote, brand)
+        return {"prompt": prompt, "meta": prompt.get("_meta", {}) if isinstance(prompt, dict) else {}}
     except Exception as e:
         return JSONResponse({"error": str(e)}, 500)
 
@@ -188,23 +474,42 @@ async def api_poll_image(job_id: str):
 
 @gfx_app.post("/api/phase/captions")
 async def api_phase_captions(req: Request):
-    """Generate platform captions."""
+    """Generate platform captions (ported from n8n Generate Caption1 node)."""
     body = await req.json()
     brand = next((b for b in get_brands() if b["id"] == body.get("brand_id")), {})
-    topic = body.get("topic", "")
     quote = body.get("quote", "")
+    guidelines = brand.get("guidelines", "")
     try:
         text = _gpt(
-            f"Create social media captions for an image post. Brand: {brand.get('name','')}. "
-            f"Tone: {brand.get('tone','Bold')}. Topic: {topic}. Quote on image: {quote}. "
-            "Return JSON: {\"instagram\":\"400 chars 8-12 hashtags\",\"facebook\":\"300 chars 3-5 hashtags\","
-            "\"tiktok\":\"200 chars 3-5 hashtags\",\"twitter\":\"280 chars no hashtags\",\"threads\":\"400 chars\"}. "
-            "ONLY valid JSON.", temp=0.8, max_tok=1500)
+            f"You are an experienced brand designer and strategist. Write like a senior graphic designer "
+            f"who understands business, positioning, and visual systems. Use simple, confident language.\n\n"
+            f"Write a high-impact social media caption for this quote: {quote}\n\n"
+            f"Use the brand voice and positioning defined here: {guidelines}\n\n"
+            f"Structure the caption with the following flow, but do not label sections:\n\n"
+            f"Start with a bold, polarizing hook that challenges a common belief or exposes a hard truth.\n"
+            f"Follow with one short rehook line that builds tension or curiosity.\n"
+            f"Develop the main body:\n- Write with natural rhythm and pacing.\n- Vary sentence length.\n"
+            f"- Treat each line as if it could stand alone.\n- No bold formatting.\n- No filler language.\n"
+            f"- No buzzwords.\n- Use short vertical spacing.\n- Keep tone human, strategic, and confident.\n"
+            f"- Add exactly 2 emojis placed naturally for emphasis or pause.\n\n"
+            f"After the body, end with one strong, definitive statement that feels like an undeniable truth.\n"
+            f"Finish with a short reflective question that invites engagement.\n\n"
+            f"Add exactly 3 hashtags at the end:\n- 1 topic specific hashtag\n- 1 target audience hashtag\n- 1 general hashtag\n\n"
+            f"Do not include any section titles or formatting instructions.\n"
+            f"Output only the caption text.\n\n"
+            f"Now return this as JSON with platform keys. Adapt length per platform:\n"
+            f"{{\"instagram\":\"full caption with hashtags\","
+            f"\"facebook\":\"shorter, conversational, 3-5 hashtags\","
+            f"\"tiktok\":\"200 chars max, 3-5 hashtags\","
+            f"\"twitter\":\"280 chars max, no hashtags, single viral tweet\","
+            f"\"threads\":\"conversational, 400 chars\"}}\n"
+            f"Return ONLY valid JSON.",
+            temp=0.8, max_tok=2000)
         raw = re.sub(r'^```json\s*\n?', '', text, flags=re.IGNORECASE)
         raw = re.sub(r'\n?```\s*$', '', raw).strip()
         return {"captions": json.loads(raw)}
     except json.JSONDecodeError:
-        return {"captions": {"instagram": topic, "facebook": topic, "twitter": topic, "threads": topic, "tiktok": topic}}
+        return {"captions": {"instagram": quote, "facebook": quote, "twitter": quote, "threads": quote, "tiktok": quote}}
     except Exception as e:
         return JSONResponse({"error": str(e)}, 500)
 
@@ -386,11 +691,11 @@ textarea.inp{min-height:3.5em;resize:vertical;line-height:1.5}
     <div class="step-status" id="st2-status"></div>
   </div>
 
-  <!-- STEP 3: IMAGE PROMPT -->
+  <!-- STEP 3: SCENE PROMPT -->
   <div class="step locked" id="st-3">
     <div class="step-head"><div class="step-num">3</div><div class="step-title">IMAGE PROMPT</div></div>
-    <div class="fi"><div class="lbl">Detailed prompt for the image generator</div>
-      <textarea class="inp" id="f-prompt" rows="4" placeholder="AI builds a detailed image prompt from your topic + brand style..."></textarea>
+    <div class="fi"><div class="lbl">Scene Engine builds a photorealistic lettering prompt (mood + carrier + scene + brand)</div>
+      <textarea class="inp" id="f-prompt" rows="4" placeholder="Click Generate to build a randomized scene prompt, or write your own..."></textarea>
     </div>
     <div class="step-actions">
       <button class="btn btn-go" onclick="genPrompt()">⚡ GENERATE PROMPT</button>
@@ -537,14 +842,15 @@ async function genQuote(){
 
 // ─── PHASE 3: PROMPT ─────────────────────────────────────────
 async function genPrompt(){
-  const brand=$('s-brand').value;const topic=$('f-topic').value.trim();const quote=$('f-quote').value.trim();
-  $('st3-status').innerHTML='<span class="spin">⏳</span> Building image prompt...';
+  const brand=$('s-brand').value;const quote=$('f-quote').value.trim();
+  if(!quote){alert('Need a quote first');return;}
+  $('st3-status').innerHTML='<span class="spin">⏳</span> Building scene prompt...';
   try{
     const r=await(await fetch(API+'/phase/prompt',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({brand_id:brand,topic,quote})})).json();
+      body:JSON.stringify({brand_id:brand,quote})})).json();
     if(r.error){$('st3-status').innerHTML=`<span style="color:var(--red)">${r.error}</span>`;return;}
     $('f-prompt').value=r.prompt;
-    $('st3-status').innerHTML='<span style="color:var(--grn)">✓ Prompt built — edit if needed</span>';
+    $('st3-status').innerHTML='<span style="color:var(--grn)">✓ Scene prompt built — edit if needed, or regenerate for a new random scene</span>';
   }catch(e){$('st3-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
 }
 
