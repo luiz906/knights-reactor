@@ -460,9 +460,12 @@ async def probe_media(req: Request):
     if not url:
         return JSONResponse({"error": "No URL"}, 400)
     import requests as rq
+    from urllib.parse import quote
     try:
-        r = rq.get(f"https://api.shotstack.io/{getattr(Config, 'SHOTSTACK_ENV', 'stage')}/probe/{url}",
-                    headers={"x-api-key": Config.SHOTSTACK_KEY}, timeout=15)
+        ss_env = getattr(Config, 'SHOTSTACK_ENV', 'stage')
+        encoded = quote(url, safe='')
+        probe_url = f"https://api.shotstack.io/{ss_env}/probe/{encoded}"
+        r = rq.get(probe_url, headers={"x-api-key": Config.SHOTSTACK_KEY}, timeout=15)
         if r.status_code == 200:
             data = r.json().get("response", {}).get("metadata", {})
             duration = float(data.get("format", {}).get("duration", 0))
