@@ -181,6 +181,7 @@ body{overflow:auto}
 <div class="sidebar">
 <div class="sb-logo"><h1 id="d-brand-title">KNIGHTS<br>REACTOR</h1><p>CONTROL v7.0</p>
 <select id="d-brand-sel" class="fin" style="margin-top:6px;font-size:.65em;padding:.4em;width:100%" onchange="switchBrand(this.value)"></select>
+<button id="d-brand-del" onclick="deleteBrand()" style="width:100%;margin-top:4px;padding:.35em;font-family:var(--f1);font-size:.5em;letter-spacing:.12em;color:var(--red);background:var(--red2);border:1px solid rgba(224,64,40,.15);display:none;cursor:pointer">✕ DELETE BRAND</button>
 </div>
 <div class="sb-nav">
 <button class="sb-i on" onclick="dNav('pipeline',this)"><span>⚡</span>PIPELINE</button>
@@ -291,7 +292,7 @@ body{overflow:auto}
 
 <!-- ═══ MOBILE ═══ -->
 <div class="mob-wrap">
-<div class="mhdr"><div><h1 id="m-brand-title">KNIGHTS REACTOR</h1><select id="m-brand-sel" class="fin" style="font-size:.5em;padding:.3em;margin-top:2px;width:100%;border:1px solid var(--bd)" onchange="switchBrand(this.value)"></select></div><div style="display:flex;align-items:center;gap:6px"><button id="m-thm" onclick="toggleTheme()" style="font-size:.85em;background:none;border:1px solid var(--bd2);color:var(--txtd);padding:.4em .55em;min-height:2.5em">☀</button><button class="mexec" id="m-rb" onclick="runNow()">▶ EXECUTE</button><button class="mres" id="m-rsb" onclick="resumeNow()">♻</button></div></div>
+<div class="mhdr"><div><h1 id="m-brand-title">KNIGHTS REACTOR</h1><select id="m-brand-sel" class="fin" style="font-size:.5em;padding:.3em;margin-top:2px;width:100%;border:1px solid var(--bd)" onchange="switchBrand(this.value)"></select><button id="m-brand-del" onclick="deleteBrand()" style="width:100%;margin-top:3px;padding:.4em;font-family:var(--f1);font-size:.5em;color:var(--red);background:var(--red2);border:1px solid rgba(224,64,40,.15);display:none">✕ DELETE</button></div><div style="display:flex;align-items:center;gap:6px"><button id="m-thm" onclick="toggleTheme()" style="font-size:.85em;background:none;border:1px solid var(--bd2);color:var(--txtd);padding:.4em .55em;min-height:2.5em">☀</button><button class="mexec" id="m-rb" onclick="runNow()">▶ EXECUTE</button><button class="mres" id="m-rsb" onclick="resumeNow()">♻</button></div></div>
 <div class="mprog" id="m-prog"><div id="m-pb"></div></div>
 <div class="mtabs">
 <button class="mt on" onclick="mNav('pipeline',this)">⚡ PIPELINE</button>
@@ -1059,7 +1060,22 @@ async function loadBrands(){
     const parts=dn.toUpperCase().split(' ');
     if($('d-brand-title'))$('d-brand-title').innerHTML=parts.length>1?parts.slice(0,-1).join(' ')+'<br>'+parts[parts.length-1]:dn;
     if($('m-brand-title'))$('m-brand-title').textContent=dn.toUpperCase();
+    // Show delete button only for non-default brands
+    const canDel=ACTIVE_BRAND!=='knights';
+    ['d-brand-del','m-brand-del'].forEach(id=>{if($(id))$(id).style.display=canDel?'block':'none';});
   }catch(e){console.error('loadBrands:',e);}
+}
+async function deleteBrand(){
+  if(ACTIVE_BRAND==='knights'){alert('Cannot delete the default brand.');return;}
+  const ab=BRANDS.find(b=>b.id===ACTIVE_BRAND);
+  const name=ab?ab.display_name:ACTIVE_BRAND;
+  if(!confirm(`Delete brand "${name}"?\n\nThis removes all settings, runs, and scene data for this brand. This cannot be undone.`))return;
+  const r=await fetch('/api/brands/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand:ACTIVE_BRAND})});
+  const d=await r.json();
+  if(!r.ok){alert(d.error||'Delete failed');return;}
+  // Switch back to knights
+  await fetch('/api/brands/switch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand:'knights'})});
+  await loadBrands();await init();loadTopics();loadRuns();
 }
 async function switchBrand(val){
   let isNew=false;
