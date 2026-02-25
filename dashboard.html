@@ -568,6 +568,7 @@ function renderManualCards(px){
       if(manClips.length>1) previewHtml+=`<div class="man-card-rm" onclick="removeClip(${i})">✕</div>`;
     }else{
       previewHtml=`<div class="man-card-empty" onclick="this.closest('.man-card').querySelector('.man-url').focus()"><span style="font-size:1.5em">▶</span><span>CLIP ${i+1}</span></div>`;
+      if(manClips.length>1) previewHtml+=`<div class="man-card-rm" style="opacity:1" onclick="event.stopPropagation();removeClip(${i})">✕</div>`;
     }
     card.innerHTML=`<div class="man-card-preview">${previewHtml}</div><div class="man-card-bar"><input class="fin man-url mc-url" value="${url}" placeholder="Clip ${i+1} URL" style="flex:1" data-idx="${i}" onchange="onClipUrl(this)" onpaste="setTimeout(()=>onClipUrl(this),100)"><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>`;
     grid.appendChild(card);
