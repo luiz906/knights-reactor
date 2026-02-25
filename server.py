@@ -11,8 +11,8 @@ from fastapi import FastAPI, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from pipeline import run_pipeline, Config
-import secrets
 from graphics import router as graphics_router
+import secrets
 
 app = FastAPI(title="Knights Reactor")
 app.include_router(graphics_router)
@@ -483,7 +483,7 @@ body{overflow:auto}
 <button class="sb-i" onclick="dNav('preview',this)"><span>◉</span>PREVIEW</button>
 <button class="sb-i" onclick="dNav('settings',this)"><span>⚙</span>CONFIG</button>
 <button class="sb-i" onclick="dNav('health',this)"><span>◎</span>STATUS</button>
-<button class="sb-i" onclick="window.location='/graphics'"><span>◈</span>GRAPHICS</button>
+<button class="sb-i" onclick="window.location='/graphics'" style="margin-top:8px;border-top:1px solid var(--bd2);padding-top:.8em"><span>◈</span>GRAPHICS</button>
 </div>
 <div class="sb-ft">
 <button class="sb-exec" id="d-rb" onclick="runNow()">▶ EXECUTE</button>
