@@ -260,62 +260,31 @@ def render_video(clips: list, voiceover_url: str, srt_url: str, audio_duration: 
     total_dur = round(cursor, 3)
 
     # ── AUDIO-DRIVEN TIMING ──────────────────────────────────
-    # If we know the real audio length, adjust video timeline to match.
-    # Audio is the source of truth — video must be long enough to cover it.
+    # Voice dictates video length. Main clips stay natural duration.
+    # If audio runs longer than clips, CTA stretches to fill the gap.
     if audio_duration and audio_duration > 0:
-        # Audio needs: voiceover + CTA silence (CTA plays after voice ends)
-        audio_needs = round(audio_duration + cta_dur + 1.0, 3)  # +1s padding
-        clip_total = total_dur
+        audio_needs = round(audio_duration + 1.0, 3)  # voice + 1s padding
+        content_dur = round(total_dur - cta_dur, 3)    # just the main clips
 
-        log.info(f"   ⏱️  TIMING: audio={audio_duration:.1f}s | clips={clip_total:.1f}s | cta={cta_dur:.1f}s | need={audio_needs:.1f}s")
+        log.info(f"   ⏱️  TIMING: audio={audio_duration:.1f}s | content={content_dur:.1f}s | cta={cta_dur:.1f}s")
 
-        if audio_needs > clip_total:
-            # Audio is longer than video — extend last content clip (not CTA)
-            gap = round(audio_needs - clip_total, 3)
-            # Find last non-CTA clip
-            last_content_idx = len(video_clips) - 1
-            if cta_dur > 0:
-                last_content_idx = len(video_clips) - 2
-
-            if last_content_idx >= 0:
-                old_len = video_clips[last_content_idx]["length"]
-                new_len = round(old_len + gap, 3)
-                video_clips[last_content_idx]["length"] = new_len
-                log.info(f"   ⏱️  EXTENDED clip {last_content_idx+1}: {old_len}s → {new_len}s (+{gap}s)")
-
-                # Recalculate CTA start if present
-                if cta_dur > 0 and last_content_idx + 1 < len(video_clips):
-                    new_cta_start = round(video_clips[last_content_idx]["start"] + new_len, 3)
-                    video_clips[last_content_idx + 1]["start"] = new_cta_start
-
-                total_dur = round(audio_needs, 3)
-            else:
-                log.warning(f"   ⏱️  No content clip to extend!")
-
-        elif clip_total > audio_needs + 5:
-            # Video is way longer than audio — trim last content clip
-            excess = round(clip_total - audio_needs, 3)
-            last_content_idx = len(video_clips) - 1
-            if cta_dur > 0:
-                last_content_idx = len(video_clips) - 2
-
-            if last_content_idx >= 0:
-                old_len = video_clips[last_content_idx]["length"]
-                new_len = max(round(old_len - excess, 3), 3.0)  # min 3s
-                actual_trim = round(old_len - new_len, 3)
-                if actual_trim > 0:
-                    video_clips[last_content_idx]["length"] = new_len
-                    log.info(f"   ⏱️  TRIMMED clip {last_content_idx+1}: {old_len}s → {new_len}s (-{actual_trim}s)")
-
-                    # Recalculate CTA start
-                    if cta_dur > 0 and last_content_idx + 1 < len(video_clips):
-                        new_cta_start = round(video_clips[last_content_idx]["start"] + new_len, 3)
-                        video_clips[last_content_idx + 1]["start"] = new_cta_start
-
-                    total_dur = round(total_dur - actual_trim, 3)
-
+        if audio_needs > content_dur and cta_dur > 0:
+            # Voice runs past clips — stretch CTA to cover the difference
+            new_cta_dur = round(audio_needs - content_dur, 3)
+            cta_clip = video_clips[-1]  # CTA is always last
+            old_cta = cta_clip["length"]
+            cta_clip["length"] = new_cta_dur
+            cta_clip["start"] = round(content_dur, 3)
+            total_dur = round(audio_needs, 3)
+            log.info(f"   ⏱️  CTA stretched: {old_cta}s → {new_cta_dur}s | total={total_dur:.1f}s")
+        elif audio_needs > total_dur:
+            # No CTA but voice is longer — just set total to audio length
+            total_dur = audio_needs
+            log.info(f"   ⏱️  No CTA to stretch — total set to audio: {total_dur:.1f}s")
         else:
-            log.info(f"   ⏱️  TIMING OK — within tolerance")
+            # Clips cover the audio fine
+            total_dur = round(audio_needs + cta_dur, 3)
+            log.info(f"   ⏱️  TIMING OK — total={total_dur:.1f}s")
     else:
         log.info(f"   ⏱️  No audio duration provided — using fixed clip timing ({total_dur}s)")
 
