@@ -914,11 +914,10 @@ ${ctaDur>0?`<div style="flex:1;padding:5px;background:var(--bg);border:1px solid
       }else if(f.tp==='slider'){
         const mn=f.min||30,mx=f.max||180,stp=f.step||5,cv=parseInt(v)||f.d,secs=Math.round(cv/3),pct=((cv-mn)/(mx-mn))*100;
         ff+=`<div class="fi w"><div class="fl">${f.l}</div><div style="display:flex;align-items:center;gap:.55em"><input type="range" min="${mn}" max="${mx}" step="${stp}" value="${cv}" class="fin-slider" style="flex:1" oninput="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'" onchange="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'" ontouchmove="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'"><div id="sl_${f.k}" style="min-width:6em;font-family:var(--f1);font-size:.65em;letter-spacing:1px;color:var(--amb);text-align:right">${cv} words ≈ ${secs}s</div></div></div>`;
+      }else if(f.tp==='textarea'){
+        ff+=`<div class="fi w"><div class="fl">${f.l}</div><textarea class="fin" rows="3" style="resize:vertical;min-height:3em" onchange="ST['${f.k}']=this.value">${v||''}</textarea></div>`;
       }else{
-        else if(f.tp==='textarea'){
-ff+=`<div class="fi w"><div class="fl">${f.l}</div><textarea class="fin" rows="3" style="resize:vertical;min-height:3em" onchange="ST['${f.k}']=this.value">${v||''}</textarea></div>`;}
-        else{
-ff+=`<div class="fi"><div class="fl">${f.l}</div><input class="fin" value="${v||''}" onchange="ST['${f.k}']=this.value"></div>`;}
+        ff+=`<div class="fi"><div class="fl">${f.l}</div><input class="fin" value="${v||''}" onchange="ST['${f.k}']=this.value"></div>`;
       }
     }catch(e){console.error('CFG:',f.k,e);}});
     h+=`<div class="sec"><button class="sec-h" onclick="stOpen[${si}]=!stOpen[${si}];rSt()"><span class="sec-t">${sec.t}</span><span class="sec-a" style="transform:${stOpen[si]?'rotate(90deg)':''}">›</span></button><div class="sec-b${stOpen[si]?'':' shut'}">${ff}</div></div>`;
