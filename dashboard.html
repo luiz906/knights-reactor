@@ -292,7 +292,7 @@ body{overflow:auto}
 
 <!-- ═══ MOBILE ═══ -->
 <div class="mob-wrap">
-<div class="mhdr"><div><h1 id="m-brand-title">KNIGHTS REACTOR</h1><select id="m-brand-sel" class="fin" style="font-size:.5em;padding:.3em;margin-top:2px;width:100%;border:1px solid var(--bd)" onchange="switchBrand(this.value)"></select><button id="m-brand-del" onclick="deleteBrand()" style="width:100%;margin-top:3px;padding:.4em;font-family:var(--f1);font-size:.5em;color:var(--red);background:var(--red2);border:1px solid rgba(224,64,40,.15);display:none">✕ DELETE</button></div><div style="display:flex;align-items:center;gap:6px"><button id="m-thm" onclick="toggleTheme()" style="font-size:.85em;background:none;border:1px solid var(--bd2);color:var(--txtd);padding:.4em .55em;min-height:2.5em">☀</button><button class="mexec" id="m-rb" onclick="runNow()">▶ EXECUTE</button><button class="mres" id="m-rsb" onclick="resumeNow()">♻</button></div></div>
+<div class="mhdr"><div><h1 id="m-brand-title">KNIGHTS REACTOR</h1><select id="m-brand-sel" class="fin" style="font-size:.5em;padding:.3em;margin-top:2px;width:100%;border:1px solid var(--bd)" onchange="switchBrand(this.value)"></select><button id="m-brand-del" onclick="deleteBrand()" style="width:100%;margin-top:3px;padding:.4em;font-family:var(--f1);font-size:.5em;color:var(--red);background:var(--red2);border:1px solid rgba(224,64,40,.15);display:none">✕ DELETE</button></div><div style="display:flex;align-items:center;gap:6px"><button class="mexec" id="m-rb" onclick="runNow()">▶ EXECUTE</button><button class="mres" id="m-rsb" onclick="resumeNow()">♻</button></div></div>
 <div class="mprog" id="m-prog"><div id="m-pb"></div></div>
 <div class="mtabs">
 <button class="mt on" onclick="mNav('pipeline',this)">⚡ PIPELINE</button>
@@ -376,6 +376,7 @@ body{overflow:auto}
 <div class="mpage" id="mp-health">
 <div class="panel" id="m-hl" style="margin-bottom:8px"></div>
 <button style="width:100%;padding:12px;background:var(--bg);border:1px solid var(--bd2);color:var(--amb);font-size:.8em;min-height:3.2em" onclick="testAll()">TEST ALL CONNECTIONS →</button>
+<button id="m-thm" onclick="toggleTheme()" style="width:100%;padding:12px;margin-top:8px;background:none;border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.65em;letter-spacing:.2em;min-height:3.2em">☀ LIGHT MODE</button>
 <button onclick="sessionStorage.removeItem('kt');$('L').style.display='flex';$('A').classList.add('hd')" style="width:100%;padding:12px;margin-top:8px;border:1px solid rgba(224,64,40,.2);background:var(--red2);font-family:var(--f1);font-size:.65em;color:var(--red);letter-spacing:.2em;min-height:3.2em">⚠ DISCONNECT</button>
 </div>
 
@@ -408,7 +409,7 @@ const titles={pipeline:'⚡ PIPELINE MONITOR',manual:'◈ MANUAL PIPELINE',topic
 
 /* THEME */
 function toggleTheme(){const on=document.documentElement.classList.toggle('light');localStorage.setItem('kr-theme',on?'light':'dark');updThemeBtn();}
-function updThemeBtn(){const lt=document.documentElement.classList.contains('light');['d-thm','m-thm'].forEach(id=>{const el=$(id);if(el){if(id==='d-thm')el.textContent=lt?'◑ DARK MODE':'☀ LIGHT MODE';else el.textContent=lt?'◑':'☀';}});}
+function updThemeBtn(){const lt=document.documentElement.classList.contains('light');['d-thm','m-thm'].forEach(id=>{const el=$(id);if(el)el.textContent=lt?'◑ DARK MODE':'☀ LIGHT MODE';});}
 (function(){if(localStorage.getItem('kr-theme')==='light')document.documentElement.classList.add('light');})();
 
 /* AUTH */
