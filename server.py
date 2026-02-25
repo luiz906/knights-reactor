@@ -449,6 +449,33 @@ async def upload_file(file: UploadFile = File(...)):
     log_entry("Upload", "ok", f"Uploaded {file.filename} → {key} ({len(data)//1024}KB)")
     return {"url": url, "filename": file.filename, "size": len(data), "content_type": ct}
 
+@app.post("/api/probe")
+async def probe_media(req: Request):
+    """Probe a video/audio URL via Shotstack to get duration."""
+    body = await req.json()
+    url = body.get("url", "").strip()
+    if not url:
+        return JSONResponse({"error": "No URL"}, 400)
+    import requests as rq
+    try:
+        r = rq.get(f"https://api.shotstack.io/{getattr(Config, 'SHOTSTACK_ENV', 'stage')}/probe/{url}",
+                    headers={"x-api-key": Config.SHOTSTACK_KEY}, timeout=15)
+        if r.status_code == 200:
+            data = r.json().get("response", {}).get("metadata", {})
+            duration = float(data.get("format", {}).get("duration", 0))
+            streams = data.get("streams", [])
+            # Get resolution from first video stream
+            width = height = 0
+            for s in streams:
+                if s.get("codec_type") == "video":
+                    width = s.get("width", 0)
+                    height = s.get("height", 0)
+                    break
+            return {"duration": round(duration, 2), "width": width, "height": height}
+        return JSONResponse({"error": f"Probe failed ({r.status_code})"}, 400)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
+
 @app.get("/api/status")
 async def get_status():
     return {"running": CURRENT_RUN["active"], "phase": CURRENT_RUN.get("phase", 0),

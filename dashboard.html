@@ -183,13 +183,14 @@ body{overflow:auto}
 <div style="font-size:.65em;color:var(--txtd);margin-bottom:.6em;letter-spacing:.08em">Upload files or paste URLs. With voiceover = fully free run (~$0.02).</div>
 <div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.15em;margin-bottom:4px">VIDEO CLIPS</div>
 <div id="d-mclips" style="display:flex;flex-direction:column;gap:6px">
-<div style="display:flex;gap:4px"><input class="fin mc-url" placeholder="Clip 1 URL (https://...)" style="font-size:.8em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
-<div style="display:flex;gap:4px"><input class="fin mc-url" placeholder="Clip 2 URL (https://...)" style="font-size:.8em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
-<div style="display:flex;gap:4px"><input class="fin mc-url" placeholder="Clip 3 URL (https://...)" style="font-size:.8em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
+<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 1 URL (https://...)" style="font-size:.8em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
+<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 2 URL (https://...)" style="font-size:.8em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
+<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 3 URL (https://...)" style="font-size:.8em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
 </div>
+<div id="d-mtotals" style="display:none;margin-top:6px;padding:6px 8px;background:rgba(227,160,40,.04);border:1px solid var(--bd2);font-family:var(--f1);font-size:.6em;color:var(--amb);letter-spacing:.1em;display:flex;justify-content:space-between"><span id="d-mt-clips"></span><span id="d-mt-vo" style="color:var(--blu)"></span><span id="d-mt-total" style="color:var(--grn)"></span></div>
 <button onclick="addClipSlot('d')" style="width:100%;padding:4px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.6em;letter-spacing:.1em;margin-top:4px">+ ADD CLIP</button>
 <div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.15em;margin:10px 0 4px">VOICEOVER (OPTIONAL)</div>
-<div style="display:flex;gap:4px"><input class="fin mc-vo" placeholder="Voiceover audio URL (mp3/wav/m4a)" style="font-size:.8em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'audio')">📁</button></div>
+<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-vo" placeholder="Voiceover audio URL (mp3/wav/m4a)" style="font-size:.8em;flex:1" onchange="probeVo(this)" onpaste="setTimeout(()=>probeVo(this),100)"><span class="vo-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'audio')">📁</button></div>
 <div style="font-size:.55em;color:var(--txtdd);margin-top:3px">With voiceover: skips ALL AI generation. Whisper transcribes → GPT generates title & captions.</div>
 <div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.15em;margin:10px 0 4px">CTA CLIP (OPTIONAL)</div>
 <div style="display:flex;gap:4px"><input class="fin mc-cta" placeholder="CTA clip URL (end card video/image)" style="font-size:.8em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
@@ -276,13 +277,14 @@ body{overflow:auto}
 <div style="font-size:.6em;color:var(--txtd);margin-bottom:.5em">Upload files or paste URLs for fully free run</div>
 <div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.12em;margin-bottom:3px">VIDEO CLIPS</div>
 <div id="m-mclips" style="display:flex;flex-direction:column;gap:5px">
-<div style="display:flex;gap:4px"><input class="fin mc-url" placeholder="Clip 1 URL" style="font-size:.85em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
-<div style="display:flex;gap:4px"><input class="fin mc-url" placeholder="Clip 2 URL" style="font-size:.85em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
-<div style="display:flex;gap:4px"><input class="fin mc-url" placeholder="Clip 3 URL" style="font-size:.85em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
+<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 1 URL" style="font-size:.85em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
+<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 2 URL" style="font-size:.85em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
+<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 3 URL" style="font-size:.85em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
 </div>
+<div id="m-mtotals" style="display:none;margin-top:5px;padding:5px 6px;background:rgba(227,160,40,.04);border:1px solid var(--bd2);font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.1em;display:flex;justify-content:space-between"><span id="m-mt-clips"></span><span id="m-mt-vo" style="color:var(--blu)"></span><span id="m-mt-total" style="color:var(--grn)"></span></div>
 <button onclick="addClipSlot('m')" style="width:100%;padding:6px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.6em;margin-top:4px">+ ADD CLIP</button>
 <div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.12em;margin:8px 0 3px">VOICEOVER (OPTIONAL)</div>
-<div style="display:flex;gap:4px"><input class="fin mc-vo" placeholder="Voiceover audio URL" style="font-size:.85em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'audio')">📁</button></div>
+<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-vo" placeholder="Voiceover audio URL" style="font-size:.85em;flex:1" onchange="probeVo(this)" onpaste="setTimeout(()=>probeVo(this),100)"><span class="vo-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'audio')">📁</button></div>
 <div style="font-size:.5em;color:var(--txtdd);margin-top:2px">With VO: skips all AI gen. Whisper + GPT only (~$0.02)</div>
 <div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.12em;margin:8px 0 3px">CTA CLIP (OPTIONAL)</div>
 <div style="display:flex;gap:4px"><input class="fin mc-cta" placeholder="CTA clip URL (end card)" style="font-size:.85em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
@@ -508,18 +510,85 @@ function addClipSlot(prefix){
   const count=container.querySelectorAll('.mc-url').length;
   if(count>=6)return;
   const row=document.createElement('div');
-  row.style.cssText='display:flex;gap:4px';
+  row.style.cssText='display:flex;gap:4px;align-items:center';
   const inp=document.createElement('input');
   inp.className='fin mc-url';
   inp.placeholder=`Clip ${count+1} URL (https://...)`;
   inp.style.cssText='font-size:'+(prefix==='m'?'.85em':'.8em')+';flex:1';
+  inp.onchange=function(){probeUrl(this)};
+  inp.onpaste=function(){setTimeout(()=>probeUrl(this),100)};
+  const dur=document.createElement('span');
+  dur.className='mc-dur';
+  dur.style.cssText='font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right';
   const btn=document.createElement('button');
   btn.className='btn-upload';
   btn.textContent='📁';
   btn.onclick=function(){uploadFile(this,'video')};
   row.appendChild(inp);
+  row.appendChild(dur);
   row.appendChild(btn);
   container.appendChild(row);
+}
+async function probeUrl(inp){
+  const url=inp.value.trim();
+  const durSpan=inp.parentElement.querySelector('.mc-dur');
+  if(!durSpan)return;
+  if(!url||!url.startsWith('http')){durSpan.textContent='';updateTotals();return;}
+  durSpan.textContent='⏳';
+  durSpan.style.color='var(--blu)';
+  try{
+    const r=await fetch('/api/probe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+    const d=await r.json();
+    if(d.duration){
+      const s=d.duration;
+      durSpan.textContent=s>=60?Math.floor(s/60)+'m'+Math.round(s%60)+'s':Math.round(s*10)/10+'s';
+      durSpan.style.color='var(--grn)';
+      durSpan.dataset.dur=s;
+    }else{
+      durSpan.textContent='?';durSpan.style.color='var(--red)';durSpan.dataset.dur='';
+    }
+  }catch(e){durSpan.textContent='✗';durSpan.style.color='var(--red)';durSpan.dataset.dur='';}
+  updateTotals();
+}
+async function probeVo(inp){
+  const url=inp.value.trim();
+  const durSpan=inp.parentElement.querySelector('.vo-dur');
+  if(!durSpan)return;
+  if(!url||!url.startsWith('http')){durSpan.textContent='';updateTotals();return;}
+  durSpan.textContent='⏳';durSpan.style.color='var(--blu)';
+  try{
+    const r=await fetch('/api/probe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+    const d=await r.json();
+    if(d.duration){
+      const s=d.duration;
+      durSpan.textContent=s>=60?Math.floor(s/60)+'m'+Math.round(s%60)+'s':Math.round(s*10)/10+'s';
+      durSpan.style.color='var(--grn)';durSpan.dataset.dur=s;
+    }else{durSpan.textContent='?';durSpan.style.color='var(--red)';durSpan.dataset.dur='';}
+  }catch(e){durSpan.textContent='✗';durSpan.style.color='var(--red)';durSpan.dataset.dur='';}
+  updateTotals();
+}
+function updateTotals(){
+  let clipTotal=0,clipCount=0;
+  document.querySelectorAll('.mc-dur').forEach(el=>{
+    const d=parseFloat(el.dataset.dur);if(d>0){clipTotal+=d;clipCount++;}
+  });
+  let voTotal=0;
+  document.querySelectorAll('.vo-dur').forEach(el=>{
+    const d=parseFloat(el.dataset.dur);if(d>0)voTotal=d;
+  });
+  ['d','m'].forEach(px=>{
+    const bar=$(px+'-mtotals');
+    if(!bar)return;
+    if(clipCount===0&&voTotal===0){bar.style.display='none';return;}
+    bar.style.display='flex';
+    const fmt=s=>s>=60?Math.floor(s/60)+'m'+Math.round(s%60)+'s':Math.round(s*10)/10+'s';
+    // Divide by 2 since desktop+mobile both have .mc-dur elements — count only half
+    const realClipTotal=clipTotal/2;const realVo=voTotal/2;
+    $(px+'-mt-clips').textContent='CLIPS: '+fmt(realClipTotal);
+    $(px+'-mt-vo').textContent=realVo>0?'VOICE: '+fmt(realVo):'';
+    const final=realVo>0?realVo:realClipTotal;
+    $(px+'-mt-total').textContent='VIDEO: '+fmt(final);
+  });
 }
 async function uploadFile(btn, type){
   const accept = type==='audio' ? 'audio/*,.mp3,.wav,.m4a,.flac,.ogg' : 'video/*,.mp4,.mov,.webm,.avi';
@@ -549,6 +618,9 @@ async function uploadFile(btn, type){
         textInput.style.color='var(--grn)';
         btn.textContent='✓';
         setTimeout(()=>{btn.textContent=origText;textInput.style.color='';},2000);
+        // Auto-probe for duration
+        if(textInput.classList.contains('mc-url'))probeUrl(textInput);
+        else if(textInput.classList.contains('mc-vo'))probeVo(textInput);
       }else{
         textInput.value='';
         textInput.style.color='';
