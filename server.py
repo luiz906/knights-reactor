@@ -19,7 +19,16 @@ from pipeline import (
 )
 import secrets
 
+try:
+    from graphics import router as graphics_router
+except ImportError:
+    graphics_router = None
+
 app = FastAPI(title="Knights Reactor")
+
+# Mount Graphics Engine
+if graphics_router:
+    app.include_router(graphics_router)
 
 # Session token (regenerates on restart, lives in memory)
 SESSION_TOKEN = secrets.token_hex(32)
