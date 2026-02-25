@@ -8,12 +8,13 @@
 --bg:#000;--bg2:#020202;--bg3:#0a0a0a;--panel:#050505;
 --bd:rgba(255,179,0,.08);--bd2:#1a1a1a;
 --amb:#ffb300;--amb2:#cc8f00;--amblo:rgba(255,179,0,.04);
---txt:#ffb300;--txtd:rgba(255,255,255,.3);--txtdd:rgba(255,255,255,.1);
+--txt:#ffb300;--txtd:#6b6b6b;--txtdd:#3a3a3a;
 --grn:#00e676;--grn2:rgba(0,230,118,.05);
 --red:#ff003c;--red2:rgba(255,0,60,.05);
 --blu:#00e5ff;--blu2:rgba(0,229,255,.05);
 --orn:#ff6a00;--orn2:rgba(255,106,0,.05);
---wht:rgba(255,255,255,.85);
+--wht:#d9d9d9;
+--fg:255,255,255;
 --f1:'Orbitron',monospace;--f2:'JetBrains Mono',monospace;--f3:'JetBrains Mono',monospace;
 --glow-a:0 0 15px rgba(255,179,0,.25);--glow-c:0 0 12px rgba(0,229,255,.2)
 }
@@ -21,10 +22,10 @@ html.light{
 --bg:#f0ece2;--bg2:#e8e2d6;--bg3:#ddd6c6;--panel:#f5f1e8;
 --bd:rgba(140,100,20,.2);--bd2:rgba(140,100,20,.12);
 --amb:#8a6010;--amb2:#6e4c0c;--amblo:rgba(140,100,20,.06);
---txt:#8a6010;--txtd:#a08848;--txtdd:#c4b898;
+--txt:#8a6010;--txtd:#8a7a58;--txtdd:#b8a880;
 --grn:#1a8a3a;--grn2:rgba(26,138,58,.08);--red:#c03020;--red2:rgba(192,48,32,.08);
 --blu:#1870b0;--blu2:rgba(24,112,176,.08);--orn:#b05010;--orn2:rgba(176,80,16,.08);
---wht:#3a3428;--glow-a:none;--glow-c:none
+--wht:#3a3428;--fg:40,30,10;--glow-a:none;--glow-c:none
 }
 html.light select.fin option{background:var(--panel);color:var(--amb)}
 html.light .login-box{box-shadow:0 2px 24px rgba(0,0,0,.06)}
@@ -51,11 +52,11 @@ button{font-family:var(--f3);cursor:pointer}input,select,textarea{font-family:va
 .bg-g{color:var(--grn);background:var(--grn2);border:1px solid rgba(0,230,118,.1)}.bg-g .bd2{background:var(--grn)}
 .bg-r{color:var(--red);background:var(--red2);border:1px solid rgba(255,0,60,.1)}.bg-r .bd2{background:var(--red)}
 .bg-b{color:var(--blu);background:var(--blu2);border:1px solid rgba(0,229,255,.1)}.bg-b .bd2{background:var(--blu);animation:pulse 1.2s infinite}
-.bg-m{color:var(--txtdd);background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05)}.bg-m .bd2{background:var(--txtdd)}
+.bg-m{color:var(--txtdd);background:rgba(var(--fg),.015);border:1px solid rgba(var(--fg),.05)}.bg-m .bd2{background:var(--txtdd)}
 .bg-o{color:var(--amb);background:var(--amblo);border:1px solid var(--bd)}.bg-o .bd2{background:var(--amb);animation:pulse 1.5s infinite}
 
 /* ── PHASES ── */
-.ph{background:var(--panel);border:1px solid var(--bd2);padding:.85em 1.1em;border-left:3px solid rgba(255,255,255,.05);transition:all .3s;position:relative;overflow:hidden;margin-bottom:2px}
+.ph{background:var(--panel);border:1px solid var(--bd2);padding:.85em 1.1em;border-left:3px solid rgba(var(--fg),.05);transition:all .3s;position:relative;overflow:hidden;margin-bottom:2px}
 .ph.dn{border-left-color:var(--grn);background:rgba(0,230,118,.015)}.ph.rn{border-left-color:var(--blu);background:rgba(0,229,255,.015)}
 .ph.rn::after{content:'';position:absolute;top:0;left:0;width:100%;height:2px;background:linear-gradient(90deg,transparent,var(--blu),transparent);animation:scan 2s linear infinite}
 .ph.dm{opacity:.18}.ph.gt{border-left-color:var(--amb);background:var(--amblo)}
@@ -107,12 +108,12 @@ select.fin option{background:var(--bg2);color:var(--amb);padding:6px}
 .log-row{display:flex;gap:0;padding:.55em .8em;border-left:2px solid transparent;transition:background .12s;align-items:baseline}
 .log-row:hover{background:rgba(255,179,0,.015)}
 .log-row.lv-ok{border-left-color:var(--grn)}.log-row.lv-error{border-left-color:var(--red);background:rgba(255,0,60,.02)}.log-row.lv-info{border-left-color:transparent}
-.log-ts{width:5.5em;flex-shrink:0;color:rgba(255,255,255,.15);font-weight:500}
+.log-ts{width:5.5em;flex-shrink:0;color:rgba(var(--fg),.15);font-weight:500}
 .log-lv{width:4em;flex-shrink:0;font-weight:900;letter-spacing:1.5px;font-size:.85em}
 .log-lv.ok{color:var(--grn)}.log-lv.error{color:var(--red)}.log-lv.info{color:var(--blu)}
-.log-ph{width:8em;flex-shrink:0;font-weight:700;color:rgba(255,255,255,.25);font-size:.85em;text-transform:uppercase;letter-spacing:.5px}
-.log-msg{flex:1;color:rgba(255,255,255,.7);line-height:1.5}
-.log-msg.lv-error{color:#fff;font-weight:700}
+.log-ph{width:8em;flex-shrink:0;font-weight:700;color:rgba(var(--fg),.25);font-size:.85em;text-transform:uppercase;letter-spacing:.5px}
+.log-msg{flex:1;color:rgba(var(--fg),.7);line-height:1.5}
+.log-msg.lv-error{color:var(--red);font-weight:700}
 
 /* ══ DESKTOP ══ */
 @media(min-width:769px){
@@ -123,7 +124,7 @@ select.fin option{background:var(--bg2);color:var(--amb);padding:6px}
 .sb-logo h1{font-family:var(--f1);font-size:.7em;font-weight:900;color:var(--amb);letter-spacing:.15em;line-height:1.5;text-shadow:0 0 12px rgba(255,179,0,.3)}
 .sb-logo p{font-size:.45em;color:var(--blu);letter-spacing:.25em;margin-top:.3em;opacity:.55}
 .sb-nav{flex:1;padding:10px 0;overflow-y:auto}
-.sb-i{width:100%;display:flex;align-items:center;gap:.75em;padding:.7em 1.3em;background:none;border:none;border-right:2px solid transparent;color:rgba(255,255,255,.3);font-size:.65em;letter-spacing:.15em;transition:all .12s;text-align:left;font-weight:500;text-transform:uppercase}
+.sb-i{width:100%;display:flex;align-items:center;gap:.75em;padding:.7em 1.3em;background:none;border:none;border-right:2px solid transparent;color:var(--txtd);font-size:.65em;letter-spacing:.15em;transition:all .12s;text-align:left;font-weight:500;text-transform:uppercase}
 .sb-i:hover{color:var(--amb);background:rgba(255,179,0,.02)}
 .sb-i.on{color:var(--amb);border-right-color:var(--amb);background:rgba(255,179,0,.04);text-shadow:0 0 8px rgba(255,179,0,.4);box-shadow:inset 0 0 12px rgba(255,179,0,.03);font-weight:700}
 .sb-i .material-symbols-outlined{font-size:1.15em;opacity:.5}.sb-i.on .material-symbols-outlined{opacity:1}
@@ -174,7 +175,7 @@ body{overflow:auto}
 .mres{font-family:var(--f1);font-size:.55em;color:var(--amb);background:none;border:1px solid var(--amb);padding:.7em;letter-spacing:.15em;display:none;margin-left:.35em}
 .mprog{height:3px;background:var(--bd2);overflow:hidden}.mprog div{height:100%;background:var(--amb);box-shadow:var(--glow-a);transition:width .6s}
 .mtabs{display:flex;border-bottom:1px solid var(--bd2);background:var(--bg2);overflow-x:auto;-webkit-overflow-scrolling:touch}
-.mt{font-family:var(--f1);font-size:.5em;color:rgba(255,255,255,.3);background:none;border:none;border-bottom:2px solid transparent;padding:.8em .7em;white-space:nowrap;letter-spacing:1.5px;min-height:3em;font-weight:500;transition:all .12s}
+.mt{font-family:var(--f1);font-size:.5em;color:var(--txtd);background:none;border:none;border-bottom:2px solid transparent;padding:.8em .7em;white-space:nowrap;letter-spacing:1.5px;min-height:3em;font-weight:500;transition:all .12s}
 .mt:hover{color:var(--amb)}.mt.on{color:var(--amb);font-weight:700;border-bottom-color:var(--amb);text-shadow:0 0 8px rgba(255,179,0,.3)}
 .mcont{padding:12px}
 .mpage{display:none}.mpage.on{display:block}
@@ -914,7 +915,7 @@ async function loadLogs(){
     const logs=await(await fetch('/api/logs')).json();
     const lvl={ok:'ok',error:'error',info:'info'};
     const lbl={ok:'OK',error:'ERR',info:'INFO'};
-    const h=logs.length?logs.map(l=>{const lv=lvl[l.level]||'info';return `<div class="log-row lv-${l.level}"><span class="log-ts">${l.t}</span><span class="log-lv ${lv}">${lbl[lv]||'INFO'}</span><span class="log-ph">${l.phase}</span><span class="log-msg${l.level==='error'?' lv-error':''}">${l.msg}</span></div>`;}).join('')+'<div class="log-row" style="border-top:1px solid var(--bd2);margin-top:6px"><span class="log-ts" style="color:rgba(255,255,255,.05)">[--:--]</span><span style="color:var(--amb);font-weight:700;letter-spacing:2px;font-size:.85em;display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:5px;height:5px;background:var(--amb);border-radius:50%;animation:pulse 1.5s infinite"></span>LISTENING...</span></div>':'<div class="log-row"><span class="log-msg" style="color:var(--txtd)">No events captured.</span></div>';
+    const h=logs.length?logs.map(l=>{const lv=lvl[l.level]||'info';return `<div class="log-row lv-${l.level}"><span class="log-ts">${l.t}</span><span class="log-lv ${lv}">${lbl[lv]||'INFO'}</span><span class="log-ph">${l.phase}</span><span class="log-msg${l.level==='error'?' lv-error':''}">${l.msg}</span></div>`;}).join('')+'<div class="log-row" style="border-top:1px solid var(--bd2);margin-top:6px"><span class="log-ts" style="color:var(--txtdd)">[--:--]</span><span style="color:var(--amb);font-weight:700;letter-spacing:2px;font-size:.85em;display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:5px;height:5px;background:var(--amb);border-radius:50%;animation:pulse 1.5s infinite"></span>LISTENING...</span></div>':'<div class="log-row"><span class="log-msg" style="color:var(--txtd)">No events captured.</span></div>';
     ['d-la','m-la'].forEach(id=>{if($(id))$(id).innerHTML=h;});
     if($('d-lc'))$('d-lc').textContent=logs.length+' entries';
   }catch(e){}
@@ -982,7 +983,7 @@ function rSt(){
         else if(overflow>3){status='⚠ CTA will stretch ~'+overflow+'s to cover voice';sc='var(--amb)';}
         else if(overflow<-10){status='ℹ Clips extend '+Math.abs(overflow)+'s past voice — last frame holds';sc='var(--amb)';}
         else{status='✓ Well matched';sc='var(--grn)';}
-        ff+=`<div class="fi w" style="border:1px solid var(--bd2);padding:10px;background:rgba(227,160,40,.03)">
+        ff+=`<div class="fi w" style="border:1px solid var(--bd2);padding:10px;background:var(--amblo)">
 <div style="font-family:var(--f1);font-size:.6em;letter-spacing:.15em;color:var(--txtd);margin-bottom:6px">TIMING BREAKDOWN</div>
 <div style="display:flex;gap:8px;margin-bottom:6px">
 <div style="flex:1;padding:5px;background:var(--bg);border:1px solid var(--bd2);text-align:center"><div style="font-family:var(--f1);font-size:.9em;font-weight:800;color:var(--amb)">${clipTot}s</div><div style="font-size:.5em;color:var(--txtdd);letter-spacing:.1em">CLIPS ${clips}×${dur}s</div></div>
@@ -1002,7 +1003,7 @@ ${ctaDur>0?`<div style="flex:1;padding:5px;background:var(--bg);border:1px solid
         const nStories=SCENE_DATA?SCENE_DATA.stories.length:0;
         const nFigs=SCENE_DATA?SCENE_DATA.figures.length:0;
         const nMoods=SCENE_DATA?Object.keys(SCENE_DATA.moods).length:0;
-        ff+=`<div class="fi w" style="border:1px solid var(--bd2);padding:10px;background:rgba(227,160,40,.03)">
+        ff+=`<div class="fi w" style="border:1px solid var(--bd2);padding:10px;background:var(--amblo)">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
 <div style="font-family:var(--f1);font-size:.6em;letter-spacing:.15em;color:var(--txtd)">SCENE PACK</div>
 <span style="font-size:.55em;color:${sc};letter-spacing:.08em">${src.toUpperCase()}</span>
@@ -1079,7 +1080,7 @@ function editScenePack(){
 <span style="font-family:var(--f1);font-size:.7em;color:var(--amb);letter-spacing:.15em">SCENE PACK EDITOR</span>
 <div style="display:flex;gap:6px">
 <button onclick="saveScenePack()" style="padding:6px 14px;background:var(--amb);color:var(--bg);border:none;font-family:var(--f1);font-size:.6em;letter-spacing:.15em;cursor:pointer">SAVE</button>
-<button onclick="document.getElementById('scene-editor-overlay').remove()" style="padding:6px 14px;background:var(--bg3);color:var(--red);border:1px solid rgba(224,64,40,.2);font-family:var(--f1);font-size:.6em;letter-spacing:.15em;cursor:pointer">CLOSE</button>
+<button onclick="document.getElementById('scene-editor-overlay').remove()" style="padding:6px 14px;background:var(--bg3);color:var(--red);border:1px solid rgba(255,0,60,.2);font-family:var(--f1);font-size:.6em;letter-spacing:.15em;cursor:pointer">CLOSE</button>
 </div>
 </div>
 <div style="font-size:.55em;color:var(--txtd);margin-bottom:8px">Edit figures, stories, themes, moods. Each story needs: name, themes[], mood, clips[] with 8 fields each.</div>
