@@ -148,6 +148,12 @@ def apply_model_settings():
 apply_credentials()
 apply_model_settings()
 
+# One-time brand seeds (safe to re-run, won't overwrite existing data)
+try:
+    import seed_attic_magic
+except Exception as e:
+    print(f"Brand seed note: {e}")
+
 # ─── STATE ────────────────────────────────────────────────────
 RUNS = load_json(RUNS_FILE, []) if RUNS_FILE().exists() else []
 CURRENT_RUN = {"active": False, "result": None, "phase": 0, "phase_name": "", "phases_done": []}
