@@ -1069,12 +1069,14 @@ async function deleteBrand(){
   if(ACTIVE_BRAND==='knights'){alert('Cannot delete the default brand.');return;}
   const ab=BRANDS.find(b=>b.id===ACTIVE_BRAND);
   const name=ab?ab.display_name:ACTIVE_BRAND;
+  const toDelete=ACTIVE_BRAND;
   if(!confirm(`Delete brand "${name}"?\n\nThis removes all settings, runs, and scene data for this brand. This cannot be undone.`))return;
-  const r=await fetch('/api/brands/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand:ACTIVE_BRAND})});
+  // Switch to knights first (backend won't delete active brand)
+  await fetch('/api/brands/switch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand:'knights'})});
+  // Now delete
+  const r=await fetch('/api/brands/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand:toDelete})});
   const d=await r.json();
   if(!r.ok){alert(d.error||'Delete failed');return;}
-  // Switch back to knights
-  await fetch('/api/brands/switch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand:'knights'})});
   await loadBrands();await init();loadTopics();loadRuns();
 }
 async function switchBrand(val){
