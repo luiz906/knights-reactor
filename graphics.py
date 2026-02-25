@@ -16,7 +16,58 @@ from fastapi.responses import HTMLResponse, JSONResponse
 import requests
 import boto3
 
-from pipeline import Config, replicate_create, replicate_poll, upload_to_r2, get_s3_client
+from pipeline import Config
+
+# ─── REPLICATE HELPERS (self-contained) ───────────────────────
+def replicate_create(model: str, input_data: dict) -> str:
+    """Create a Replicate prediction, return the GET URL for polling."""
+    for attempt in range(5):
+        r = requests.post(
+            f"https://api.replicate.com/v1/models/{model}/predictions",
+            headers={"Authorization": f"Bearer {Config.REPLICATE_TOKEN}", "Content-Type": "application/json"},
+            json={"input": input_data}, timeout=30,
+        )
+        if r.status_code == 429:
+            import time as _t; _t.sleep(min(30 * (attempt + 1), 120)); continue
+        r.raise_for_status()
+        return r.json()["urls"]["get"]
+    raise Exception("Replicate rate limit: 5 retries exhausted")
+
+def replicate_poll(get_url: str, timeout: int = 300) -> str:
+    """Poll a Replicate prediction until complete. Returns output URL."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        r = requests.get(get_url, headers={"Authorization": f"Bearer {Config.REPLICATE_TOKEN}"})
+        r.raise_for_status()
+        data = r.json()
+        if data.get("status") == "succeeded":
+            output = data.get("output")
+            return output[0] if isinstance(output, list) else output
+        elif data.get("status") == "failed":
+            raise RuntimeError(f"Replicate failed: {data.get('error')}")
+        time.sleep(10)
+    raise TimeoutError("Replicate prediction timed out")
+
+def get_s3_client():
+    return boto3.client("s3", endpoint_url=Config.R2_ENDPOINT,
+        aws_access_key_id=Config.R2_ACCESS_KEY, aws_secret_access_key=Config.R2_SECRET_KEY, region_name="auto")
+
+def upload_to_r2(folder: str, filename: str, data, content_type: str) -> str:
+    """Upload to R2, return public URL."""
+    s3 = get_s3_client()
+    key = f"{folder}/{filename}"
+    if isinstance(data, bytes):
+        s3.put_object(Bucket=Config.R2_BUCKET, Key=key, Body=data, ContentType=content_type)
+    elif isinstance(data, str) and data.startswith("http"):
+        r = requests.get(data, timeout=120); r.raise_for_status()
+        body = r.content
+        ct = content_type
+        if body[:4] == b'\x1a\x45\xdf\xa3': ct = "video/webm"; key = key.rsplit(".",1)[0] + ".webm"
+        elif body[4:8] == b'ftyp': ct = "video/mp4"
+        s3.put_object(Bucket=Config.R2_BUCKET, Key=key, Body=body, ContentType=ct)
+    else:
+        s3.put_object(Bucket=Config.R2_BUCKET, Key=key, Body=str(data).encode(), ContentType=content_type)
+    return f"{Config.R2_PUBLIC_URL}/{key}"
 
 router = APIRouter(prefix="/graphics", tags=["graphics"])
 
