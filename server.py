@@ -21,13 +21,6 @@ import secrets
 
 app = FastAPI(title="Knights Reactor")
 
-# Mount Graphics Engine as sub-app at /graphics
-try:
-    from graphics import gfx_app
-    app.mount("/graphics", gfx_app)
-except ImportError:
-    pass  # graphics.py not present, skip
-
 # Session token (regenerates on restart, lives in memory)
 SESSION_TOKEN = secrets.token_hex(32)
 
@@ -714,6 +707,34 @@ async def get_last_result():
 async def save_settings(req: Request):
     save_json(SETTINGS_FILE, await req.json())
     apply_model_settings()
+    return {"status": "saved"}
+
+# ─── CHANNELS (Blotato IDs per brand) ────────────────────────
+@app.get("/api/channels")
+async def get_channels():
+    """Get Blotato channel IDs for current brand."""
+    s = load_json(SETTINGS_FILE, {})
+    return {
+        "instagram": s.get("blotato_instagram_id", ""),
+        "facebook": s.get("blotato_facebook_id", ""),
+        "facebook_page": s.get("blotato_facebook_page_id", ""),
+        "twitter": s.get("blotato_twitter_id", ""),
+        "threads": s.get("blotato_threads_id", ""),
+        "tiktok": s.get("blotato_tiktok_id", ""),
+        "youtube": s.get("blotato_youtube_id", ""),
+        "pinterest": s.get("blotato_pinterest_id", ""),
+        "pinterest_board": s.get("blotato_pinterest_board_id", ""),
+    }
+
+@app.post("/api/channels")
+async def save_channels(req: Request):
+    """Save Blotato channel IDs for current brand."""
+    body = await req.json()
+    s = load_json(SETTINGS_FILE, {})
+    for key in ["instagram","facebook","facebook_page","twitter","threads","tiktok","youtube","pinterest","pinterest_board"]:
+        if key in body:
+            s[f"blotato_{key}_id"] = body[key]
+    save_json(SETTINGS_FILE, s)
     return {"status": "saved"}
 
 @app.post("/api/test-connection")

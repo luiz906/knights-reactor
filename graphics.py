@@ -662,35 +662,6 @@ async def api_publish(req: Request):
     ok_count = sum(1 for r in results.values() if r.get("ok"))
     return {"status": "published", "results": results, "ok_count": ok_count, "total": len(platforms)}
 
-@gfx_app.get("/api/channels/{brand_id}")
-async def api_get_channels(brand_id: str):
-    """Get Blotato channel IDs for a brand."""
-    bd = BRANDS_DIR / brand_id
-    s = load_json(bd / "settings.json", {})
-    return {
-        "instagram": s.get("blotato_instagram_id", ""),
-        "facebook": s.get("blotato_facebook_id", ""),
-        "facebook_page": s.get("blotato_facebook_page_id", ""),
-        "twitter": s.get("blotato_twitter_id", ""),
-        "threads": s.get("blotato_threads_id", ""),
-        "tiktok": s.get("blotato_tiktok_id", ""),
-        "youtube": s.get("blotato_youtube_id", ""),
-        "pinterest": s.get("blotato_pinterest_id", ""),
-        "pinterest_board": s.get("blotato_pinterest_board_id", ""),
-    }
-
-@gfx_app.post("/api/channels/{brand_id}")
-async def api_save_channels(brand_id: str, req: Request):
-    """Save Blotato channel IDs for a brand."""
-    body = await req.json()
-    bd = BRANDS_DIR / brand_id
-    s = load_json(bd / "settings.json", {})
-    for key in ["instagram","facebook","facebook_page","twitter","threads","tiktok","youtube","pinterest","pinterest_board"]:
-        if key in body:
-            s[f"blotato_{key}_id"] = body[key]
-    save_json(bd / "settings.json", s)
-    return {"status": "saved"}
-
 @gfx_app.get("/api/gallery")
 async def api_gallery():
     return load_json(GFX_GALLERY_FILE, [])[:100]
@@ -791,7 +762,6 @@ textarea.inp{min-height:3.5em;resize:vertical;line-height:1.5}
 <div class="tabs">
 <button class="tab on" onclick="gN('create',this)">✦ CREATE</button>
 <button class="tab" onclick="gN('gallery',this)">◉ GALLERY</button>
-<button class="tab" onclick="gN('channels',this)">⚙ CHANNELS</button>
 </div>
 
 <!-- ═══ CREATE TAB — Step-by-step pipeline ═══ -->
@@ -925,28 +895,6 @@ textarea.inp{min-height:3.5em;resize:vertical;line-height:1.5}
   <div class="gal" id="g-grid"></div>
 </div>
 
-<!-- ═══ CHANNELS TAB ═══ -->
-<div class="page" id="p-channels">
-  <div style="font-family:var(--f1);font-size:.6em;letter-spacing:.12em;color:var(--txtd);margin-bottom:.6em">BLOTATO PUBLISHING CHANNELS</div>
-  <div style="font-size:.65em;color:var(--txtdd);margin-bottom:1em">Configure Blotato account IDs for the selected brand. These are used when publishing graphics.</div>
-  <div id="ch-fields">
-    <div class="fi"><div class="lbl">Instagram Account ID</div><input class="inp" id="ch-instagram" placeholder="e.g. 31177"></div>
-    <div class="fi"><div class="lbl">Facebook Account ID</div><input class="inp" id="ch-facebook" placeholder=""></div>
-    <div class="fi"><div class="lbl">Facebook Page ID</div><input class="inp" id="ch-facebook-page" placeholder=""></div>
-    <div class="fi"><div class="lbl">X/Twitter Account ID</div><input class="inp" id="ch-twitter" placeholder=""></div>
-    <div class="fi"><div class="lbl">Threads Account ID</div><input class="inp" id="ch-threads" placeholder=""></div>
-    <div class="fi"><div class="lbl">TikTok Account ID</div><input class="inp" id="ch-tiktok" placeholder=""></div>
-    <div class="fi"><div class="lbl">YouTube Account ID</div><input class="inp" id="ch-youtube" placeholder=""></div>
-    <div class="fi"><div class="lbl">Pinterest Account ID</div><input class="inp" id="ch-pinterest" placeholder=""></div>
-    <div class="fi"><div class="lbl">Pinterest Board ID</div><input class="inp" id="ch-pinterest-board" placeholder=""></div>
-  </div>
-  <div style="display:flex;gap:6px;margin-top:.8em">
-    <button class="btn btn-grn" onclick="saveChannels()">💾 SAVE CHANNELS</button>
-    <button class="btn btn-go" onclick="loadChannels()">↻ RELOAD</button>
-  </div>
-  <div id="ch-status" style="font-size:.6em;color:var(--txtd);margin-top:.4em"></div>
-</div>
-
 <!-- MODAL -->
 <div class="mbg" id="modal" onclick="if(event.target===this)cM()">
   <button class="mx" onclick="cM()">✕</button>
@@ -960,7 +908,7 @@ const $=id=>document.getElementById(id), API='/graphics/api';
 let STATE={step:1, brand_id:'', topic:'', quote:'', prompt:'', image_url:'', captions:{}, gallery_id:''};
 
 // ─── NAV ─────────────────────────────────────────────────────
-function gN(p,b){document.querySelectorAll('.page').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));$('p-'+p).classList.add('on');if(b)b.classList.add('on');if(p==='gallery')lG();if(p==='channels')loadChannels();}
+function gN(p,b){document.querySelectorAll('.page').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));$('p-'+p).classList.add('on');if(b)b.classList.add('on');if(p==='gallery')lG();}
 
 // ─── BRANDS ──────────────────────────────────────────────────
 async function lB(){
@@ -1181,25 +1129,6 @@ function resetFlow(){
   $('btn-lock4').disabled=true;
   ['st1-status','st2-status','st3-status','st4-status','st5-status','st6-status'].forEach(id=>$(id).innerHTML='');
   updateSteps();
-}
-
-// ─── CHANNELS ────────────────────────────────────────────────
-const CH_KEYS=['instagram','facebook','facebook-page','twitter','threads','tiktok','youtube','pinterest','pinterest-board'];
-async function loadChannels(){
-  const brand=$('s-brand').value;if(!brand)return;
-  try{
-    const r=await(await fetch(API+'/channels/'+brand)).json();
-    CH_KEYS.forEach(k=>{const el=$('ch-'+k);if(el)el.value=r[k.replace('-','_')]||'';});
-    $('ch-status').innerHTML='<span style="color:var(--grn)">✓ Loaded channels for this brand</span>';
-  }catch(e){$('ch-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
-}
-async function saveChannels(){
-  const brand=$('s-brand').value;if(!brand){alert('Select a brand');return;}
-  const body={};CH_KEYS.forEach(k=>{const el=$('ch-'+k);if(el)body[k.replace('-','_')]=el.value.trim();});
-  try{
-    await fetch(API+'/channels/'+brand,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    $('ch-status').innerHTML='<span style="color:var(--grn)">✓ Channels saved!</span>';
-  }catch(e){$('ch-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
 }
 
 // ─── GALLERY ─────────────────────────────────────────────────

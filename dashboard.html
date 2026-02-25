@@ -192,7 +192,7 @@ body{overflow:auto}
 <button class="sb-i" onclick="dNav('preview',this)"><span>◉</span>PREVIEW</button>
 <button class="sb-i" onclick="dNav('settings',this)"><span>⚙</span>CONFIG</button>
 <button class="sb-i" onclick="dNav('health',this)"><span>◎</span>STATUS</button>
-<a href="/graphics" class="sb-i" style="text-decoration:none"><span>⬡</span>GRAPHICS</a>
+<button class="sb-i" onclick="dNav('channels',this)"><span>📡</span>CHANNELS</button>
 </div>
 <div class="sb-ft">
 <button class="sb-exec" id="d-rb" onclick="runNow()">▶ EXECUTE</button>
@@ -289,6 +289,29 @@ body{overflow:auto}
 <button onclick="sessionStorage.removeItem('kt');$('L').style.display='flex';$('A').classList.add('hd')" style="width:100%;padding:9px;margin-top:10px;border:1px solid rgba(224,64,40,.2);background:var(--red2);font-family:var(--f1);font-size:.6em;color:var(--red);letter-spacing:.2em">⚠ DISCONNECT</button>
 </div>
 
+<div class="dpage" id="dp-channels">
+<div class="panel" style="margin-bottom:10px">
+<div class="ptitle">BLOTATO PUBLISHING CHANNELS</div>
+<div style="font-size:.65em;color:var(--txtdd);margin-bottom:1em">Configure Blotato account IDs for the current brand. Find IDs in your <a href="https://app.blotato.com" target="_blank" style="color:var(--amb)">Blotato dashboard</a> under each connected account.</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:.4em 1.2em">
+<div class="fi"><div class="fl">INSTAGRAM ID</div><input class="fin" id="ch-instagram" placeholder="e.g. 31177"></div>
+<div class="fi"><div class="fl">FACEBOOK ID</div><input class="fin" id="ch-facebook" placeholder=""></div>
+<div class="fi"><div class="fl">FACEBOOK PAGE ID</div><input class="fin" id="ch-facebook-page" placeholder=""></div>
+<div class="fi"><div class="fl">X / TWITTER ID</div><input class="fin" id="ch-twitter" placeholder=""></div>
+<div class="fi"><div class="fl">THREADS ID</div><input class="fin" id="ch-threads" placeholder=""></div>
+<div class="fi"><div class="fl">TIKTOK ID</div><input class="fin" id="ch-tiktok" placeholder=""></div>
+<div class="fi"><div class="fl">YOUTUBE ID</div><input class="fin" id="ch-youtube" placeholder=""></div>
+<div class="fi"><div class="fl">PINTEREST ID</div><input class="fin" id="ch-pinterest" placeholder=""></div>
+<div class="fi" style="grid-column:1/-1"><div class="fl">PINTEREST BOARD ID</div><input class="fin" id="ch-pinterest-board" placeholder=""></div>
+</div>
+<div style="display:flex;gap:8px;margin-top:1em">
+<button class="sv" onclick="saveChannels()" style="flex:1">SAVE CHANNELS</button>
+<button style="padding:.9em 1.5em;border:1px solid var(--bd);background:var(--amblo);color:var(--amb);font-family:var(--f1);font-size:.75em;letter-spacing:.15em" onclick="loadChannels()">↻ RELOAD</button>
+</div>
+<div id="ch-status" style="font-size:.65em;color:var(--txtd);margin-top:.5em"></div>
+</div>
+</div>
+
 </div></div></div>
 
 <!-- ═══ MOBILE ═══ -->
@@ -304,7 +327,7 @@ body{overflow:auto}
 <button class="mt" onclick="mNav('preview',this)">◉ PREVIEW</button>
 <button class="mt" onclick="mNav('settings',this)">⚙ CONFIG</button>
 <button class="mt" onclick="mNav('health',this)">◎ STATUS</button>
-<a href="/graphics" class="mt" style="text-decoration:none;color:inherit">⬡ GRAPHICS</a>
+<button class="mt" onclick="mNav('channels',this)">📡 CHANNELS</button>
 </div>
 <div class="mcont">
 
@@ -382,7 +405,22 @@ body{overflow:auto}
 <button onclick="sessionStorage.removeItem('kt');$('L').style.display='flex';$('A').classList.add('hd')" style="width:100%;padding:12px;margin-top:8px;border:1px solid rgba(224,64,40,.2);background:var(--red2);font-family:var(--f1);font-size:.65em;color:var(--red);letter-spacing:.2em;min-height:3.2em">⚠ DISCONNECT</button>
 </div>
 
-</div></div>
+<div class="mpage" id="mp-channels">
+<div class="panel">
+<div style="font-family:var(--f1);font-size:.6em;letter-spacing:.12em;color:var(--txtd);margin-bottom:.5em">BLOTATO CHANNELS</div>
+<div class="fi"><div class="fl">INSTAGRAM ID</div><input class="fin" id="mch-instagram" placeholder="e.g. 31177" style="min-height:3em"></div>
+<div class="fi"><div class="fl">FACEBOOK ID</div><input class="fin" id="mch-facebook" style="min-height:3em"></div>
+<div class="fi"><div class="fl">FACEBOOK PAGE ID</div><input class="fin" id="mch-facebook-page" style="min-height:3em"></div>
+<div class="fi"><div class="fl">X / TWITTER ID</div><input class="fin" id="mch-twitter" style="min-height:3em"></div>
+<div class="fi"><div class="fl">THREADS ID</div><input class="fin" id="mch-threads" style="min-height:3em"></div>
+<div class="fi"><div class="fl">TIKTOK ID</div><input class="fin" id="mch-tiktok" style="min-height:3em"></div>
+<div class="fi"><div class="fl">YOUTUBE ID</div><input class="fin" id="mch-youtube" style="min-height:3em"></div>
+<div class="fi"><div class="fl">PINTEREST ID</div><input class="fin" id="mch-pinterest" style="min-height:3em"></div>
+<div class="fi"><div class="fl">PINTEREST BOARD ID</div><input class="fin" id="mch-pinterest-board" style="min-height:3em"></div>
+<button class="sv" onclick="saveChannels()" style="margin-top:.8em">SAVE CHANNELS</button>
+<div id="mch-status" style="font-size:.65em;color:var(--txtd);margin-top:.4em"></div>
+</div>
+</div>
 </div>
 
 <script>
@@ -407,7 +445,7 @@ let stOpen={};
 const IMG_MODELS={replicate:[{v:"google/nano-banana-pro",l:"Nano Banana Pro"},{v:"google/nano-banana",l:"Nano Banana"},{v:"xai/grok-imagine-image",l:"Grok Aurora"},{v:"bytedance/seedream-4.5",l:"Seedream 4.5"},{v:"black-forest-labs/flux-1.1-pro",l:"Flux 1.1 Pro"},{v:"black-forest-labs/flux-schnell",l:"Flux Schnell"},{v:"black-forest-labs/flux-dev",l:"Flux Dev"},{v:"ideogram-ai/ideogram-v3-quality",l:"Ideogram v3 Q"},{v:"ideogram-ai/ideogram-v3-turbo",l:"Ideogram v3 T"},{v:"recraft-ai/recraft-v3",l:"Recraft v3"},{v:"stability-ai/stable-diffusion-3.5-large",l:"SD 3.5 L"},{v:"google-deepmind/imagen-4-preview",l:"Imagen 4"}]};
 const VID_MODELS={replicate:[{v:"bytedance/seedance-1-lite",l:"Seedance Lite"},{v:"bytedance/seedance-1",l:"Seedance Pro"},{v:"wavespeedai/wan-2.1-i2v-480p",l:"Wan 480p"},{v:"wavespeedai/wan-2.1-i2v-720p",l:"Wan 720p"},{v:"xai/grok-imagine-video",l:"Grok Video"},{v:"minimax/video-01-live",l:"Minimax Live"},{v:"minimax/video-01",l:"Minimax v01"},{v:"kwaivgi/kling-v2.0-image-to-video",l:"Kling v2.0"},{v:"luma/ray-2-flash",l:"Luma Flash"},{v:"luma/ray-2",l:"Luma Ray 2"},{v:"google-deepmind/veo-3",l:"Veo 3"}]};
 const SVCS=[{n:"OPENAI",d:"GPT-4o + Whisper",k:"openai"},{n:"REPLICATE",d:"Image + Video",k:"replicate"},{n:"ELEVENLABS",d:"Voice Synthesis",k:"elevenlabs"},{n:"SHOTSTACK",d:"Video Render",k:"shotstack"},{n:"R2",d:"Asset Storage",k:"r2"},{n:"BLOTATO",d:"Publishing",k:"blotato"}];
-const titles={pipeline:'⚡ PIPELINE MONITOR',manual:'◈ MANUAL PIPELINE',topics:'✦ TOPIC DATABASE',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ CONFIGURATION',health:'◎ SYSTEM STATUS'};
+const titles={pipeline:'⚡ PIPELINE MONITOR',manual:'◈ MANUAL PIPELINE',topics:'✦ TOPIC DATABASE',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ CONFIGURATION',health:'◎ SYSTEM STATUS',channels:'📡 PUBLISHING CHANNELS'};
 
 /* THEME */
 function toggleTheme(){const on=document.documentElement.classList.toggle('light');localStorage.setItem('kr-theme',on?'light':'dark');updThemeBtn();}
@@ -419,8 +457,8 @@ async function go(){const p=$('pw').value;if(!p){$('le').style.display='block';r
 async function autoLogin(){const t=sessionStorage.getItem('kt');if(!t)return;try{const r=await(await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})})).json();if(r.ok){$('L').style.display='none';$('A').classList.remove('hd');init();}}catch(e){}}
 
 /* NAV */
-function dNav(p,btn){document.querySelectorAll('.dpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));$('dp-'+p).classList.add('on');if(btn)btn.classList.add('on');$('d-title').textContent=titles[p]||p;if(p==='topics')loadTopics();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();}
-function mNav(p,btn){document.querySelectorAll('.mpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.mt').forEach(b=>b.classList.remove('on'));$('mp-'+p).classList.add('on');if(btn)btn.classList.add('on');if(p==='topics')loadTopics();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();}
+function dNav(p,btn){document.querySelectorAll('.dpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));$('dp-'+p).classList.add('on');if(btn)btn.classList.add('on');$('d-title').textContent=titles[p]||p;if(p==='topics')loadTopics();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='channels')loadChannels();}
+function mNav(p,btn){document.querySelectorAll('.mpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.mt').forEach(b=>b.classList.remove('on'));$('mp-'+p).classList.add('on');if(btn)btn.classList.add('on');if(p==='topics')loadTopics();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='channels')loadChannels();}
 
 /* ═══ GATE BANNERS ═══ */
 function rGate(){
@@ -1099,6 +1137,31 @@ async function switchBrand(val){
   if(isNew){STS.forEach(s=>s.f.forEach(f=>{if(f.b)ST[f.k]=f.k==='brand_name'?val.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()):''}));rSt();}
   loadTopics();
   loadRuns();
+}
+
+// ─── CHANNELS ────────────────────────────────────────────────
+const CH_FIELDS=['instagram','facebook','facebook-page','twitter','threads','tiktok','youtube','pinterest','pinterest-board'];
+async function loadChannels(){
+  try{
+    const r=await(await fetch('/api/channels')).json();
+    CH_FIELDS.forEach(k=>{
+      const val=r[k.replace(/-/g,'_')]||'';
+      const d=$('ch-'+k);if(d)d.value=val;
+      const m=$('mch-'+k);if(m)m.value=val;
+    });
+    ['ch-status','mch-status'].forEach(id=>{if($(id))$(id).innerHTML='<span style="color:var(--grn)">✓ Loaded</span>';});
+  }catch(e){['ch-status','mch-status'].forEach(id=>{if($(id))$(id).innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;});}
+}
+async function saveChannels(){
+  const body={};
+  CH_FIELDS.forEach(k=>{
+    const d=$('ch-'+k);const m=$('mch-'+k);
+    body[k.replace(/-/g,'_')]=(d&&d.value?d.value:m&&m.value?m.value:'').trim();
+  });
+  try{
+    await fetch('/api/channels',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    ['ch-status','mch-status'].forEach(id=>{if($(id))$(id).innerHTML='<span style="color:var(--grn)">✓ Channels saved!</span>';});
+  }catch(e){['ch-status','mch-status'].forEach(id=>{if($(id))$(id).innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;});}
 }
 
 async function init(){
