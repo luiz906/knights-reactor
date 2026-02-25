@@ -380,13 +380,42 @@ def build_graphics_prompt(quote_text: str, brand: dict = None) -> str:
 async def api_brands():
     return get_brands()
 
+@gfx_app.get("/api/topics/{brand_id}")
+async def api_get_topics(brand_id: str):
+    """Get topics list from shared brand topics.json."""
+    bd = BRANDS_DIR / brand_id
+    tf = bd / "topics.json"
+    if not tf.exists():
+        return {"topics": [], "total": 0, "new": 0}
+    try:
+        topics = json.loads(tf.read_text())
+    except:
+        topics = []
+    return {"topics": topics, "total": len(topics), "new": sum(1 for t in topics if t.get("status") == "new")}
+
 @gfx_app.post("/api/phase/topic")
 async def api_phase_topic(req: Request):
-    """Generate a topic for the brand. Returns topic text."""
+    """Pick a random new topic from the shared topics list, or generate one via AI."""
     body = await req.json()
     brand_id = body.get("brand_id", "")
+    mode = body.get("mode", "random")  # random | ai
     brand = next((b for b in get_brands() if b["id"] == brand_id), None)
     if not brand: return JSONResponse({"error": "Brand not found"}, 400)
+
+    if mode == "random":
+        bd = BRANDS_DIR / brand_id
+        tf = bd / "topics.json"
+        topics = []
+        if tf.exists():
+            try: topics = json.loads(tf.read_text())
+            except: pass
+        new_topics = [t for t in topics if t.get("status") == "new"]
+        if not new_topics:
+            return JSONResponse({"error": "No new topics — add topics on the Topics page first"}, 400)
+        pick = _rng.choice(new_topics)
+        return {"topic": pick["idea"], "topic_id": pick.get("id", ""), "category": pick.get("category", ""), "scripture": pick.get("scripture", "")}
+
+    # AI fallback
     try:
         topic = _gpt(
             f"Generate ONE viral image post topic for '{brand['name']}'. "
@@ -667,11 +696,16 @@ textarea.inp{min-height:3.5em;resize:vertical;line-height:1.5}
   <!-- STEP 1: TOPIC -->
   <div class="step active" id="st-1">
     <div class="step-head"><div class="step-num">1</div><div class="step-title">TOPIC</div></div>
-    <div class="fi"><div class="lbl">AI-generated topic (edit or write your own)</div>
-      <textarea class="inp" id="f-topic" rows="2" placeholder="Click Generate to get an AI topic, or type your own..."></textarea>
+    <div class="fi"><div class="lbl">Pick from Topics list or type your own</div>
+      <select class="inp" id="f-topic-list" onchange="pickTopic(this.value)" style="margin-bottom:.4em">
+        <option value="">— Select a topic —</option>
+      </select>
+      <textarea class="inp" id="f-topic" rows="2" placeholder="Select from list above, use Random, or type your own..."></textarea>
     </div>
     <div class="step-actions">
-      <button class="btn btn-go" onclick="genTopic()">⚡ GENERATE TOPIC</button>
+      <button class="btn btn-go" onclick="loadTopics()">↻ REFRESH LIST</button>
+      <button class="btn btn-go" onclick="randomTopic()">🎲 RANDOM</button>
+      <button class="btn btn-out" onclick="genTopicAI()">⚡ AI GENERATE</button>
       <button class="btn btn-grn" onclick="lockStep(1)" id="btn-lock1">APPROVE & NEXT →</button>
     </div>
     <div class="step-status" id="st1-status"></div>
@@ -771,6 +805,8 @@ async function lB(){
   try{
     const brands=await(await fetch(API+'/brands')).json();
     $('s-brand').innerHTML=brands.map(b=>`<option value="${b.id}">${b.name}</option>`).join('')||'<option>No brands</option>';
+    $('s-brand').onchange=()=>loadTopics();
+    if(brands.length)loadTopics();
   }catch(e){}
 }
 
@@ -814,15 +850,40 @@ function lockStep(n){
 }
 
 // ─── PHASE 1: TOPIC ─────────────────────────────────────────
-async function genTopic(){
+let TOPICS_CACHE=[];
+async function loadTopics(){
   const brand=$('s-brand').value;if(!brand){alert('Select a brand');return;}
-  $('st1-status').innerHTML='<span class="spin">⏳</span> Generating topic...';
+  try{
+    const r=await(await fetch(API+'/topics/'+brand)).json();
+    TOPICS_CACHE=r.topics||[];
+    const sel=$('f-topic-list');
+    sel.innerHTML='<option value="">— Select a topic ('+r.new+' new / '+r.total+' total) —</option>';
+    const newT=TOPICS_CACHE.filter(t=>t.status==='new');
+    newT.forEach(t=>{const o=document.createElement('option');o.value=t.idea;o.textContent=t.idea+(t.category?' ['+t.category+']':'');sel.appendChild(o);});
+    $('st1-status').innerHTML='<span style="color:var(--grn)">✓ '+r.new+' new topics loaded</span>';
+  }catch(e){$('st1-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
+}
+function pickTopic(val){if(val)$('f-topic').value=val;}
+async function randomTopic(){
+  const brand=$('s-brand').value;if(!brand){alert('Select a brand');return;}
+  $('st1-status').innerHTML='<span class="spin">⏳</span> Picking random topic...';
   try{
     const r=await(await fetch(API+'/phase/topic',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({brand_id:brand})})).json();
+      body:JSON.stringify({brand_id:brand,mode:'random'})})).json();
     if(r.error){$('st1-status').innerHTML=`<span style="color:var(--red)">${r.error}</span>`;return;}
     $('f-topic').value=r.topic;
-    $('st1-status').innerHTML='<span style="color:var(--grn)">✓ Topic generated — edit if needed, then approve</span>';
+    $('st1-status').innerHTML='<span style="color:var(--grn)">✓ Random: '+r.topic+(r.category?' ['+r.category+']':'')+'</span>';
+  }catch(e){$('st1-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
+}
+async function genTopicAI(){
+  const brand=$('s-brand').value;if(!brand){alert('Select a brand');return;}
+  $('st1-status').innerHTML='<span class="spin">⏳</span> AI generating topic...';
+  try{
+    const r=await(await fetch(API+'/phase/topic',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({brand_id:brand,mode:'ai'})})).json();
+    if(r.error){$('st1-status').innerHTML=`<span style="color:var(--red)">${r.error}</span>`;return;}
+    $('f-topic').value=r.topic;
+    $('st1-status').innerHTML='<span style="color:var(--grn)">✓ AI topic generated — edit if needed</span>';
   }catch(e){$('st1-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
 }
 
