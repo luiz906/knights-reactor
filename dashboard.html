@@ -112,6 +112,21 @@ textarea.fin{resize:vertical;min-height:4em;line-height:1.5}
 .fi.w{grid-column:1/-1}
 .pgrid{grid-template-columns:repeat(4,1fr)}
 .logp{background:var(--panel);border:1px solid var(--bd2);padding:12px;max-height:calc(100vh - 8em);overflow-y:auto;font-size:.7em;line-height:1.8}
+.man-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.man-card{background:var(--panel);border:1px solid var(--bd2);overflow:hidden}
+.man-card-preview{aspect-ratio:9/16;background:var(--bg);position:relative;overflow:hidden;max-height:18em}
+.man-card-preview video{width:100%;height:100%;object-fit:cover;display:block}
+.man-card-preview audio{width:100%;position:absolute;bottom:0;left:0}
+.man-card-empty{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.3em;color:var(--txtdd);font-size:.6em;cursor:pointer;border:2px dashed var(--bd2);transition:border-color .2s}
+.man-card-empty:hover{border-color:var(--amb);color:var(--txtd)}
+.man-card-bar{display:flex;gap:3px;padding:4px;align-items:center;background:var(--bg2)}
+.man-card-bar .fin{border:none;background:transparent;padding:.3em .4em;font-size:.7em}
+.man-card-bar .fin:focus{background:var(--bg)}
+.man-card-badge{position:absolute;top:4px;right:4px;background:rgba(8,8,10,.85);border:1px solid var(--bd);color:var(--grn);font-family:var(--f1);font-size:.55em;padding:.15em .4em;letter-spacing:.08em}
+.man-card-num{position:absolute;top:4px;left:4px;background:rgba(8,8,10,.85);border:1px solid var(--bd);color:var(--amb);font-family:var(--f1);font-size:.5em;padding:.15em .35em;letter-spacing:.08em}
+.man-card-rm{position:absolute;bottom:4px;right:4px;background:rgba(224,64,40,.15);border:1px solid rgba(224,64,40,.25);color:var(--red);font-size:.5em;padding:.1em .35em;cursor:pointer;opacity:0;transition:opacity .2s}
+.man-card:hover .man-card-rm{opacity:1}
+.man-vo-card .man-card-preview{aspect-ratio:auto;min-height:4em;max-height:5em}
 }
 /* ═══ MOBILE ═══ */
 @media(max-width:768px){
@@ -135,6 +150,18 @@ body{overflow:auto}
 .tg.on .td{left:1.7em!important}.tg.off .td{left:.2em!important}
 .pgrid{grid-template-columns:repeat(2,1fr)}
 .logp{max-height:28em;overflow-y:auto;font-size:.7em;line-height:1.8;background:var(--panel);border:1px solid var(--bd2);padding:10px}
+.man-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.man-card{background:var(--panel);border:1px solid var(--bd2);overflow:hidden}
+.man-card-preview{aspect-ratio:9/16;background:var(--bg);position:relative;overflow:hidden;max-height:14em}
+.man-card-preview video{width:100%;height:100%;object-fit:cover;display:block}
+.man-card-preview audio{width:100%;position:absolute;bottom:0;left:0}
+.man-card-empty{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.3em;color:var(--txtdd);font-size:.6em;cursor:pointer;border:2px dashed var(--bd2)}
+.man-card-bar{display:flex;gap:3px;padding:4px;align-items:center;background:var(--bg2)}
+.man-card-bar .fin{border:none;background:transparent;padding:.3em .4em;font-size:.7em}
+.man-card-badge{position:absolute;top:3px;right:3px;background:rgba(8,8,10,.85);border:1px solid var(--bd);color:var(--grn);font-family:var(--f1);font-size:.5em;padding:.1em .3em}
+.man-card-num{position:absolute;top:3px;left:3px;background:rgba(8,8,10,.85);border:1px solid var(--bd);color:var(--amb);font-family:var(--f1);font-size:.45em;padding:.1em .3em}
+.man-card-rm{position:absolute;bottom:3px;right:3px;background:rgba(224,64,40,.15);border:1px solid rgba(224,64,40,.25);color:var(--red);font-size:.5em;padding:.1em .3em;cursor:pointer}
+.man-vo-card .man-card-preview{aspect-ratio:auto;min-height:3em;max-height:4em}
 }
 </style></head><body>
 
@@ -155,6 +182,7 @@ body{overflow:auto}
 <div class="sb-logo"><h1>KNIGHTS<br>REACTOR</h1><p>CONTROL v7.0</p></div>
 <div class="sb-nav">
 <button class="sb-i on" onclick="dNav('pipeline',this)"><span>⚡</span>PIPELINE</button>
+<button class="sb-i" onclick="dNav('manual',this)"><span>◈</span>MANUAL</button>
 <button class="sb-i" onclick="dNav('topics',this)"><span>✦</span>TOPICS</button>
 <button class="sb-i" onclick="dNav('runs',this)"><span>◈</span>RUNS</button>
 <button class="sb-i" onclick="dNav('logs',this)"><span>▤</span>LOGS</button>
@@ -176,33 +204,11 @@ body{overflow:auto}
 <!-- Action Bar -->
 <div style="display:flex;gap:6px;margin-bottom:10px">
 <button id="d-rb2" onclick="runNow()" style="flex:1;padding:.7em;background:var(--amb);border:none;color:var(--bg);font-family:var(--f1);font-size:.65em;font-weight:600;letter-spacing:.15em;box-shadow:0 0 8px rgba(227,160,40,.2)">▶ EXECUTE</button>
-<button onclick="manualRun()" style="flex:1;padding:.7em;background:rgba(40,224,96,.08);border:1px solid rgba(40,224,96,.2);color:var(--grn);font-family:var(--f1);font-size:.65em;font-weight:600;letter-spacing:.15em">◈ MANUAL RUN</button>
 <button onclick="scriptOnly()" style="flex:1;padding:.7em;background:rgba(40,160,224,.06);border:1px solid rgba(40,160,224,.15);color:var(--blu);font-family:var(--f1);font-size:.65em;font-weight:600;letter-spacing:.15em">✎ SCRIPT ONLY</button>
 <button class="sb-res" id="d-rsb2" onclick="resumeNow()" style="flex:1;padding:.7em;font-family:var(--f1);font-size:.65em;letter-spacing:.15em;color:var(--amb);background:none;border:1px solid var(--bd);display:none">♻ RESUME</button>
 </div>
 <div id="d-gate"></div>
 <div class="g4" id="d-stats" style="margin-bottom:12px"></div>
-<!-- Manual Upload Section -->
-<div class="sec" id="d-manual-sec">
-<button class="sec-h" onclick="document.getElementById('d-manual-body').classList.toggle('shut');this.querySelector('.sec-a').style.transform=document.getElementById('d-manual-body').classList.contains('shut')?'':'rotate(90deg)'">
-<span class="sec-t">◈ MANUAL UPLOAD</span><span class="sec-a">›</span></button>
-<div class="sec-b shut" id="d-manual-body" style="display:block;padding:1em 1.2em">
-<div style="font-size:.65em;color:var(--txtd);margin-bottom:.6em;letter-spacing:.08em">Upload files or paste URLs. With voiceover = fully free run (~$0.02).</div>
-<div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.15em;margin-bottom:4px">VIDEO CLIPS</div>
-<div id="d-mclips" style="display:flex;flex-direction:column;gap:6px">
-<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 1 URL (https://...)" style="font-size:.8em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>
-<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 2 URL (https://...)" style="font-size:.8em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>
-<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 3 URL (https://...)" style="font-size:.8em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>
-</div>
-<div id="d-mtotals" style="display:none;margin-top:6px;padding:6px 8px;background:rgba(227,160,40,.04);border:1px solid var(--bd2);font-family:var(--f1);font-size:.6em;color:var(--amb);letter-spacing:.1em;justify-content:space-between"><span id="d-mt-clips"></span><span id="d-mt-vo" style="color:var(--blu)"></span><span id="d-mt-total" style="color:var(--grn)"></span></div>
-<button onclick="addClipSlot('d')" style="width:100%;padding:4px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.6em;letter-spacing:.1em;margin-top:4px">+ ADD CLIP</button>
-<div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.15em;margin:10px 0 4px">VOICEOVER (OPTIONAL)</div>
-<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-vo" placeholder="Voiceover audio URL (mp3/wav/m4a)" style="font-size:.8em;flex:1" onchange="probeVo(this)" onpaste="setTimeout(()=>probeVo(this),100)"><span class="vo-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'audio')">▤</button></div>
-<div style="font-size:.55em;color:var(--txtdd);margin-top:3px">With voiceover: skips ALL AI generation. Whisper transcribes → GPT generates title & captions.</div>
-<div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.15em;margin:10px 0 4px">CTA CLIP (OPTIONAL)</div>
-<div style="display:flex;gap:4px"><input class="fin mc-cta" placeholder="CTA clip URL (end card video/image)" style="font-size:.8em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>
-<div style="font-size:.55em;color:var(--txtdd);margin-top:3px">Plays at the end of the video. Leave empty to use default from settings.</div>
-</div></div>
 <!-- Script Only Result -->
 <div id="d-script-result" class="hd" style="background:var(--panel);border:1px solid var(--bd2);padding:1em;margin-bottom:6px">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5em"><span style="font-family:var(--f1);font-size:.6em;color:var(--amb);letter-spacing:.15em" id="d-scr-title"></span><button onclick="$('d-script-result').classList.add('hd')" style="background:none;border:none;color:var(--txtd);font-size:.8em">✕</button></div>
@@ -211,6 +217,33 @@ body{overflow:auto}
 <div id="d-scr-prompts"></div>
 </div>
 <div class="phgrid" id="d-pl"></div>
+</div>
+
+<div class="dpage" id="dp-manual">
+<!-- Manual Action Bar -->
+<div style="display:flex;gap:6px;margin-bottom:12px">
+<button id="d-man-run" onclick="manualRun()" style="flex:1;padding:.8em;background:rgba(40,224,96,.1);border:1px solid rgba(40,224,96,.25);color:var(--grn);font-family:var(--f1);font-size:.7em;font-weight:600;letter-spacing:.15em">◈ EXECUTE MANUAL RUN</button>
+</div>
+<!-- Totals Bar -->
+<div id="d-mtotals" style="display:none;margin-bottom:10px;padding:8px 12px;background:rgba(227,160,40,.04);border:1px solid var(--bd2);font-family:var(--f1);font-size:.65em;color:var(--amb);letter-spacing:.1em;justify-content:space-between"><span id="d-mt-clips"></span><span id="d-mt-vo" style="color:var(--blu)"></span><span id="d-mt-total" style="color:var(--grn)"></span></div>
+<!-- Clip Cards Grid -->
+<div style="font-family:var(--f1);font-size:.6em;color:var(--txtd);letter-spacing:.15em;margin-bottom:6px">VIDEO CLIPS</div>
+<div id="d-mclips" class="man-grid"></div>
+<button onclick="addClipCard('d')" style="width:100%;padding:8px;background:var(--bg);border:1px dashed var(--bd);color:var(--txtd);font-family:var(--f1);font-size:.6em;letter-spacing:.12em;margin:6px 0 16px">+ ADD CLIP</button>
+<!-- Voiceover -->
+<div style="font-family:var(--f1);font-size:.6em;color:var(--txtd);letter-spacing:.15em;margin-bottom:6px">VOICEOVER (OPTIONAL)</div>
+<div class="man-card man-vo-card" id="d-vo-card">
+<div class="man-card-preview" id="d-vo-preview"><div class="man-card-empty" onclick="document.querySelector('#d-vo-card .man-url').focus()"><span style="font-size:1.5em">◎</span><span>Paste URL or upload audio</span></div></div>
+<div class="man-card-bar"><input class="fin man-url mc-vo" placeholder="Audio URL (mp3/wav/m4a)" style="flex:1;font-size:.8em" onchange="probeVo(this);renderVoCard('d')" onpaste="setTimeout(()=>{probeVo(this);renderVoCard('d')},100)"><span class="vo-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'audio')">▤</button></div>
+</div>
+<div style="font-size:.55em;color:var(--txtdd);margin:4px 0 16px">With voiceover: skips ALL AI generation. Whisper transcribes → GPT generates captions. (~$0.02)</div>
+<!-- CTA -->
+<div style="font-family:var(--f1);font-size:.6em;color:var(--txtd);letter-spacing:.15em;margin-bottom:6px">CTA CLIP (OPTIONAL)</div>
+<div class="man-card" id="d-cta-card" style="max-width:50%">
+<div class="man-card-preview" id="d-cta-preview"><div class="man-card-empty" onclick="document.querySelector('#d-cta-card .man-url').focus()"><span style="font-size:1.5em">▶</span><span>End card</span></div></div>
+<div class="man-card-bar"><input class="fin man-url mc-cta" placeholder="CTA clip URL" style="flex:1;font-size:.8em" onchange="renderCtaCard('d')" onpaste="setTimeout(()=>renderCtaCard('d'),100)"><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>
+</div>
+<div style="font-size:.55em;color:var(--txtdd);margin-top:4px">Leave empty to use default from settings.</div>
 </div>
 
 <div class="dpage" id="dp-topics">
@@ -260,6 +293,7 @@ body{overflow:auto}
 <div class="mprog" id="m-prog"><div id="m-pb"></div></div>
 <div class="mtabs">
 <button class="mt on" onclick="mNav('pipeline',this)">⚡ PIPELINE</button>
+<button class="mt" onclick="mNav('manual',this)">◈ MANUAL</button>
 <button class="mt" onclick="mNav('topics',this)">✦ TOPICS</button>
 <button class="mt" onclick="mNav('runs',this)">◈ RUNS</button>
 <button class="mt" onclick="mNav('logs',this)">▤ LOGS</button>
@@ -273,31 +307,9 @@ body{overflow:auto}
 <!-- Action Bar -->
 <div style="display:flex;gap:5px;margin-bottom:8px">
 <button id="m-rb2" onclick="runNow()" style="flex:1;padding:.7em;background:var(--amb);border:none;color:var(--bg);font-family:var(--f1);font-size:.55em;font-weight:600;letter-spacing:.1em;min-height:2.8em">▶ EXECUTE</button>
-<button onclick="manualRun()" style="flex:1;padding:.7em;background:rgba(40,224,96,.08);border:1px solid rgba(40,224,96,.2);color:var(--grn);font-family:var(--f1);font-size:.55em;font-weight:600;letter-spacing:.1em;min-height:2.8em">◈ MANUAL</button>
 <button onclick="scriptOnly()" style="flex:1;padding:.7em;background:rgba(40,160,224,.06);border:1px solid rgba(40,160,224,.15);color:var(--blu);font-family:var(--f1);font-size:.55em;font-weight:600;letter-spacing:.1em;min-height:2.8em">✎ SCRIPT</button>
 </div>
 <div id="m-gate"></div>
-<!-- Manual Upload Section Mobile -->
-<div class="sec" style="margin-bottom:6px">
-<button class="sec-h" onclick="document.getElementById('m-manual-body').classList.toggle('shut');this.querySelector('.sec-a').style.transform=document.getElementById('m-manual-body').classList.contains('shut')?'':'rotate(90deg)'">
-<span class="sec-t">◈ MANUAL UPLOAD</span><span class="sec-a">›</span></button>
-<div class="sec-b shut" id="m-manual-body" style="display:block;padding:.7em">
-<div style="font-size:.6em;color:var(--txtd);margin-bottom:.5em">Upload files or paste URLs for fully free run</div>
-<div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.12em;margin-bottom:3px">VIDEO CLIPS</div>
-<div id="m-mclips" style="display:flex;flex-direction:column;gap:5px">
-<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 1 URL" style="font-size:.85em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>
-<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 2 URL" style="font-size:.85em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>
-<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 3 URL" style="font-size:.85em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>
-</div>
-<div id="m-mtotals" style="display:none;margin-top:5px;padding:5px 6px;background:rgba(227,160,40,.04);border:1px solid var(--bd2);font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.1em;justify-content:space-between"><span id="m-mt-clips"></span><span id="m-mt-vo" style="color:var(--blu)"></span><span id="m-mt-total" style="color:var(--grn)"></span></div>
-<button onclick="addClipSlot('m')" style="width:100%;padding:6px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.6em;margin-top:4px">+ ADD CLIP</button>
-<div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.12em;margin:8px 0 3px">VOICEOVER (OPTIONAL)</div>
-<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-vo" placeholder="Voiceover audio URL" style="font-size:.85em;flex:1" onchange="probeVo(this)" onpaste="setTimeout(()=>probeVo(this),100)"><span class="vo-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'audio')">▤</button></div>
-<div style="font-size:.5em;color:var(--txtdd);margin-top:2px">With VO: skips all AI gen. Whisper + GPT only (~$0.02)</div>
-<div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.12em;margin:8px 0 3px">CTA CLIP (OPTIONAL)</div>
-<div style="display:flex;gap:4px"><input class="fin mc-cta" placeholder="CTA clip URL (end card)" style="font-size:.85em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>
-<div style="font-size:.5em;color:var(--txtdd);margin-top:2px">End card video/image. Leave empty for default.</div>
-</div></div>
 <!-- Script Only Result Mobile -->
 <div id="m-script-result" class="hd" style="background:var(--panel);border:1px solid var(--bd2);padding:.7em;margin-bottom:6px">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4em"><span style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.12em" id="m-scr-title"></span><button onclick="$('m-script-result').classList.add('hd')" style="background:none;border:none;color:var(--txtd);font-size:.8em">✕</button></div>
@@ -306,6 +318,28 @@ body{overflow:auto}
 <div id="m-scr-prompts"></div>
 </div>
 <div id="m-pl"></div></div>
+
+<div class="mpage" id="mp-manual">
+<div style="margin-bottom:8px">
+<button onclick="manualRun()" style="width:100%;padding:.8em;background:rgba(40,224,96,.1);border:1px solid rgba(40,224,96,.25);color:var(--grn);font-family:var(--f1);font-size:.6em;font-weight:600;letter-spacing:.12em;min-height:2.8em">◈ EXECUTE MANUAL RUN</button>
+</div>
+<div id="m-mtotals" style="display:none;margin-bottom:8px;padding:6px 8px;background:rgba(227,160,40,.04);border:1px solid var(--bd2);font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.1em;justify-content:space-between"><span id="m-mt-clips"></span><span id="m-mt-vo" style="color:var(--blu)"></span><span id="m-mt-total" style="color:var(--grn)"></span></div>
+<div style="font-family:var(--f1);font-size:.55em;color:var(--txtd);letter-spacing:.12em;margin-bottom:4px">VIDEO CLIPS</div>
+<div id="m-mclips" class="man-grid"></div>
+<button onclick="addClipCard('m')" style="width:100%;padding:8px;background:var(--bg);border:1px dashed var(--bd);color:var(--txtd);font-family:var(--f1);font-size:.55em;letter-spacing:.1em;margin:4px 0 12px">+ ADD CLIP</button>
+<div style="font-family:var(--f1);font-size:.55em;color:var(--txtd);letter-spacing:.12em;margin-bottom:4px">VOICEOVER (OPTIONAL)</div>
+<div class="man-card man-vo-card" id="m-vo-card">
+<div class="man-card-preview" id="m-vo-preview"><div class="man-card-empty" onclick="document.querySelector('#m-vo-card .man-url').focus()"><span style="font-size:1.5em">◎</span><span>Paste URL or upload audio</span></div></div>
+<div class="man-card-bar"><input class="fin man-url mc-vo" placeholder="Audio URL" style="flex:1;font-size:.85em" onchange="probeVo(this);renderVoCard('m')" onpaste="setTimeout(()=>{probeVo(this);renderVoCard('m')},100)"><span class="vo-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'audio')">▤</button></div>
+</div>
+<div style="font-size:.5em;color:var(--txtdd);margin:3px 0 10px">With VO: skips all AI gen (~$0.02)</div>
+<div style="font-family:var(--f1);font-size:.55em;color:var(--txtd);letter-spacing:.12em;margin-bottom:4px">CTA CLIP (OPTIONAL)</div>
+<div class="man-card" id="m-cta-card">
+<div class="man-card-preview" id="m-cta-preview"><div class="man-card-empty" onclick="document.querySelector('#m-cta-card .man-url').focus()"><span style="font-size:1.5em">▶</span><span>End card</span></div></div>
+<div class="man-card-bar"><input class="fin man-url mc-cta" placeholder="CTA clip URL" style="flex:1;font-size:.85em" onchange="renderCtaCard('m')" onpaste="setTimeout(()=>renderCtaCard('m'),100)"><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>
+</div>
+<div style="font-size:.5em;color:var(--txtdd);margin-top:3px">Leave empty for default.</div>
+</div>
 
 <div class="mpage" id="mp-topics">
 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.5em">
@@ -366,7 +400,7 @@ let stOpen={};
 const IMG_MODELS={replicate:[{v:"google/nano-banana-pro",l:"Nano Banana Pro"},{v:"google/nano-banana",l:"Nano Banana"},{v:"xai/grok-imagine-image",l:"Grok Aurora"},{v:"bytedance/seedream-4.5",l:"Seedream 4.5"},{v:"black-forest-labs/flux-1.1-pro",l:"Flux 1.1 Pro"},{v:"black-forest-labs/flux-schnell",l:"Flux Schnell"},{v:"black-forest-labs/flux-dev",l:"Flux Dev"},{v:"ideogram-ai/ideogram-v3-quality",l:"Ideogram v3 Q"},{v:"ideogram-ai/ideogram-v3-turbo",l:"Ideogram v3 T"},{v:"recraft-ai/recraft-v3",l:"Recraft v3"},{v:"stability-ai/stable-diffusion-3.5-large",l:"SD 3.5 L"},{v:"google-deepmind/imagen-4-preview",l:"Imagen 4"}]};
 const VID_MODELS={replicate:[{v:"bytedance/seedance-1-lite",l:"Seedance Lite"},{v:"bytedance/seedance-1",l:"Seedance Pro"},{v:"wavespeedai/wan-2.1-i2v-480p",l:"Wan 480p"},{v:"wavespeedai/wan-2.1-i2v-720p",l:"Wan 720p"},{v:"xai/grok-imagine-video",l:"Grok Video"},{v:"minimax/video-01-live",l:"Minimax Live"},{v:"minimax/video-01",l:"Minimax v01"},{v:"kwaivgi/kling-v2.0-image-to-video",l:"Kling v2.0"},{v:"luma/ray-2-flash",l:"Luma Flash"},{v:"luma/ray-2",l:"Luma Ray 2"},{v:"google-deepmind/veo-3",l:"Veo 3"}]};
 const SVCS=[{n:"OPENAI",d:"GPT-4o + Whisper",k:"openai"},{n:"REPLICATE",d:"Image + Video",k:"replicate"},{n:"ELEVENLABS",d:"Voice Synthesis",k:"elevenlabs"},{n:"SHOTSTACK",d:"Video Render",k:"shotstack"},{n:"R2",d:"Asset Storage",k:"r2"},{n:"BLOTATO",d:"Publishing",k:"blotato"}];
-const titles={pipeline:'⚡ PIPELINE MONITOR',topics:'✦ TOPIC DATABASE',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ CONFIGURATION',health:'◎ SYSTEM STATUS'};
+const titles={pipeline:'⚡ PIPELINE MONITOR',manual:'◈ MANUAL PIPELINE',topics:'✦ TOPIC DATABASE',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ CONFIGURATION',health:'◎ SYSTEM STATUS'};
 
 /* THEME */
 function toggleTheme(){const on=document.documentElement.classList.toggle('light');localStorage.setItem('kr-theme',on?'light':'dark');updThemeBtn();}
@@ -513,51 +547,87 @@ async function resumeNow(){
   if(r.ok){RN=true;GATE=null;PD=[];rP();poll();}
   else{alert(d.error||'Resume failed');}
 }
-function addClipSlot(prefix){
-  const container=$(prefix+'-mclips');
-  const count=container.querySelectorAll('.mc-url').length;
-  if(count>=6)return;
-  const row=document.createElement('div');
-  row.style.cssText='display:flex;gap:4px;align-items:center';
-  const inp=document.createElement('input');
-  inp.className='fin mc-url';
-  inp.placeholder=`Clip ${count+1} URL (https://...)`;
-  inp.style.cssText='font-size:'+(prefix==='m'?'.85em':'.8em')+';flex:1';
-  inp.onchange=function(){probeUrl(this)};
-  inp.onpaste=function(){setTimeout(()=>probeUrl(this),100)};
-  const dur=document.createElement('span');
-  dur.className='mc-dur';
-  dur.style.cssText='font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right';
-  const btn=document.createElement('button');
-  btn.className='btn-upload';
-  btn.textContent='▤';
-  btn.onclick=function(){uploadFile(this,'video')};
-  row.appendChild(inp);
-  row.appendChild(dur);
-  row.appendChild(btn);
-  container.appendChild(row);
-}
-async function probeUrl(inp){
-  const url=inp.value.trim();
-  const durSpan=inp.parentElement.querySelector('.mc-dur');
-  if(!durSpan)return;
-  if(!url||!url.startsWith('http')){durSpan.textContent='';updateTotals();return;}
-  durSpan.textContent='⏳';
-  durSpan.style.color='var(--blu)';
-  try{
-    const r=await fetch('/api/probe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
-    const d=await r.json();
-    if(d.duration){
-      const s=d.duration;
-      durSpan.textContent=s>=60?Math.floor(s/60)+'m'+Math.round(s%60)+'s':Math.round(s*10)/10+'s';
-      durSpan.style.color='var(--grn)';
-      durSpan.dataset.dur=s;
+/* Manual clip card system */
+let manClips=[{url:''},{url:''},{url:''}]; // Start with 3 empty slots
+
+function renderManualCards(px){
+  const grid=$(px+'-mclips');
+  if(!grid)return;
+  grid.innerHTML='';
+  manClips.forEach((clip,i)=>{
+    const card=document.createElement('div');
+    card.className='man-card';
+    card.dataset.idx=i;
+    const url=clip.url||'';
+    const hasUrl=url&&url.startsWith('http');
+    let previewHtml='';
+    if(hasUrl){
+      previewHtml=`<video src="${url}" muted loop playsinline onmouseenter="this.play()" onmouseleave="this.pause();this.currentTime=0" ontouchstart="this.paused?this.play():this.pause()"></video>`;
+      if(clip.dur) previewHtml+=`<div class="man-card-badge">${fmtDur(clip.dur)}</div>`;
+      previewHtml+=`<div class="man-card-num">CLIP ${i+1}</div>`;
+      if(manClips.length>1) previewHtml+=`<div class="man-card-rm" onclick="removeClip(${i})">✕</div>`;
     }else{
-      durSpan.textContent='?';durSpan.style.color='var(--red)';durSpan.dataset.dur='';
+      previewHtml=`<div class="man-card-empty" onclick="this.closest('.man-card').querySelector('.man-url').focus()"><span style="font-size:1.5em">▶</span><span>CLIP ${i+1}</span></div>`;
     }
-  }catch(e){durSpan.textContent='✗';durSpan.style.color='var(--red)';durSpan.dataset.dur='';}
+    card.innerHTML=`<div class="man-card-preview">${previewHtml}</div><div class="man-card-bar"><input class="fin man-url mc-url" value="${url}" placeholder="Clip ${i+1} URL" style="flex:1" data-idx="${i}" onchange="onClipUrl(this)" onpaste="setTimeout(()=>onClipUrl(this),100)"><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>`;
+    grid.appendChild(card);
+  });
+}
+function fmtDur(s){return s>=60?Math.floor(s/60)+'m'+Math.round(s%60)+'s':Math.round(s*10)/10+'s';}
+async function onClipUrl(inp){
+  const idx=parseInt(inp.dataset.idx);
+  const url=inp.value.trim();
+  manClips[idx].url=url;
+  manClips[idx].dur=0;
+  // Re-render both grids
+  ['d','m'].forEach(px=>renderManualCards(px));
+  // Probe duration
+  if(url&&url.startsWith('http')){
+    try{
+      const r=await fetch('/api/probe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+      const d=await r.json();
+      if(d.duration){manClips[idx].dur=d.duration;}
+    }catch(e){}
+    ['d','m'].forEach(px=>renderManualCards(px));
+  }
   updateTotals();
 }
+function removeClip(idx){
+  if(manClips.length<=1)return;
+  manClips.splice(idx,1);
+  ['d','m'].forEach(px=>renderManualCards(px));
+  updateTotals();
+}
+function addClipCard(px){
+  if(manClips.length>=6)return;
+  manClips.push({url:''});
+  ['d','m'].forEach(p=>renderManualCards(p));
+}
+function renderVoCard(px){
+  const inp=document.querySelector('#'+px+'-vo-card .man-url');
+  const prev=$(px+'-vo-preview');
+  if(!inp||!prev)return;
+  const url=inp.value.trim();
+  if(url&&url.startsWith('http')){
+    prev.innerHTML=`<audio src="${url}" controls style="width:100%;margin-top:.5em"></audio>`;
+  }else{
+    prev.innerHTML=`<div class="man-card-empty" onclick="document.querySelector('#${px}-vo-card .man-url').focus()"><span style="font-size:1.5em">◎</span><span>Paste URL or upload audio</span></div>`;
+  }
+}
+function renderCtaCard(px){
+  const inp=document.querySelector('#'+px+'-cta-card .man-url');
+  const prev=$(px+'-cta-preview');
+  if(!inp||!prev)return;
+  const url=inp.value.trim();
+  if(url&&url.startsWith('http')){
+    prev.innerHTML=`<video src="${url}" muted loop playsinline onmouseenter="this.play()" onmouseleave="this.pause();this.currentTime=0" ontouchstart="this.paused?this.play():this.pause()" style="width:100%;height:100%;object-fit:cover"></video>`;
+  }else{
+    prev.innerHTML=`<div class="man-card-empty" onclick="document.querySelector('#${px}-cta-card .man-url').focus()"><span style="font-size:1.5em">▶</span><span>End card</span></div>`;
+  }
+}
+// Keep old name for uploadFile compat
+function addClipSlot(prefix){addClipCard(prefix);}
+async function probeUrl(inp){onClipUrl(inp);}
 async function probeVo(inp){
   const url=inp.value.trim();
   const durSpan=inp.parentElement.querySelector('.vo-dur');
@@ -577,12 +647,10 @@ async function probeVo(inp){
 }
 function updateTotals(){
   let clipTotal=0,clipCount=0;
-  document.querySelectorAll('.mc-dur').forEach(el=>{
-    const d=parseFloat(el.dataset.dur);if(d>0){clipTotal+=d;clipCount++;}
-  });
+  manClips.forEach(c=>{if(c.dur>0){clipTotal+=c.dur;clipCount++;}});
   let voTotal=0;
   document.querySelectorAll('.vo-dur').forEach(el=>{
-    const d=parseFloat(el.dataset.dur);if(d>0)voTotal=d;
+    const d=parseFloat(el.dataset.dur);if(d>0&&voTotal===0)voTotal=d;
   });
   ['d','m'].forEach(px=>{
     const bar=$(px+'-mtotals');
@@ -590,11 +658,9 @@ function updateTotals(){
     if(clipCount===0&&voTotal===0){bar.style.display='none';return;}
     bar.style.display='flex';
     const fmt=s=>s>=60?Math.floor(s/60)+'m'+Math.round(s%60)+'s':Math.round(s*10)/10+'s';
-    // Divide by 2 since desktop+mobile both have .mc-dur elements — count only half
-    const realClipTotal=clipTotal/2;const realVo=voTotal/2;
-    $(px+'-mt-clips').textContent='CLIPS: '+fmt(realClipTotal);
-    $(px+'-mt-vo').textContent=realVo>0?'VOICE: '+fmt(realVo):'';
-    const final=realVo>0?realVo:realClipTotal;
+    $(px+'-mt-clips').textContent='CLIPS: '+fmt(clipTotal);
+    $(px+'-mt-vo').textContent=voTotal>0?'VOICE: '+fmt(voTotal):'';
+    const final=voTotal>0?voTotal:clipTotal;
     $(px+'-mt-total').textContent='VIDEO: '+fmt(final);
   });
 }
@@ -606,16 +672,12 @@ async function uploadFile(btn, type){
   input.onchange=async function(){
     const file=input.files[0];
     if(!file)return;
-    // Find the text input next to this button
     const row=btn.parentElement;
-    const textInput=row.querySelector('.mc-url,.mc-vo,.mc-cta');
+    const textInput=row.querySelector('.man-url,.mc-url,.mc-vo,.mc-cta');
     if(!textInput)return;
-    // Show uploading state
     const origText=btn.textContent;
     btn.textContent='⏳';
     btn.classList.add('uploading');
-    textInput.value='uploading...';
-    textInput.style.color='var(--blu)';
     try{
       const form=new FormData();
       form.append('file',file);
@@ -623,22 +685,25 @@ async function uploadFile(btn, type){
       const d=await r.json();
       if(d.url){
         textInput.value=d.url;
-        textInput.style.color='var(--grn)';
         btn.textContent='✓';
-        setTimeout(()=>{btn.textContent=origText;textInput.style.color='';},2000);
-        // Auto-probe for duration
-        if(textInput.classList.contains('mc-url'))probeUrl(textInput);
-        else if(textInput.classList.contains('mc-vo'))probeVo(textInput);
+        setTimeout(()=>btn.textContent=origText,2000);
+        // Trigger the appropriate handler
+        if(textInput.classList.contains('mc-url')){
+          onClipUrl(textInput);
+        }else if(textInput.classList.contains('mc-vo')){
+          probeVo(textInput);
+          ['d','m'].forEach(px=>renderVoCard(px));
+        }else if(textInput.classList.contains('mc-cta')){
+          ['d','m'].forEach(px=>renderCtaCard(px));
+        }
       }else{
         textInput.value='';
-        textInput.style.color='';
         btn.textContent='✗';
         alert(d.error||'Upload failed');
         setTimeout(()=>btn.textContent=origText,2000);
       }
     }catch(e){
       textInput.value='';
-      textInput.style.color='';
       btn.textContent='✗';
       alert('Upload error: '+e.message);
       setTimeout(()=>btn.textContent=origText,2000);
@@ -649,14 +714,10 @@ async function uploadFile(btn, type){
 }
 async function manualRun(){
   if(RN)return;
-  // Gather clip URLs from both desktop and mobile inputs
-  const urls=[];
-  document.querySelectorAll('.mc-url').forEach(inp=>{
-    const v=inp.value.trim();
-    if(v&&v.startsWith('http'))urls.push(v);
-  });
+  // Gather clip URLs from manClips array
+  const urls=manClips.filter(c=>c.url&&c.url.startsWith('http')).map(c=>c.url);
   if(!urls.length){alert('Paste at least 1 video URL');return;}
-  // Gather voiceover URL
+  // Gather voiceover URL (check both d and m inputs)
   let vo='';
   document.querySelectorAll('.mc-vo').forEach(inp=>{
     const v=inp.value.trim();
@@ -882,6 +943,7 @@ async function testAll(){
 /* ═══ INIT ═══ */
 async function init(){
   rP();updThemeBtn();
+  ['d','m'].forEach(px=>renderManualCards(px)); // Init manual clip cards
   try{
     const r=await(await fetch('/api/settings')).json();
     STS.forEach(s=>s.f.forEach(f=>{if(r[f.k]!==undefined)ST[f.k]=r[f.k];else ST[f.k]=f.d;}));
