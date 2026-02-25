@@ -816,10 +816,28 @@ function rSt(){
           ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value">${opts.map(o=>`<option${o==v?' selected':''}>${o}</option>`).join('')}</select></div>`;
         }
       }else if(f.tp==='computed'){
-        const clips=parseInt(ST.clip_count)||3,dur=parseInt(ST.clip_duration)||10,tot=clips*dur,words=parseInt(ST.script_words)||90,vo=Math.round(words/3),diff=tot-vo;
-        const warn=diff<-3?'⚠ Audio may exceed clips by ~'+Math.abs(diff)+'s':diff>10?'⚠ '+diff+'s silence after VO':'✓ Well matched';
-        const wc=Math.abs(diff)>10?'var(--red)':Math.abs(diff)>3?'var(--amb)':'var(--grn)';
-        ff+=`<div class="fi w" style="border:1px solid var(--bd2);padding:8px;background:rgba(227,160,40,.03)"><div style="display:flex;justify-content:space-between"><div style="font-family:var(--f1);font-size:.6em;letter-spacing:.15em;color:var(--txtd)">TIMING ESTIMATE</div><div style="font-family:var(--f1);font-size:1.15em;font-weight:800;color:var(--amb)">${tot}s</div></div><div style="display:flex;justify-content:space-between;margin-top:3px"><div style="font-size:.55em;color:var(--txtdd)">Video: ${clips}×${dur}s = ${tot}s | Voice: ~${vo}s (${words}w)</div><div style="font-size:.55em;color:${wc}">${warn}</div></div><div style="font-size:.5em;color:var(--txtdd);margin-top:4px">ℹ Render auto-adjusts: last clip extends/trims to match actual audio length</div></div>`;
+        const clips=parseInt(ST.clip_count)||3,dur=parseInt(ST.clip_duration)||10,clipTot=clips*dur;
+        const words=parseInt(ST.script_words)||90,voEst=Math.round(words/3);
+        const ctaOn=ST.cta_enabled===true||ST.cta_enabled==='true';
+        const ctaDur=ctaOn?parseFloat(ST.cta_duration||4):0;
+        const finalDur=Math.max(voEst,clipTot)+ctaDur+1;
+        const overflow=voEst-clipTot;
+        let status,sc;
+        if(overflow>dur){status='⚠ Voice overflows clips by '+overflow+'s — consider adding a clip';sc='var(--red)';}
+        else if(overflow>3){status='⚠ CTA will stretch ~'+overflow+'s to cover voice';sc='var(--amb)';}
+        else if(overflow<-10){status='ℹ Clips extend '+Math.abs(overflow)+'s past voice — last frame holds';sc='var(--amb)';}
+        else{status='✓ Well matched';sc='var(--grn)';}
+        ff+=`<div class="fi w" style="border:1px solid var(--bd2);padding:10px;background:rgba(227,160,40,.03)">
+<div style="font-family:var(--f1);font-size:.6em;letter-spacing:.15em;color:var(--txtd);margin-bottom:6px">TIMING BREAKDOWN</div>
+<div style="display:flex;gap:8px;margin-bottom:6px">
+<div style="flex:1;padding:5px;background:var(--bg);border:1px solid var(--bd2);text-align:center"><div style="font-family:var(--f1);font-size:.9em;font-weight:800;color:var(--amb)">${clipTot}s</div><div style="font-size:.5em;color:var(--txtdd);letter-spacing:.1em">CLIPS ${clips}×${dur}s</div></div>
+<div style="flex:1;padding:5px;background:var(--bg);border:1px solid var(--bd2);text-align:center"><div style="font-family:var(--f1);font-size:.9em;font-weight:800;color:var(--blu)">${voEst}s</div><div style="font-size:.5em;color:var(--txtdd);letter-spacing:.1em">VOICE ~${words}w</div></div>
+${ctaDur>0?`<div style="flex:1;padding:5px;background:var(--bg);border:1px solid var(--bd2);text-align:center"><div style="font-family:var(--f1);font-size:.9em;font-weight:800;color:var(--txtd)">${ctaDur}s</div><div style="font-size:.5em;color:var(--txtdd);letter-spacing:.1em">CTA</div></div>`:''}
+<div style="flex:1;padding:5px;background:var(--bg);border:1px solid var(--grn);text-align:center"><div style="font-family:var(--f1);font-size:.9em;font-weight:800;color:var(--grn)">~${Math.round(finalDur)}s</div><div style="font-size:.5em;color:var(--txtdd);letter-spacing:.1em">FINAL</div></div>
+</div>
+<div style="font-size:.55em;color:${sc}">${status}</div>
+<div style="font-size:.45em;color:var(--txtdd);margin-top:3px">Voice dictates length. Clips play naturally, CTA stretches if needed.</div>
+</div>`;
       }else if(f.tp==='slider'){
         const mn=f.min||30,mx=f.max||180,stp=f.step||5,cv=parseInt(v)||f.d,secs=Math.round(cv/3),pct=((cv-mn)/(mx-mn))*100;
         ff+=`<div class="fi w"><div class="fl">${f.l}</div><div style="display:flex;align-items:center;gap:.55em"><input type="range" min="${mn}" max="${mx}" step="${stp}" value="${cv}" class="fin-slider" style="flex:1" oninput="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'" onchange="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'" ontouchmove="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'"><div id="sl_${f.k}" style="min-width:6em;font-family:var(--f1);font-size:.65em;letter-spacing:1px;color:var(--amb);text-align:right">${cv} words ≈ ${secs}s</div></div></div>`;
