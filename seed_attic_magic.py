@@ -540,6 +540,81 @@ else:
 scenes_path.write_text(json.dumps(scenes, indent=2))
 print(f"✓ Created {scenes_path}")
 
+# ═══════════════════════════════════════════════════════════
+# TOPICS (from Airtable export)
+# ═══════════════════════════════════════════════════════════
+import time, random
+from datetime import datetime
+
+TOPICS_RAW = """What's Really Hiding in Your Attic Insulation?	Shocking Revelations
+The Toxic Truth About Old Attic Insulation	Shocking Revelations
+Why Your Attic Is Costing You Thousands Every Year	Shocking Revelations
+Energy Company Secrets They Don't Want You to Know	Shocking Revelations
+This Shocking Insulation Test Changed Everything	Shocking Revelations
+How Contractors REALLY Insulate Attics (Exposed)	Behind-the-Scenes
+What Happens Before Insulation Goes In? You'll Be Shocked	Behind-the-Scenes
+Hidden Costs of Attic Insulation You Never See	Behind-the-Scenes
+Why Most DIY Attic Jobs Fail: Insider Footage	Behind-the-Scenes
+Behind the Attic Walls: What Professionals Keep Quiet	Behind-the-Scenes
+Fiberglass vs Blown in insulation: The Big Insulation Lie	Myths Debunked
+You Don't Need New Insulation? The Myth Exposed	Myths Debunked
+R-Value Is a Scam? Insulation Myths Debunked	Myths Debunked
+Hot Attic in Summer? This Common Tip Doesn't Work	Myths Debunked
+Why More Insulation Might Make Things Worse	Myths Debunked
+No One Talks About This Attic Fire Hazard	Hidden Truths
+The #1 Mistake Every Homeowner Makes in the Attic	Hidden Truths
+Insulation That Attracts Pests? Yes, It Exists	Hidden Truths
+Your Attic Could Be Making You Sick	Hidden Truths
+The Shocking Link Between Attic Air and Allergies	Hidden Truths
+Attic Before vs After: Insulation That Saved $400/mo	Transformations
+Watch This Crumbling Attic Become Energy Efficient	Transformations
+One Day Insulation Transformation—Start to Finish	Transformations
+From Nightmare to Dream Attic in 24 Hours	Transformations
+We Sealed This Attic: See the Stunning Results	Transformations
+Why Blown-In Insulation Is Overrated (And What's Better)	Hot Takes
+Stop Using Fiberglass—Here's Why It's Dangerous	Hot Takes
+Your Energy Bill Isn't High—Your Attic Is Useless	Hot Takes
+Insulating in Summer Is a Waste—Controversial Truth	Hot Takes
+Attic Ventilation Is a Scam? Not Everyone Agrees	Hot Takes"""
+
+topics_path = BRAND_DIR / "topics.json"
+existing_topics = []
+if topics_path.exists():
+    try: existing_topics = json.loads(topics_path.read_text())
+    except: pass
+
+existing_ideas = {t.get("idea", "").lower().strip() for t in existing_topics}
+added = 0
+
+for line in TOPICS_RAW.strip().split("\n"):
+    line = line.strip()
+    if not line or "\t" not in line:
+        continue
+    idea, category = line.rsplit("\t", 1)
+    idea = idea.strip()
+    category = category.strip()
+    if idea.lower() in existing_ideas:
+        continue
+    topic = {
+        "id": f"t_{int(time.time()*1000)}_{random.randint(100,999)}",
+        "idea": idea,
+        "category": category,
+        "scripture": "",
+        "status": "new",
+        "created": datetime.now().isoformat()
+    }
+    existing_topics.append(topic)
+    existing_ideas.add(idea.lower())
+    added += 1
+    time.sleep(0.002)  # ensure unique IDs
+
+if added > 0:
+    topics_path.write_text(json.dumps(existing_topics, indent=2))
+    print(f"✓ Added {added} topics to {topics_path}")
+else:
+    print(f"⏭ All {len(existing_topics)} topics already present")
+
 print(f"\n✅ Attic Magic brand seeded:")
 print(f"   Settings: {len(settings)} keys")
 print(f"   Scenes: {len(scenes['stories'])} stories, {len(scenes['figures'])} figures, {len(scenes['themes'])} themes, {len(scenes['moods'])} moods")
+print(f"   Topics: {len(existing_topics)} total ({added} new)")
