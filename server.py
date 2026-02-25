@@ -72,6 +72,9 @@ def apply_model_settings():
     if s.get("scene_style"):    Config.SCENE_STYLE = s["scene_style"]
     if s.get("scene_camera"):   Config.SCENE_CAMERA = s["scene_camera"]
     if s.get("scene_mood"):     Config.SCENE_MOOD_BIAS = s["scene_mood"]
+    if s.get("scene_story"):    Config.SCENE_STORY = s["scene_story"]
+    if s.get("scene_theme"):    Config.SCENE_THEME = s["scene_theme"]
+    if s.get("scene_figure"):   Config.SCENE_FIGURE = s["scene_figure"]
     # Voice
     if s.get("voice_model"):    Config.VOICE_MODEL = s["voice_model"]
     if s.get("voice_stability"):Config.VOICE_STABILITY = float(s["voice_stability"])

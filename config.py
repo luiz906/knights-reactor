@@ -35,6 +35,9 @@ class Config:
     SCENE_STYLE       = "photorealistic"
     SCENE_CAMERA      = "steady"
     SCENE_MOOD_BIAS   = "auto"
+    SCENE_STORY       = "auto"
+    SCENE_THEME       = "auto"
+    SCENE_FIGURE      = "auto"
     CLIP_COUNT        = 3
     CLIP_DURATION     = 10.0
     VIDEO_TIMEOUT     = 600

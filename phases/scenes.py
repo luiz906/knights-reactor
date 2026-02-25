@@ -163,22 +163,53 @@ def detect_theme(text: str) -> str:
 
 
 def scene_engine(script: dict, topic: dict) -> list:
-    """Generate clip prompt pairs (image + motion). Direct port of Scene Engine v6."""
-    log.info(f"🎬 Phase 3: Scene Engine v6 | Clips: {Config.CLIP_COUNT} | Style: {Config.SCENE_STYLE} | Camera: {Config.SCENE_CAMERA}")
+    """Generate clip prompt pairs (image + motion). Scene Engine v7 — 3 override knobs."""
+    story_override = getattr(Config, 'SCENE_STORY', 'auto')
+    theme_override = getattr(Config, 'SCENE_THEME', 'auto')
+    figure_override = getattr(Config, 'SCENE_FIGURE', 'auto')
+
+    log.info(f"🎬 Phase 3: Scene Engine v7 | Clips: {Config.CLIP_COUNT} | Style: {Config.SCENE_STYLE} | Camera: {Config.SCENE_CAMERA}")
+    log.info(f"   Overrides — Story: {story_override} | Theme: {theme_override} | Figure: {figure_override}")
 
     all_text = " ".join([
         script["hook"], script["build"], script["reveal"],
         script.get("tone", ""), topic.get("category", ""), topic.get("idea", ""),
     ]).lower()
 
-    # Mood: use config bias or auto-detect from script
-    if Config.SCENE_MOOD_BIAS != "auto" and Config.SCENE_MOOD_BIAS in IMAGE_SUFFIXES:
-        theme = Config.SCENE_MOOD_BIAS
-        # Match stories to forced mood
+    # ── STORY SELECTION ─────────────────────────────────────
+    # Priority: forced story > forced theme > mood bias > auto-detect from script
+
+    story = None
+
+    # 1. Forced story seed
+    if story_override and story_override != "auto":
+        # Extract seed name from "the_forge — Blacksmith forge" format
+        seed_name = story_override.split("—")[0].split(" — ")[0].strip()
+        story = next((s for s in STORY_SEEDS if s["name"] == seed_name), None)
+        if story:
+            log.info(f"   Story forced: {story['name']} [{story['mood']}]")
+
+    # 2. Forced theme → pick matching story
+    if not story and theme_override and theme_override != "auto":
+        matching = [s for s in STORY_SEEDS if theme_override in s["themes"]]
+        # Also filter by mood if mood is forced
+        if Config.SCENE_MOOD_BIAS != "auto" and Config.SCENE_MOOD_BIAS in IMAGE_SUFFIXES:
+            mood_match = [s for s in matching if s["mood"] == Config.SCENE_MOOD_BIAS]
+            if mood_match:
+                matching = mood_match
+        if matching:
+            story = pick(matching)
+            log.info(f"   Theme forced: {theme_override} → {story['name']} [{story['mood']}]")
+
+    # 3. Mood bias → pick matching story
+    if not story and Config.SCENE_MOOD_BIAS != "auto" and Config.SCENE_MOOD_BIAS in IMAGE_SUFFIXES:
         matching = [s for s in STORY_SEEDS if s["mood"] == Config.SCENE_MOOD_BIAS]
-        if not matching:
-            matching = STORY_SEEDS
-    else:
+        if matching:
+            story = pick(matching)
+            log.info(f"   Mood forced: {Config.SCENE_MOOD_BIAS} → {story['name']}")
+
+    # 4. Auto-detect from script text
+    if not story:
         theme = detect_theme(all_text)
         if theme == "random":
             matching = STORY_SEEDS
@@ -186,20 +217,24 @@ def scene_engine(script: dict, topic: dict) -> list:
             matching = [s for s in STORY_SEEDS if theme in s["themes"]]
             if not matching:
                 matching = STORY_SEEDS
+        story = pick(matching)
+        log.info(f"   Auto-detect: {theme} → {story['name']} [{story['mood']}]")
 
-    story = pick(matching)
-    figure = pick(FIGURES)
-    # Apply configurable style to image suffix
+    # ── FIGURE SELECTION ────────────────────────────────────
+    if figure_override and figure_override != "auto":
+        figure = f"a {figure_override}"
+    else:
+        figure = pick(FIGURES)
+
+    # ── BUILD CLIPS ─────────────────────────────────────────
     img_suffix = IMAGE_SUFFIXES.get(story["mood"], IMAGE_SUFFIXES["dawn"]).format(style=Config.SCENE_STYLE)
-    # Apply configurable camera to tech suffix
     tech_suffix = CAMERA_STYLES.get(Config.SCENE_CAMERA, CAMERA_STYLES["steady"]) + " 9:16 vertical."
 
     clips = []
     story_clips = story["clips"]
     target_count = Config.CLIP_COUNT
-    # Extend or trim clips to match target count
     while len(story_clips) < target_count:
-        story_clips = story_clips + story["clips"]  # cycle through
+        story_clips = story_clips + story["clips"]
     story_clips = story_clips[:target_count]
 
     for i, clip in enumerate(story_clips):
@@ -211,7 +246,6 @@ def scene_engine(script: dict, topic: dict) -> list:
             "motion_prompt": motion_prompt,
         })
 
-    log.info(f"   Theme: {theme} → Story: {story['name']} [{story['mood']}]")
-    log.info(f"   Figure: {figure[:50]}...")
+    log.info(f"   Final: {story['name']} [{story['mood']}] | Figure: {figure[:50]}...")
     return clips
 
