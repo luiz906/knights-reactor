@@ -9,18 +9,28 @@ import requests
 
 from config import Config, DATA_DIR, log
 
-TOPICS_FILE = DATA_DIR / "topics.json"
+BRANDS_DIR = DATA_DIR / "brands"
+
+def _topics_file():
+    """Get topics file for active brand."""
+    ab_file = DATA_DIR / "active_brand.txt"
+    brand = ab_file.read_text().strip() if ab_file.exists() else "knights"
+    bd = BRANDS_DIR / brand
+    bd.mkdir(exist_ok=True)
+    return bd / "topics.json"
+
 CATEGORIES = ["Shocking Revelations","Shocking Reveal","Behind-the-Scenes","Myths Debunked","Deep Dive Analysis"]
 
 
 def load_topics():
-    if TOPICS_FILE.exists():
-        try: return json.loads(TOPICS_FILE.read_text())
+    f = _topics_file()
+    if f.exists():
+        try: return json.loads(f.read_text())
         except: pass
     return []
 
 def save_topics(topics):
-    TOPICS_FILE.write_text(json.dumps(topics, indent=2))
+    _topics_file().write_text(json.dumps(topics, indent=2))
 
 def add_topic(idea, category, scripture=""):
     topics = load_topics()
@@ -59,10 +69,13 @@ def update_topic_status(topic_id, status, extra=None):
 def generate_topics_ai(count=10):
     """Generate topics via GPT-4o."""
     log.info(f"Generating {count} topics via GPT-4o...")
-    prompt = (f"Generate {count} unique viral short-form video topics for a Christian mens faith channel called Gods Knights. "
-              "The brand voice is a battle-hardened medieval knight speaking to modern men about real daily struggles through scripture and warfare metaphors. "
+    brand_name = getattr(Config, 'BRAND_NAME', 'Content Channel')
+    brand_persona = getattr(Config, 'BRAND_PERSONA', '')
+    brand_themes = getattr(Config, 'BRAND_THEMES', '')
+    prompt = (f"Generate {count} unique viral short-form video topics for a content channel called {brand_name}. "
+              f"Brand persona: {brand_persona or 'A compelling content creator'}. "
+              f"Core themes: {brand_themes or 'Real daily struggles and growth'}. "
               "CATEGORIES: Shocking Revelations, Shocking Reveal, Behind-the-Scenes, Myths Debunked, Deep Dive Analysis. "
-              "Each topic must address a REAL daily battle men face: finances, marriage, temptation, lust, anger, fatherhood, discipline, doubt, purpose, leadership, addiction, laziness, fear. "
               'Return ONLY a JSON array: [{"idea":"topic title","category":"one category","scripture":"verse ref"}]. '
               "Make them provocative and scroll-stopping. No generic churchy language.")
     r = requests.post("https://api.openai.com/v1/chat/completions",

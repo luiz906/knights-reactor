@@ -54,6 +54,12 @@ class Config:
     CTA_ENABLED       = True
     CTA_URL           = env("CTA_URL", "https://pub-8d4a1338211a44a7875ebe6ac8487129.r2.dev/ChristCTA.mp4")
     CTA_DURATION      = 5.0
+    # Brand / Persona
+    BRAND_NAME        = "Knights Reactor"
+    BRAND_PERSONA     = ""   # Loaded from settings
+    BRAND_VOICE       = ""
+    BRAND_THEMES      = ""
+    BRAND_AVOID       = ""
     ON_TT = True; ON_YT = True; ON_IG = True; ON_FB = True
     ON_TW = True; ON_TH = True; ON_PN = False
     SHOTSTACK_KEY     = env("SHOTSTACK_API_KEY")

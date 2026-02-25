@@ -27,18 +27,53 @@ SESSION_TOKEN = secrets.token_hex(32)
 # ─── PERSISTENT STORAGE ──────────────────────────────────────
 DATA_DIR = Path("/var/data") if Path("/var/data").exists() else Path(__file__).parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
-CREDS_FILE = DATA_DIR / "credentials.json"
-SETTINGS_FILE = DATA_DIR / "settings.json"
-RUNS_FILE = DATA_DIR / "runs.json"
+BRANDS_DIR = DATA_DIR / "brands"
+BRANDS_DIR.mkdir(exist_ok=True)
+
+# ─── BRAND SYSTEM ─────────────────────────────────────────────
+ACTIVE_BRAND_FILE = DATA_DIR / "active_brand.txt"
+
+def get_active_brand() -> str:
+    if ACTIVE_BRAND_FILE.exists():
+        return ACTIVE_BRAND_FILE.read_text().strip() or "knights"
+    return "knights"
+
+def set_active_brand(name: str):
+    ACTIVE_BRAND_FILE.write_text(name)
+
+def brand_dir(name: str = None) -> Path:
+    name = name or get_active_brand()
+    d = BRANDS_DIR / name
+    d.mkdir(exist_ok=True)
+    return d
+
+def migrate_legacy_data():
+    """Move existing flat files into default 'knights' brand folder."""
+    bd = brand_dir("knights")
+    for fname in ["credentials.json", "settings.json", "runs.json", "topics.json", "pipeline_checkpoint.json"]:
+        src = DATA_DIR / fname
+        dst = bd / fname
+        if src.exists() and not dst.exists():
+            import shutil
+            shutil.move(str(src), str(dst))
+
+migrate_legacy_data()
+
+def CREDS_FILE():  return brand_dir() / "credentials.json"
+def SETTINGS_FILE(): return brand_dir() / "settings.json"
+def RUNS_FILE():   return brand_dir() / "runs.json"
+def TOPICS_FILE(): return brand_dir() / "topics.json"
 
 def load_json(path, default=None):
-    if path.exists():
-        try: return json.loads(path.read_text())
+    p = path() if callable(path) else path
+    if p.exists():
+        try: return json.loads(p.read_text())
         except: pass
     return default if default is not None else {}
 
 def save_json(path, data):
-    path.write_text(json.dumps(data, indent=2))
+    p = path() if callable(path) else path
+    p.write_text(json.dumps(data, indent=2))
 
 def apply_credentials():
     creds = load_json(CREDS_FILE, {})
@@ -103,12 +138,18 @@ def apply_model_settings():
     # Platforms
     for pk in ["on_tt","on_yt","on_ig","on_fb","on_tw","on_th","on_pn"]:
         if pk in s: setattr(Config, pk.upper(), s[pk] in (True, "true", "True"))
+    # Brand / Persona
+    if s.get("brand_name"):    Config.BRAND_NAME = s["brand_name"]
+    if s.get("brand_persona"): Config.BRAND_PERSONA = s["brand_persona"]
+    if s.get("brand_voice"):   Config.BRAND_VOICE = s["brand_voice"]
+    if s.get("brand_themes"):  Config.BRAND_THEMES = s["brand_themes"]
+    if s.get("brand_avoid"):   Config.BRAND_AVOID = s["brand_avoid"]
 
 apply_credentials()
 apply_model_settings()
 
 # ─── STATE ────────────────────────────────────────────────────
-RUNS = load_json(RUNS_FILE, []) if RUNS_FILE.exists() else []
+RUNS = load_json(RUNS_FILE, []) if RUNS_FILE().exists() else []
 CURRENT_RUN = {"active": False, "result": None, "phase": 0, "phase_name": "", "phases_done": []}
 LOGS = []
 
@@ -166,6 +207,71 @@ def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: l
 # ─── API ──────────────────────────────────────────────────────
 
 # ─── GITHUB AUTO-DEPLOY ──────────────────────────────────────
+# ─── BRAND API ────────────────────────────────────────────────
+@app.get("/api/brands")
+async def list_brands():
+    """List all brands and active brand."""
+    brands = []
+    for d in sorted(BRANDS_DIR.iterdir()):
+        if d.is_dir():
+            s = load_json(d / "settings.json", {})
+            brands.append({
+                "id": d.name,
+                "display_name": s.get("brand_name", d.name.replace("_"," ").title()),
+                "topics": len(load_json(d / "topics.json", [])),
+                "runs": len(load_json(d / "runs.json", [])),
+            })
+    if not brands:
+        # Create default brand
+        brand_dir("knights")
+        brands = [{"id": "knights", "display_name": "Knights Reactor", "topics": 0, "runs": 0}]
+    return {"brands": brands, "active": get_active_brand()}
+
+@app.post("/api/brands/switch")
+async def switch_brand(req: Request):
+    """Switch active brand. Reloads all config."""
+    global RUNS, CURRENT_RUN
+    body = await req.json()
+    name = body.get("brand", "").strip().lower().replace(" ", "_")
+    if not name:
+        return JSONResponse({"error": "Brand name required"}, 400)
+    bd = brand_dir(name)
+    set_active_brand(name)
+    # Reload everything for new brand
+    apply_credentials()
+    apply_model_settings()
+    RUNS = load_json(RUNS_FILE, []) if RUNS_FILE().exists() else []
+    CURRENT_RUN = {"active": False, "result": None, "phase": 0, "phase_name": "", "phases_done": []}
+    return {"status": "switched", "brand": name}
+
+@app.post("/api/brands/create")
+async def create_brand(req: Request):
+    """Create a new brand."""
+    body = await req.json()
+    name = body.get("name", "").strip().lower().replace(" ", "_")
+    display = body.get("display_name", name.replace("_"," ").title())
+    if not name or not name.replace("_","").isalnum():
+        return JSONResponse({"error": "Invalid brand name (letters, numbers, underscores only)"}, 400)
+    bd = brand_dir(name)
+    # Save initial settings with brand name
+    s = load_json(bd / "settings.json", {})
+    s["brand_name"] = display
+    save_json(bd / "settings.json", s)
+    return {"status": "created", "brand": name, "display_name": display}
+
+@app.post("/api/brands/delete")
+async def delete_brand(req: Request):
+    """Delete a brand (cannot delete active brand)."""
+    body = await req.json()
+    name = body.get("brand", "").strip()
+    if name == get_active_brand():
+        return JSONResponse({"error": "Cannot delete active brand. Switch first."}, 400)
+    bd = BRANDS_DIR / name
+    if bd.exists() and bd.is_dir():
+        import shutil
+        shutil.rmtree(bd)
+    return {"status": "deleted", "brand": name}
+
 @app.post("/api/deploy")
 async def deploy_files(req: Request):
     """Accept file updates and commit them to GitHub.
@@ -237,7 +343,7 @@ async def trigger_resume(bg: BackgroundTasks):
     last_result = CURRENT_RUN.get("result", {}) or {}
     # Gate resume: use gate_phase if set, otherwise failed_phase
     resume_phase = last_result.get("gate_phase") or last_result.get("failed_phase", 0)
-    ckpt_path = DATA_DIR / "pipeline_checkpoint.json"
+    ckpt_path = brand_dir() / "pipeline_checkpoint.json"
     if not ckpt_path.exists():
         return JSONResponse({"error": "No checkpoint found — run fresh pipeline instead"}, 400)
     bg.add_task(execute_pipeline, resume_phase)
@@ -329,7 +435,7 @@ async def seed_topics():
 @app.get("/api/prompts")
 async def get_prompts():
     """Return current clips from checkpoint for editing."""
-    ckpt_path = DATA_DIR / "pipeline_checkpoint.json"
+    ckpt_path = brand_dir() / "pipeline_checkpoint.json"
     if not ckpt_path.exists():
         return {"clips": [], "error": "No checkpoint"}
     ckpt = json.loads(ckpt_path.read_text())
@@ -343,7 +449,7 @@ async def save_prompts(req: Request):
     """Save edited prompts to checkpoint as clips_edited."""
     body = await req.json()
     edited_clips = body.get("clips", [])
-    ckpt_path = DATA_DIR / "pipeline_checkpoint.json"
+    ckpt_path = brand_dir() / "pipeline_checkpoint.json"
     if not ckpt_path.exists():
         return JSONResponse({"error": "No checkpoint"}, 400)
     ckpt = json.loads(ckpt_path.read_text())
@@ -356,7 +462,7 @@ async def save_prompts(req: Request):
 @app.get("/api/videos/review")
 async def get_videos_for_review():
     """Return current clips with videos from checkpoint for approval."""
-    ckpt_path = DATA_DIR / "pipeline_checkpoint.json"
+    ckpt_path = brand_dir() / "pipeline_checkpoint.json"
     if not ckpt_path.exists():
         return {"clips": [], "error": "No checkpoint"}
     ckpt = json.loads(ckpt_path.read_text())
@@ -368,7 +474,7 @@ async def approve_videos(req: Request):
     """Mark videos as approved and save to checkpoint."""
     body = await req.json()
     approved_clips = body.get("clips", [])
-    ckpt_path = DATA_DIR / "pipeline_checkpoint.json"
+    ckpt_path = brand_dir() / "pipeline_checkpoint.json"
     if not ckpt_path.exists():
         return JSONResponse({"error": "No checkpoint"}, 400)
     ckpt = json.loads(ckpt_path.read_text())
@@ -381,7 +487,7 @@ async def regen_video(req: Request):
     """Regenerate a single video clip by index."""
     body = await req.json()
     clip_index = body.get("index")
-    ckpt_path = DATA_DIR / "pipeline_checkpoint.json"
+    ckpt_path = brand_dir() / "pipeline_checkpoint.json"
     if not ckpt_path.exists():
         return JSONResponse({"error": "No checkpoint"}, 400)
     ckpt = json.loads(ckpt_path.read_text())

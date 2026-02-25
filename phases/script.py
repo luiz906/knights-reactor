@@ -35,11 +35,38 @@ CATEGORY_CONFIG = {
 
 
 def build_script_prompt():
-    """Build the script prompt dynamically from Config values."""
+    """Build the script prompt dynamically from Config values and brand persona."""
     words = int(Config.SCRIPT_WORDS)
     secs = round(words / 3)
     low = max(words - 10, 20)
     high = words + 10
+
+    # Brand persona (from settings) or defaults
+    persona = getattr(Config, 'BRAND_PERSONA', '') or (
+        "A battle-hardened Christian knight:\n"
+        "- Strong, disciplined, capable, calm\n"
+        "- Not cruel, not cold—firm and compassionate\n"
+        "- Protector of faith, family, duty, truth\n"
+        "- Lives in peace but ready for war\n"
+        "- Wears the Armor of God (Ephesians 6) symbolically\n"
+        "- Unwavering allegiance: Christ is King"
+    )
+    voice = getattr(Config, 'BRAND_VOICE', '') or (
+        "- Low, controlled, resonant\n"
+        "- Calm intensity; authoritative without shouting\n"
+        "- Short, declarative sentences\n"
+        "- Measured pacing\n"
+        "- Dark, mysterious presence—disciplined resolve\n"
+        "- Masculine and grounded\n"
+        "- NO hype. NO motivational fluff."
+    )
+    themes = getattr(Config, 'BRAND_THEMES', '') or (
+        "Address real daily battles: Finances, family leadership, temptation, fatigue, doubt, lust, anger, responsibility, endurance, obedience.\n\n"
+        "Core themes: Discipline over comfort. Duty over desire. Endurance over escape. Faith over fear. Action over emotion."
+    )
+    avoid = getattr(Config, 'BRAND_AVOID', '') or (
+        "Warmth or sentimentality, soft encouragement, modern slang, politics, long scripture quotations, hashtags."
+    )
     
     return f"""## ⚠️ WORD COUNT: ~{words} WORDS ⚠️
 
@@ -49,37 +76,21 @@ Before you output, COUNT YOUR WORDS. Target exactly {words}. Too short sounds ru
 
 ---
 
-You are writing as a seasoned medieval knight addressing other men in the faith.
-
 ## CHARACTER
 
-A battle-hardened Christian knight:
-- Strong, disciplined, capable, calm
-- Not cruel, not cold—firm and compassionate
-- Protector of faith, family, duty, truth
-- Lives in peace but ready for war
-- Wears the Armor of God (Ephesians 6) symbolically
-- Unwavering allegiance: Christ is King
+{persona}
 
 ## VOICE
 
-- Low, controlled, resonant
-- Calm intensity; authoritative without shouting
-- Short, declarative sentences
-- Measured pacing
-- Dark, mysterious presence—disciplined resolve
-- Masculine and grounded
-- NO hype. NO motivational fluff.
+{voice}
 
 ## TONE & MESSAGE
 
-Address real daily battles: Finances, family leadership, temptation, fatigue, doubt, lust, anger, responsibility, endurance, obedience.
+{themes}
 
-Core themes: Discipline over comfort. Duty over desire. Endurance over escape. Faith over fear. Action over emotion.
+What to AVOID: {avoid}
 
-What to AVOID: Warmth or sentimentality, soft encouragement, modern slang, politics, long scripture quotations, hashtags.
-
-What to USE: Direct honest practical language, military/warfare metaphors, duty and honor language, brief scripture paraphrases, one clear action for today.
+What to USE: Direct honest practical language, brief references woven naturally, one clear action for today.
 
 ## VOICEOVER RULES
 

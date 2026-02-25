@@ -38,10 +38,15 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
       - After phase 2 (Scene Engine): pauses for prompt editing (gate="prompts")
       - After phase 4 (Generate Videos): pauses for video approval (gate="videos")
 
-    Checkpoints saved after each phase to DATA_DIR/pipeline_checkpoint.json
+    Checkpoints saved after each phase to brand dir/pipeline_checkpoint.json
     """
     full_manual = bool(manual_clips and manual_voiceover)
-    CHECKPOINT_FILE = str(DATA_DIR / "pipeline_checkpoint.json")
+    # Brand-aware checkpoint
+    _brands_dir = DATA_DIR / "brands"
+    _ab_file = DATA_DIR / "active_brand.txt"
+    _brand = _ab_file.read_text().strip() if _ab_file.exists() else "knights"
+    _bd = _brands_dir / _brand; _bd.mkdir(exist_ok=True)
+    CHECKPOINT_FILE = str(_bd / "pipeline_checkpoint.json")
     start = time.time()
     result = {"status": "running", "phases": [], "error": None}
 
