@@ -382,7 +382,7 @@ body{overflow:auto}
 </div>
 
 <script>
-let RN=false,PH=0,PD=[],ST={},LAST_RESULT=null,GATE=null;
+let RN=false,PH=0,PD=[],ST={},LAST_RESULT=null,GATE=null,SCENE_DATA=null;
 const $=id=>document.getElementById(id);
 const TB=(s)=>{const m={new:'m',processing:'b',executed:'g',published:'g',failed:'r'};const l={new:'NEW',processing:'ACTIVE',executed:'DONE',published:'DONE',failed:'FAIL'};const c=m[(s||'new').toLowerCase()]||'m';return '<span class="bg bg-'+c+'"><span class="bd2"></span>'+(l[(s||'new').toLowerCase()]||s)+'</span>';};
 const B=(s,l)=>{const c={done:'g',running:'b',failed:'r',configured:'g',missing:'r',waiting:'m',gated:'o'}[s]||'m';return`<span class="bg bg-${c}"><span class="bd2"></span>${l||s}</span>`};
@@ -391,7 +391,7 @@ const PHS=[{n:"FETCH TOPIC",a:"LOCAL DB",i:"⬡",d:"~1s"},{n:"GENERATE SCRIPT",a
 const STS=[
 {t:"BRAND",f:[{k:"brand_name",l:"Brand Name",d:"Knights Reactor"},{k:"brand_tagline",l:"Tagline",d:"Biblical content for men of faith"},{k:"brand_persona",l:"Character Persona",tp:"textarea",d:"A battle-hardened Christian knight: Strong, disciplined, capable, calm. Not cruel, not cold—firm and compassionate. Protector of faith, family, duty, truth. Lives in peace but ready for war. Wears the Armor of God (Ephesians 6) symbolically. Unwavering allegiance: Christ is King."},{k:"brand_voice",l:"Voice Description",tp:"textarea",d:"Low, controlled, resonant. Calm intensity; authoritative without shouting. Short, declarative sentences. Measured pacing. Dark, mysterious presence—disciplined resolve. Masculine and grounded. NO hype. NO motivational fluff."},{k:"brand_themes",l:"Core Themes",tp:"textarea",d:"Address real daily battles: Finances, family leadership, temptation, fatigue, doubt, lust, anger, responsibility, endurance, obedience. Discipline over comfort. Duty over desire. Endurance over escape. Faith over fear. Action over emotion."},{k:"brand_avoid",l:"What to Avoid",d:"Warmth or sentimentality, soft encouragement, modern slang, politics, long scripture quotations, hashtags"}]},
 {t:"SCRIPT ENGINE",f:[{k:"script_model",l:"AI Model",tp:"select",o:["gpt-4o","gpt-4o-mini"],d:"gpt-4o"},{k:"script_temp",l:"Temperature",d:"0.85"},{k:"script_words",l:"Script Length",tp:"slider",min:30,max:180,step:5,d:90}]},
-{t:"SCENE ENGINE",f:[{k:"scene_story",l:"Story Seed",tp:"select",o:["auto","last_stand_defeat — Battlefield at dawn","last_man_standing — Ridge overlooking valley","dawn_march — Road to fortress at dawn","outnumbered_ridge — Storm on exposed ridge","vigil_before_battle — Chapel at night","the_watch — Tower battlement at night","the_cliff_prayer — Sea cliff at night","the_long_night — Open field deep night","preparation_ritual — Stone chamber at dawn","the_reflection — Still lake at dawn","the_oath — Open ground sunrise","the_return — Wet grey road","the_grave — Grey sky graveside","crossing_the_river — River crossing","kneeling_in_rain — Storm on stone road","controlled_fury — Violent storm","the_burden — Burning village","the_forge — Blacksmith forge","the_desert — Empty desert","the_shield_wall — Shield wall battle","the_gate — Iron gates in fire"],d:"auto"},{k:"scene_theme",l:"Theme Force",tp:"select",o:["auto","temptation","endurance","doubt","discipline","courage","duty","loss","patience","anger","identity"],d:"auto"},{k:"scene_figure",l:"Figure",tp:"select",o:["auto","battle-scarred knight, dented steel, torn dark cape","lone knight, battered grey steel, mud-stained cape","warrior in blackened steel plate, tattered shredded cape","weary knight in ancient dulled plate, hooded cape","solitary knight in tarnished armor, stained campaign cape"],d:"auto"},{k:"scene_intensity",l:"Intensity",tp:"select",o:["still","measured","dynamic"],d:"measured"},{k:"scene_camera",l:"Camera Style",tp:"select",o:["steady","dynamic","handheld"],d:"steady"},{k:"scene_mood",l:"Mood Lighting",tp:"select",o:["auto","storm","fire","dawn","night","grey","battle"],d:"auto"}]},
+{t:"SCENE ENGINE",f:[{k:"scene_story",l:"Story Seed",tp:"select",o:["auto"],d:"auto",dynamic:"stories"},{k:"scene_theme",l:"Theme Force",tp:"select",o:["auto"],d:"auto",dynamic:"themes"},{k:"scene_figure",l:"Figure",tp:"select",o:["auto"],d:"auto",dynamic:"figures"},{k:"scene_intensity",l:"Intensity",tp:"select",o:["still","measured","dynamic"],d:"measured"},{k:"scene_camera",l:"Camera Style",tp:"select",o:["steady","dynamic","handheld"],d:"steady"},{k:"scene_mood",l:"Mood Lighting",tp:"select",o:["auto"],d:"auto",dynamic:"moods"},{k:"_scene_pack",l:"",tp:"scene_pack"}]},
 {t:"VOICE SYNTH",f:[{k:"voice_id",l:"Voice ID",d:"bwCXcoVxWNYMlC6Esa8u"},{k:"voice_model",l:"Model",tp:"select",o:["eleven_turbo_v2","eleven_multilingual_v2","eleven_monolingual_v1"],d:"eleven_turbo_v2"},{k:"voice_stability",l:"Stability",d:"0.5"},{k:"voice_similarity",l:"Similarity",d:"0.75"},{k:"voice_speed",l:"Speed",d:"1.0"},{k:"voice_style",l:"Style",d:"0.0"}]},
 {t:"IMAGE GENERATION",f:[{k:"image_provider",l:"Provider",tp:"select",o:["replicate"],d:"replicate"},{k:"image_model",l:"Model",tp:"select",o:[],d:"black-forest-labs/flux-1.1-pro",dep:"image_provider"},{k:"image_quality",l:"Quality",tp:"select",o:["low","medium","high"],d:"high"}]},
 {t:"VIDEO GENERATION",f:[{k:"video_provider",l:"Provider",tp:"select",o:["replicate"],d:"replicate"},{k:"video_model",l:"Model",tp:"select",o:[],d:"bytedance/seedance-1-lite",dep:"video_provider"},{k:"clip_count",l:"Clips",tp:"select",o:["2","3","4","5"],d:"3"},{k:"clip_duration",l:"Clip Duration",tp:"select",o:["5","8","10","12","15"],d:"10"},{k:"cta_enabled",l:"CTA End Card",tp:"toggle",d:true},{k:"cta_duration",l:"CTA Duration (sec)",tp:"select",o:["3","4","5","6","8"],d:"5"},{k:"_vid_total",l:"",tp:"computed"},{k:"video_timeout",l:"Timeout (sec)",d:"600"}]},
@@ -880,7 +880,20 @@ function rSt(){
         ff+=`<div class="fi w" style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:.9em;color:var(--wht)">${f.l}</div><button class="tg ${on?'on':'off'}" onclick="event.stopPropagation();ST['${f.k}']=!(ST['${f.k}']===true||ST['${f.k}']==='true');rSt()"><span class="td"></span></button></div>`;
       }else if(f.tp==='select'){
         let opts=f.o;
-        if(f.dep){
+        if(f.dynamic&&SCENE_DATA){
+          // Build options from brand scene data
+          opts=["auto"];
+          if(f.dynamic==='stories'&&SCENE_DATA.stories){
+            SCENE_DATA.stories.forEach(s=>opts.push(s.name+' — '+s.mood));
+          }else if(f.dynamic==='themes'&&SCENE_DATA.themes){
+            Object.keys(SCENE_DATA.themes).forEach(t=>opts.push(t));
+          }else if(f.dynamic==='figures'&&SCENE_DATA.figures){
+            SCENE_DATA.figures.forEach((fig,i)=>opts.push(fig.substring(0,60)));
+          }else if(f.dynamic==='moods'&&SCENE_DATA.moods){
+            Object.keys(SCENE_DATA.moods).forEach(m=>opts.push(m));
+          }
+          ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value">${opts.map(o=>`<option${o==v?' selected':''}>${o}</option>`).join('')}</select></div>`;
+        }else if(f.dep){
           opts=getModels(f.k);
           ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value">${opts.map(o=>`<option value="${o.v}"${o.v==v?' selected':''}>${o.l}</option>`).join('')}</select></div>`;
         }else if(f.k==='image_provider'||f.k==='video_provider'||f.k==='clip_count'||f.k==='clip_duration'){
@@ -914,6 +927,27 @@ ${ctaDur>0?`<div style="flex:1;padding:5px;background:var(--bg);border:1px solid
       }else if(f.tp==='slider'){
         const mn=f.min||30,mx=f.max||180,stp=f.step||5,cv=parseInt(v)||f.d,secs=Math.round(cv/3),pct=((cv-mn)/(mx-mn))*100;
         ff+=`<div class="fi w"><div class="fl">${f.l}</div><div style="display:flex;align-items:center;gap:.55em"><input type="range" min="${mn}" max="${mx}" step="${stp}" value="${cv}" class="fin-slider" style="flex:1" oninput="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'" onchange="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'" ontouchmove="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'"><div id="sl_${f.k}" style="min-width:6em;font-family:var(--f1);font-size:.65em;letter-spacing:1px;color:var(--amb);text-align:right">${cv} words ≈ ${secs}s</div></div></div>`;
+      }else if(f.tp==='scene_pack'){
+        const src=SCENE_DATA?'Brand':'Default (Knights)';
+        const sc=SCENE_DATA&&SCENE_DATA._source==='brand'?'var(--grn)':'var(--txtd)';
+        const nStories=SCENE_DATA?SCENE_DATA.stories.length:0;
+        const nFigs=SCENE_DATA?SCENE_DATA.figures.length:0;
+        const nMoods=SCENE_DATA?Object.keys(SCENE_DATA.moods).length:0;
+        ff+=`<div class="fi w" style="border:1px solid var(--bd2);padding:10px;background:rgba(227,160,40,.03)">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+<div style="font-family:var(--f1);font-size:.6em;letter-spacing:.15em;color:var(--txtd)">SCENE PACK</div>
+<span style="font-size:.55em;color:${sc};letter-spacing:.08em">${src.toUpperCase()}</span>
+</div>
+<div style="display:flex;gap:6px;margin-bottom:8px">
+<div style="flex:1;padding:4px;background:var(--bg);border:1px solid var(--bd2);text-align:center"><div style="font-family:var(--f1);font-size:.85em;font-weight:800;color:var(--amb)">${nStories}</div><div style="font-size:.45em;color:var(--txtdd);letter-spacing:.08em">STORIES</div></div>
+<div style="flex:1;padding:4px;background:var(--bg);border:1px solid var(--bd2);text-align:center"><div style="font-family:var(--f1);font-size:.85em;font-weight:800;color:var(--amb)">${nFigs}</div><div style="font-size:.45em;color:var(--txtdd);letter-spacing:.08em">FIGURES</div></div>
+<div style="flex:1;padding:4px;background:var(--bg);border:1px solid var(--bd2);text-align:center"><div style="font-family:var(--f1);font-size:.85em;font-weight:800;color:var(--amb)">${nMoods}</div><div style="font-size:.45em;color:var(--txtdd);letter-spacing:.08em">MOODS</div></div>
+</div>
+<div style="display:flex;gap:6px">
+<button style="flex:1;padding:6px;background:var(--bg);border:1px solid var(--bd2);color:var(--amb);font-size:.6em;font-family:var(--f1);letter-spacing:.1em;cursor:pointer" onclick="editScenePack()">✎ EDIT JSON</button>
+<button style="flex:1;padding:6px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.6em;font-family:var(--f1);letter-spacing:.1em;cursor:pointer" onclick="seedDefaults()">⬇ SEED DEFAULTS</button>
+</div>
+</div>`;
       }else if(f.tp==='textarea'){
         ff+=`<div class="fi w"><div class="fl">${f.l}</div><textarea class="fin" rows="3" style="resize:vertical;min-height:3em" onchange="ST['${f.k}']=this.value">${v||''}</textarea></div>`;
       }else{
@@ -944,6 +978,68 @@ async function testAll(){
     try{await(await fetch('/api/test-connection',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({service:s})})).json();}catch(e){}
   }
   rH();alert('Done!');
+}
+
+/* ═══ SCENE PACK ═══ */
+async function loadSceneData(){
+  try{
+    const r=await(await fetch('/api/scenes')).json();
+    SCENE_DATA=r.data||null;
+    if(SCENE_DATA)SCENE_DATA._source=r.source;
+  }catch(e){SCENE_DATA=null;}
+}
+
+async function seedDefaults(){
+  if(!confirm('Copy knight default scenes into this brand? This will overwrite any existing brand scenes.'))return;
+  try{
+    await fetch('/api/scenes/seed-defaults',{method:'POST'});
+    await loadSceneData();
+    rSt();
+    alert('Knight defaults seeded into this brand. You can now edit them.');
+  }catch(e){alert('Failed: '+e);}
+}
+
+function editScenePack(){
+  // Open scene JSON editor in a modal-style overlay
+  const json=JSON.stringify(SCENE_DATA||{},null,2);
+  const el=document.createElement('div');
+  el.id='scene-editor-overlay';
+  el.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.85);z-index:9999;display:flex;flex-direction:column;padding:12px';
+  el.innerHTML=`
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+<span style="font-family:var(--f1);font-size:.7em;color:var(--amb);letter-spacing:.15em">SCENE PACK EDITOR</span>
+<div style="display:flex;gap:6px">
+<button onclick="saveScenePack()" style="padding:6px 14px;background:var(--amb);color:var(--bg);border:none;font-family:var(--f1);font-size:.6em;letter-spacing:.15em;cursor:pointer">SAVE</button>
+<button onclick="document.getElementById('scene-editor-overlay').remove()" style="padding:6px 14px;background:var(--bg3);color:var(--red);border:1px solid rgba(224,64,40,.2);font-family:var(--f1);font-size:.6em;letter-spacing:.15em;cursor:pointer">CLOSE</button>
+</div>
+</div>
+<div style="font-size:.55em;color:var(--txtd);margin-bottom:8px">Edit figures, stories, themes, moods. Each story needs: name, themes[], mood, clips[] with 8 fields each.</div>
+<textarea id="scene-json-editor" style="flex:1;width:100%;background:var(--bg);color:var(--amb);border:1px solid var(--bd);font-family:var(--f3);font-size:.75em;padding:10px;resize:none;outline:none;tab-size:2">${escHtml(json)}</textarea>
+<div id="scene-editor-status" style="font-size:.6em;color:var(--txtd);margin-top:6px"></div>`;
+  document.body.appendChild(el);
+  // Tab key support in textarea
+  const ta=document.getElementById('scene-json-editor');
+  ta.addEventListener('keydown',function(e){
+    if(e.key==='Tab'){e.preventDefault();const s=this.selectionStart,end=this.selectionEnd;this.value=this.value.substring(0,s)+'  '+this.value.substring(end);this.selectionStart=this.selectionEnd=s+2;}
+  });
+}
+
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+async function saveScenePack(){
+  const ta=document.getElementById('scene-json-editor');
+  const st=document.getElementById('scene-editor-status');
+  let data;
+  try{data=JSON.parse(ta.value);}catch(e){st.style.color='var(--red)';st.textContent='Invalid JSON: '+e.message;return;}
+  // Validate structure
+  if(!data.stories||!Array.isArray(data.stories)){st.style.color='var(--red)';st.textContent='Missing "stories" array';return;}
+  if(!data.figures||!Array.isArray(data.figures)){st.style.color='var(--red)';st.textContent='Missing "figures" array';return;}
+  try{
+    await fetch('/api/scenes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    st.style.color='var(--grn)';st.textContent='✓ Saved — '+data.stories.length+' stories, '+data.figures.length+' figures';
+    await loadSceneData();
+    rSt();
+  }catch(e){st.style.color='var(--red)';st.textContent='Save failed: '+e;}
 }
 
 /* ═══ INIT ═══ */
@@ -990,6 +1086,7 @@ async function init(){
     const r=await(await fetch('/api/settings')).json();
     STS.forEach(s=>s.f.forEach(f=>{if(r[f.k]!==undefined)ST[f.k]=r[f.k];else ST[f.k]=f.d;}));
   }catch(e){STS.forEach(s=>s.f.forEach(f=>ST[f.k]=f.d));}
+  await loadSceneData();
   rSt();
   try{
     const r=await(await fetch('/api/status')).json();

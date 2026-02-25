@@ -272,6 +272,57 @@ async def delete_brand(req: Request):
         shutil.rmtree(bd)
     return {"status": "deleted", "brand": name}
 
+# ─── SCENE PACK API ──────────────────────────────────────────
+
+@app.get("/api/scenes")
+async def get_scenes():
+    """Get scene pack for the active brand. Returns JSON structure or empty if using defaults."""
+    from phases.scenes import load_brand_scenes, export_default_scenes
+    data = load_brand_scenes()
+    if data:
+        return {"source": "brand", "data": data}
+    return {"source": "default", "data": export_default_scenes()}
+
+@app.post("/api/scenes")
+async def save_scenes(req: Request):
+    """Save scene pack for the active brand."""
+    from phases.scenes import save_brand_scenes
+    body = await req.json()
+    save_brand_scenes(body)
+    return {"status": "saved", "stories": len(body.get("stories", [])), "figures": len(body.get("figures", []))}
+
+@app.post("/api/scenes/seed-defaults")
+async def seed_default_scenes():
+    """Copy the hardcoded knight defaults into the active brand's scenes.json (for editing)."""
+    from phases.scenes import export_default_scenes, save_brand_scenes
+    data = export_default_scenes()
+    save_brand_scenes(data)
+    return {"status": "seeded", "stories": len(data["stories"]), "figures": len(data["figures"])}
+
+@app.get("/api/scenes/summary")
+async def scenes_summary():
+    """Quick summary of the active brand's scene pack."""
+    from phases.scenes import load_brand_scenes, STORY_SEEDS, FIGURES
+    data = load_brand_scenes()
+    if data:
+        stories = data.get("stories", [])
+        return {
+            "source": "brand",
+            "stories": len(stories),
+            "figures": len(data.get("figures", [])),
+            "moods": list(data.get("moods", {}).keys()),
+            "themes": list(data.get("themes", {}).keys()),
+            "story_names": [s["name"] for s in stories],
+        }
+    return {
+        "source": "default (knights)",
+        "stories": len(STORY_SEEDS),
+        "figures": len(FIGURES),
+        "moods": ["storm", "fire", "dawn", "night", "grey", "battle"],
+        "themes": ["temptation", "endurance", "doubt", "discipline", "courage", "duty", "loss", "patience", "anger", "identity"],
+        "story_names": [s["name"] for s in STORY_SEEDS],
+    }
+
 @app.post("/api/deploy")
 async def deploy_files(req: Request):
     """Accept file updates and commit them to GitHub.

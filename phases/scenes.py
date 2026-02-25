@@ -1,11 +1,71 @@
 """
-Knights Reactor — Scene Engine v6
-Structured slot system: story seeds, theme detection, clip prompt generation.
+Content Reactor — Scene Engine v8
+Per-brand scene packs: each brand has its own figures, stories, moods, themes.
+Falls back to hardcoded knight defaults if no brand scenes.json exists.
 """
-import random
+import json, random
+from pathlib import Path
 from config import Config, log
 
 pick = lambda arr: random.choice(arr)
+
+
+# ─── BRAND SCENE LOADER ──────────────────────────────────────
+
+def _brand_scenes_path() -> Path:
+    """Get the scenes.json path for the active brand."""
+    from server import brand_dir
+    return brand_dir() / "scenes.json"
+
+
+def load_brand_scenes() -> dict | None:
+    """Load scenes.json for the active brand. Returns None if not found."""
+    path = _brand_scenes_path()
+    if path.exists():
+        try:
+            data = json.loads(path.read_text())
+            log.info(f"   🎭 Brand scenes loaded: {path} ({len(data.get('stories', []))} stories, {len(data.get('figures', []))} figures)")
+            return data
+        except Exception as e:
+            log.warning(f"   Failed to load brand scenes: {e}")
+    return None
+
+
+def save_brand_scenes(data: dict):
+    """Save scenes.json for the active brand."""
+    path = _brand_scenes_path()
+    path.write_text(json.dumps(data, indent=2))
+    log.info(f"   Scenes saved to {path}")
+
+
+def export_default_scenes() -> dict:
+    """Export the hardcoded knight scene data as a dict (for seeding new brands)."""
+    return {
+        "figures": list(FIGURES),
+        "themes": dict(THEME_KEYWORDS),
+        "moods": dict(IMAGE_SUFFIXES),
+        "intensity": dict(INTENSITY_MODIFIERS),
+        "cameras": dict(CAMERA_STYLES),
+        "stories": list(STORY_SEEDS),
+    }
+
+
+def get_scene_data() -> tuple:
+    """Get scene data for the active brand.
+    Returns (figures, themes, moods, intensity, cameras, stories).
+    Tries brand scenes.json first, falls back to hardcoded knights.
+    """
+    brand = load_brand_scenes()
+    if brand:
+        figures   = brand.get("figures", FIGURES)
+        themes    = brand.get("themes", THEME_KEYWORDS)
+        moods     = brand.get("moods", IMAGE_SUFFIXES)
+        intensity = brand.get("intensity", INTENSITY_MODIFIERS)
+        cameras   = brand.get("cameras", CAMERA_STYLES)
+        stories   = brand.get("stories", STORY_SEEDS)
+        return figures, themes, moods, intensity, cameras, stories
+    # Fallback: hardcoded knight defaults
+    return FIGURES, THEME_KEYWORDS, IMAGE_SUFFIXES, INTENSITY_MODIFIERS, CAMERA_STYLES, STORY_SEEDS
 
 THEME_KEYWORDS = {
     "temptation": ["tempt","lust","desire","flesh","crave","hunger","pull","urge","resist","want","pleasure","indulge","forbidden"],
@@ -160,22 +220,27 @@ STORY_SEEDS = [
 ]
 
 
-def detect_theme(text: str) -> str:
+def detect_theme(text: str, theme_keywords: dict = None) -> str:
+    kw = theme_keywords or THEME_KEYWORDS
     scores = {}
-    for theme, keywords in THEME_KEYWORDS.items():
-        scores[theme] = sum(1 for kw in keywords if kw in text)
+    for theme, keywords in kw.items():
+        scores[theme] = sum(1 for k in keywords if k in text)
     best = max(scores, key=scores.get)
     return best if scores[best] > 0 else "random"
 
 
 def scene_engine(script: dict, topic: dict) -> list:
-    """Generate clip prompt pairs (image + motion). Scene Engine v7 — 3 override knobs."""
+    """Generate clip prompt pairs (image + motion). Scene Engine v8 — per-brand scenes."""
     story_override = getattr(Config, 'SCENE_STORY', 'auto')
     theme_override = getattr(Config, 'SCENE_THEME', 'auto')
     figure_override = getattr(Config, 'SCENE_FIGURE', 'auto')
 
-    log.info(f"🎬 Phase 3: Scene Engine v7 | Clips: {Config.CLIP_COUNT} | Intensity: {getattr(Config, 'SCENE_INTENSITY', 'measured')} | Camera: {Config.SCENE_CAMERA}")
+    # ── LOAD BRAND SCENES ───────────────────────────────────
+    figures, theme_keywords, moods, intensity_mods, cameras, stories = get_scene_data()
+
+    log.info(f"🎬 Phase 3: Scene Engine v8 | Clips: {Config.CLIP_COUNT} | Intensity: {getattr(Config, 'SCENE_INTENSITY', 'measured')} | Camera: {Config.SCENE_CAMERA}")
     log.info(f"   Overrides — Story: {story_override} | Theme: {theme_override} | Figure: {figure_override}")
+    log.info(f"   Brand pack: {len(stories)} stories, {len(figures)} figures, {len(moods)} moods")
 
     all_text = " ".join([
         script["hook"], script["build"], script["reveal"],
@@ -183,23 +248,19 @@ def scene_engine(script: dict, topic: dict) -> list:
     ]).lower()
 
     # ── STORY SELECTION ─────────────────────────────────────
-    # Priority: forced story > forced theme > mood bias > auto-detect from script
-
     story = None
 
     # 1. Forced story seed
     if story_override and story_override != "auto":
-        # Extract seed name from "the_forge — Blacksmith forge" format
         seed_name = story_override.split("—")[0].split(" — ")[0].strip()
-        story = next((s for s in STORY_SEEDS if s["name"] == seed_name), None)
+        story = next((s for s in stories if s["name"] == seed_name), None)
         if story:
             log.info(f"   Story forced: {story['name']} [{story['mood']}]")
 
     # 2. Forced theme → pick matching story
     if not story and theme_override and theme_override != "auto":
-        matching = [s for s in STORY_SEEDS if theme_override in s["themes"]]
-        # Also filter by mood if mood is forced
-        if Config.SCENE_MOOD_BIAS != "auto" and Config.SCENE_MOOD_BIAS in IMAGE_SUFFIXES:
+        matching = [s for s in stories if theme_override in s["themes"]]
+        if Config.SCENE_MOOD_BIAS != "auto" and Config.SCENE_MOOD_BIAS in moods:
             mood_match = [s for s in matching if s["mood"] == Config.SCENE_MOOD_BIAS]
             if mood_match:
                 matching = mood_match
@@ -208,21 +269,21 @@ def scene_engine(script: dict, topic: dict) -> list:
             log.info(f"   Theme forced: {theme_override} → {story['name']} [{story['mood']}]")
 
     # 3. Mood bias → pick matching story
-    if not story and Config.SCENE_MOOD_BIAS != "auto" and Config.SCENE_MOOD_BIAS in IMAGE_SUFFIXES:
-        matching = [s for s in STORY_SEEDS if s["mood"] == Config.SCENE_MOOD_BIAS]
+    if not story and Config.SCENE_MOOD_BIAS != "auto" and Config.SCENE_MOOD_BIAS in moods:
+        matching = [s for s in stories if s["mood"] == Config.SCENE_MOOD_BIAS]
         if matching:
             story = pick(matching)
             log.info(f"   Mood forced: {Config.SCENE_MOOD_BIAS} → {story['name']}")
 
     # 4. Auto-detect from script text
     if not story:
-        theme = detect_theme(all_text)
+        theme = detect_theme(all_text, theme_keywords)
         if theme == "random":
-            matching = STORY_SEEDS
+            matching = stories
         else:
-            matching = [s for s in STORY_SEEDS if theme in s["themes"]]
+            matching = [s for s in stories if theme in s["themes"]]
             if not matching:
-                matching = STORY_SEEDS
+                matching = stories
         story = pick(matching)
         log.info(f"   Auto-detect: {theme} → {story['name']} [{story['mood']}]")
 
@@ -230,13 +291,13 @@ def scene_engine(script: dict, topic: dict) -> list:
     if figure_override and figure_override != "auto":
         figure = f"a {figure_override}"
     else:
-        figure = pick(FIGURES)
+        figure = pick(figures)
 
     # ── BUILD CLIPS ─────────────────────────────────────────
-    img_suffix = IMAGE_SUFFIXES.get(story["mood"], IMAGE_SUFFIXES["dawn"])
+    img_suffix = moods.get(story["mood"], list(moods.values())[0] if moods else "9:16 vertical.")
     intensity = getattr(Config, 'SCENE_INTENSITY', 'measured')
-    intensity_mod = INTENSITY_MODIFIERS.get(intensity, INTENSITY_MODIFIERS["measured"])
-    tech_suffix = CAMERA_STYLES.get(Config.SCENE_CAMERA, CAMERA_STYLES["steady"]) + " " + intensity_mod + " 9:16 vertical."
+    intensity_mod = intensity_mods.get(intensity, list(intensity_mods.values())[0] if intensity_mods else "")
+    tech_suffix = cameras.get(Config.SCENE_CAMERA, list(cameras.values())[0] if cameras else "Steady camera.") + " " + intensity_mod + " 9:16 vertical."
 
     clips = []
     story_clips = story["clips"]
