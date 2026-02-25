@@ -13,7 +13,7 @@ import json, os, time, uuid, threading, re, logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 import requests
@@ -22,7 +22,7 @@ import boto3
 from config import Config, DATA_DIR, log
 
 glog = logging.getLogger("graphics")
-gfx_app = FastAPI(title="Graphics Engine")
+router = APIRouter(prefix="/graphics", tags=["graphics"])
 
 # ─── STORAGE ──────────────────────────────────────────────────
 BRANDS_DIR = DATA_DIR / "brands"
@@ -387,11 +387,11 @@ def build_graphics_prompt(quote_text: str, brand: dict = None) -> str:
 # ─── INDIVIDUAL PHASE ENDPOINTS ──────────────────────────────
 # Each phase is its own API call so the UI controls the flow
 
-@gfx_app.get("/api/brands")
+@router.get("/api/brands")
 async def api_brands():
     return get_brands()
 
-@gfx_app.get("/api/topics/{brand_id}")
+@router.get("/api/topics/{brand_id}")
 async def api_get_topics(brand_id: str):
     """Get topics list from shared brand topics.json."""
     bd = BRANDS_DIR / brand_id
@@ -404,7 +404,7 @@ async def api_get_topics(brand_id: str):
         topics = []
     return {"topics": topics, "total": len(topics), "new": sum(1 for t in topics if t.get("status") == "new")}
 
-@gfx_app.post("/api/phase/topic")
+@router.post("/api/phase/topic")
 async def api_phase_topic(req: Request):
     """Pick a random new topic from the shared topics list, or generate one via AI."""
     body = await req.json()
@@ -436,7 +436,7 @@ async def api_phase_topic(req: Request):
     except Exception as e:
         return JSONResponse({"error": str(e)}, 500)
 
-@gfx_app.post("/api/phase/quote")
+@router.post("/api/phase/quote")
 async def api_phase_quote(req: Request):
     """Generate graphic copy from topic (ported from n8n Graphic Copy1 node)."""
     body = await req.json()
@@ -461,7 +461,7 @@ async def api_phase_quote(req: Request):
     except Exception as e:
         return JSONResponse({"error": str(e)}, 500)
 
-@gfx_app.post("/api/phase/prompt")
+@router.post("/api/phase/prompt")
 async def api_phase_prompt(req: Request):
     """Build a photorealistic lettering image prompt via Scene Engine."""
     body = await req.json()
@@ -475,7 +475,7 @@ async def api_phase_prompt(req: Request):
     except Exception as e:
         return JSONResponse({"error": str(e)}, 500)
 
-@gfx_app.post("/api/phase/image")
+@router.post("/api/phase/image")
 async def api_phase_image(req: Request):
     """Generate the image. Returns job_id for polling."""
     body = await req.json()
@@ -507,12 +507,12 @@ async def api_phase_image(req: Request):
 
 JOBS = {}
 
-@gfx_app.get("/api/phase/image/{job_id}")
+@router.get("/api/phase/image/{job_id}")
 async def api_poll_image(job_id: str):
     """Poll image generation status."""
     return JOBS.get(job_id, {"status": "unknown"})
 
-@gfx_app.post("/api/phase/captions")
+@router.post("/api/phase/captions")
 async def api_phase_captions(req: Request):
     """Generate platform captions (ported from n8n Generate Caption1 node)."""
     body = await req.json()
@@ -553,7 +553,7 @@ async def api_phase_captions(req: Request):
     except Exception as e:
         return JSONResponse({"error": str(e)}, 500)
 
-@gfx_app.post("/api/save")
+@router.post("/api/save")
 async def api_save(req: Request):
     """Save completed post to gallery."""
     body = await req.json()
@@ -577,7 +577,7 @@ async def api_save(req: Request):
     return {"status": "saved", "id": entry["id"]}
 
 
-@gfx_app.post("/api/publish")
+@router.post("/api/publish")
 async def api_publish(req: Request):
     """Publish image + captions to platforms via Blotato."""
     body = await req.json()
@@ -662,11 +662,11 @@ async def api_publish(req: Request):
     ok_count = sum(1 for r in results.values() if r.get("ok"))
     return {"status": "published", "results": results, "ok_count": ok_count, "total": len(platforms)}
 
-@gfx_app.get("/api/gallery")
+@router.get("/api/gallery")
 async def api_gallery():
     return load_json(GFX_GALLERY_FILE, [])[:100]
 
-@gfx_app.delete("/api/gallery/{item_id}")
+@router.delete("/api/gallery/{item_id}")
 async def api_del_gallery(item_id: str):
     g = load_json(GFX_GALLERY_FILE, [])
     save_json(GFX_GALLERY_FILE, [x for x in g if x.get("id") != item_id])
@@ -674,7 +674,7 @@ async def api_del_gallery(item_id: str):
 
 
 # ─── DASHBOARD ────────────────────────────────────────────────
-@gfx_app.get("/", response_class=HTMLResponse)
+@router.get("/", response_class=HTMLResponse)
 async def gfx_page():
     return GFX_HTML
 
