@@ -4,7 +4,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#08080a;--bg2:#0c0c10;--bg3:#111118;--panel:#0d0d12;--bd:rgba(227,160,40,.12);--bd2:rgba(227,160,40,.06);--amb:#e3a028;--amb2:#c88a1a;--amblo:rgba(227,160,40,.05);--txt:#e3a028;--txtd:#7a5a18;--txtdd:#3a2a08;--grn:#28e060;--grn2:rgba(40,224,96,.08);--red:#e04028;--red2:rgba(224,64,40,.08);--blu:#28a0e0;--blu2:rgba(40,160,224,.08);--wht:#c8c0a8;--f1:'Orbitron',monospace;--f2:'Rajdhani',sans-serif;--f3:'Share Tech Mono',monospace}
-html.light{--bg:#f0ece4;--bg2:#e8e2d8;--bg3:#ddd6c8;--panel:#f5f1ea;--bd:rgba(140,100,20,.18);--bd2:rgba(140,100,20,.1);--amb:#8a6010;--amb2:#6e4c0c;--amblo:rgba(140,100,20,.06);--txt:#8a6010;--txtd:#a0884a;--txtdd:#c4b898;--grn:#1a8a3a;--grn2:rgba(26,138,58,.08);--red:#c03020;--red2:rgba(192,48,32,.08);--blu:#1870b0;--blu2:rgba(24,112,176,.08);--wht:#3a3428}
+html.light{--bg:#ede8de;--bg2:#e4ded2;--bg3:#d8d0c0;--panel:#f2eee6;--bd:rgba(120,80,10,.22);--bd2:rgba(120,80,10,.14);--amb:#7a5208;--amb2:#5e3e04;--amblo:rgba(120,80,10,.08);--txt:#7a5208;--txtd:#6a4a10;--txtdd:#8a7a58;--grn:#157830;--grn2:rgba(21,120,48,.1);--red:#b02818;--red2:rgba(176,40,24,.1);--blu:#1060a0;--blu2:rgba(16,96,160,.1);--wht:#2a2418}
 html.light select.fin option{background:var(--panel);color:var(--amb)}
 html.light .login-box{box-shadow:0 2px 20px rgba(0,0,0,.08)}
 html.light .sb-exec{color:#fff}
@@ -173,36 +173,37 @@ body{overflow:auto}
 <div class="dcontent">
 
 <div class="dpage on" id="dp-pipeline">
+<!-- Action Bar -->
+<div style="display:flex;gap:6px;margin-bottom:10px">
+<button id="d-rb2" onclick="runNow()" style="flex:1;padding:.7em;background:var(--amb);border:none;color:var(--bg);font-family:var(--f1);font-size:.65em;font-weight:600;letter-spacing:.15em;box-shadow:0 0 8px rgba(227,160,40,.2)">▶ EXECUTE</button>
+<button onclick="manualRun()" style="flex:1;padding:.7em;background:rgba(40,224,96,.08);border:1px solid rgba(40,224,96,.2);color:var(--grn);font-family:var(--f1);font-size:.65em;font-weight:600;letter-spacing:.15em">◈ MANUAL RUN</button>
+<button onclick="scriptOnly()" style="flex:1;padding:.7em;background:rgba(40,160,224,.06);border:1px solid rgba(40,160,224,.15);color:var(--blu);font-family:var(--f1);font-size:.65em;font-weight:600;letter-spacing:.15em">✎ SCRIPT ONLY</button>
+<button class="sb-res" id="d-rsb2" onclick="resumeNow()" style="flex:1;padding:.7em;font-family:var(--f1);font-size:.65em;letter-spacing:.15em;color:var(--amb);background:none;border:1px solid var(--bd);display:none">♻ RESUME</button>
+</div>
 <div id="d-gate"></div>
 <div class="g4" id="d-stats" style="margin-bottom:12px"></div>
 <!-- Manual Upload Section -->
 <div class="sec" id="d-manual-sec">
 <button class="sec-h" onclick="document.getElementById('d-manual-body').classList.toggle('shut');this.querySelector('.sec-a').style.transform=document.getElementById('d-manual-body').classList.contains('shut')?'':'rotate(90deg)'">
-<span class="sec-t">📦 MANUAL UPLOAD</span><span class="sec-a">›</span></button>
+<span class="sec-t">◈ MANUAL UPLOAD</span><span class="sec-a">›</span></button>
 <div class="sec-b shut" id="d-manual-body" style="display:block;padding:1em 1.2em">
 <div style="font-size:.65em;color:var(--txtd);margin-bottom:.6em;letter-spacing:.08em">Upload files or paste URLs. With voiceover = fully free run (~$0.02).</div>
 <div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.15em;margin-bottom:4px">VIDEO CLIPS</div>
 <div id="d-mclips" style="display:flex;flex-direction:column;gap:6px">
-<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 1 URL (https://...)" style="font-size:.8em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
-<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 2 URL (https://...)" style="font-size:.8em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
-<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 3 URL (https://...)" style="font-size:.8em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
+<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 1 URL (https://...)" style="font-size:.8em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>
+<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 2 URL (https://...)" style="font-size:.8em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>
+<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 3 URL (https://...)" style="font-size:.8em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>
 </div>
 <div id="d-mtotals" style="display:none;margin-top:6px;padding:6px 8px;background:rgba(227,160,40,.04);border:1px solid var(--bd2);font-family:var(--f1);font-size:.6em;color:var(--amb);letter-spacing:.1em;display:flex;justify-content:space-between"><span id="d-mt-clips"></span><span id="d-mt-vo" style="color:var(--blu)"></span><span id="d-mt-total" style="color:var(--grn)"></span></div>
 <button onclick="addClipSlot('d')" style="width:100%;padding:4px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.6em;letter-spacing:.1em;margin-top:4px">+ ADD CLIP</button>
 <div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.15em;margin:10px 0 4px">VOICEOVER (OPTIONAL)</div>
-<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-vo" placeholder="Voiceover audio URL (mp3/wav/m4a)" style="font-size:.8em;flex:1" onchange="probeVo(this)" onpaste="setTimeout(()=>probeVo(this),100)"><span class="vo-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'audio')">📁</button></div>
+<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-vo" placeholder="Voiceover audio URL (mp3/wav/m4a)" style="font-size:.8em;flex:1" onchange="probeVo(this)" onpaste="setTimeout(()=>probeVo(this),100)"><span class="vo-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'audio')">▤</button></div>
 <div style="font-size:.55em;color:var(--txtdd);margin-top:3px">With voiceover: skips ALL AI generation. Whisper transcribes → GPT generates title & captions.</div>
 <div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.15em;margin:10px 0 4px">CTA CLIP (OPTIONAL)</div>
-<div style="display:flex;gap:4px"><input class="fin mc-cta" placeholder="CTA clip URL (end card video/image)" style="font-size:.8em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
+<div style="display:flex;gap:4px"><input class="fin mc-cta" placeholder="CTA clip URL (end card video/image)" style="font-size:.8em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>
 <div style="font-size:.55em;color:var(--txtdd);margin-top:3px">Plays at the end of the video. Leave empty to use default from settings.</div>
-<div style="display:flex;gap:6px;margin-top:10px">
-<button onclick="manualRun()" style="flex:1;padding:8px;background:rgba(40,224,96,.08);border:1px solid rgba(40,224,96,.2);color:var(--grn);font-family:var(--f1);font-size:.65em;font-weight:600;letter-spacing:.15em">📦 MANUAL RUN</button>
-</div>
 </div></div>
-<!-- Script Only -->
-<div style="margin-bottom:6px">
-<button onclick="scriptOnly()" style="width:100%;padding:.7em;background:rgba(40,160,224,.06);border:1px solid rgba(40,160,224,.15);color:var(--blu);font-family:var(--f1);font-size:.6em;font-weight:600;letter-spacing:.15em">📝 SCRIPT ONLY — Generate script for next topic</button>
-</div>
+<!-- Script Only Result -->
 <div id="d-script-result" class="hd" style="background:var(--panel);border:1px solid var(--bd2);padding:1em;margin-bottom:6px">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5em"><span style="font-family:var(--f1);font-size:.6em;color:var(--amb);letter-spacing:.15em" id="d-scr-title"></span><button onclick="$('d-script-result').classList.add('hd')" style="background:none;border:none;color:var(--txtd);font-size:.8em">✕</button></div>
 <div id="d-scr-text" style="font-size:.8em;color:var(--wht);line-height:1.7;margin-bottom:.7em"></div>
@@ -268,31 +269,36 @@ body{overflow:auto}
 </div>
 <div class="mcont">
 
-<div class="mpage on" id="mp-pipeline"><div id="m-gate"></div>
+<div class="mpage on" id="mp-pipeline">
+<!-- Action Bar -->
+<div style="display:flex;gap:5px;margin-bottom:8px">
+<button id="m-rb2" onclick="runNow()" style="flex:1;padding:.7em;background:var(--amb);border:none;color:var(--bg);font-family:var(--f1);font-size:.55em;font-weight:600;letter-spacing:.1em;min-height:2.8em">▶ EXECUTE</button>
+<button onclick="manualRun()" style="flex:1;padding:.7em;background:rgba(40,224,96,.08);border:1px solid rgba(40,224,96,.2);color:var(--grn);font-family:var(--f1);font-size:.55em;font-weight:600;letter-spacing:.1em;min-height:2.8em">◈ MANUAL</button>
+<button onclick="scriptOnly()" style="flex:1;padding:.7em;background:rgba(40,160,224,.06);border:1px solid rgba(40,160,224,.15);color:var(--blu);font-family:var(--f1);font-size:.55em;font-weight:600;letter-spacing:.1em;min-height:2.8em">✎ SCRIPT</button>
+</div>
+<div id="m-gate"></div>
 <!-- Manual Upload Section Mobile -->
 <div class="sec" style="margin-bottom:6px">
 <button class="sec-h" onclick="document.getElementById('m-manual-body').classList.toggle('shut');this.querySelector('.sec-a').style.transform=document.getElementById('m-manual-body').classList.contains('shut')?'':'rotate(90deg)'">
-<span class="sec-t">📦 MANUAL UPLOAD</span><span class="sec-a">›</span></button>
+<span class="sec-t">◈ MANUAL UPLOAD</span><span class="sec-a">›</span></button>
 <div class="sec-b shut" id="m-manual-body" style="display:block;padding:.7em">
 <div style="font-size:.6em;color:var(--txtd);margin-bottom:.5em">Upload files or paste URLs for fully free run</div>
 <div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.12em;margin-bottom:3px">VIDEO CLIPS</div>
 <div id="m-mclips" style="display:flex;flex-direction:column;gap:5px">
-<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 1 URL" style="font-size:.85em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
-<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 2 URL" style="font-size:.85em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
-<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 3 URL" style="font-size:.85em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
+<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 1 URL" style="font-size:.85em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>
+<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 2 URL" style="font-size:.85em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>
+<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-url" placeholder="Clip 3 URL" style="font-size:.85em;flex:1" onchange="probeUrl(this)" onpaste="setTimeout(()=>probeUrl(this),100)"><span class="mc-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>
 </div>
 <div id="m-mtotals" style="display:none;margin-top:5px;padding:5px 6px;background:rgba(227,160,40,.04);border:1px solid var(--bd2);font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.1em;display:flex;justify-content:space-between"><span id="m-mt-clips"></span><span id="m-mt-vo" style="color:var(--blu)"></span><span id="m-mt-total" style="color:var(--grn)"></span></div>
 <button onclick="addClipSlot('m')" style="width:100%;padding:6px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.6em;margin-top:4px">+ ADD CLIP</button>
 <div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.12em;margin:8px 0 3px">VOICEOVER (OPTIONAL)</div>
-<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-vo" placeholder="Voiceover audio URL" style="font-size:.85em;flex:1" onchange="probeVo(this)" onpaste="setTimeout(()=>probeVo(this),100)"><span class="vo-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'audio')">📁</button></div>
+<div style="display:flex;gap:4px;align-items:center"><input class="fin mc-vo" placeholder="Voiceover audio URL" style="font-size:.85em;flex:1" onchange="probeVo(this)" onpaste="setTimeout(()=>probeVo(this),100)"><span class="vo-dur" style="font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right"></span><button class="btn-upload" onclick="uploadFile(this,'audio')">▤</button></div>
 <div style="font-size:.5em;color:var(--txtdd);margin-top:2px">With VO: skips all AI gen. Whisper + GPT only (~$0.02)</div>
 <div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.12em;margin:8px 0 3px">CTA CLIP (OPTIONAL)</div>
-<div style="display:flex;gap:4px"><input class="fin mc-cta" placeholder="CTA clip URL (end card)" style="font-size:.85em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
+<div style="display:flex;gap:4px"><input class="fin mc-cta" placeholder="CTA clip URL (end card)" style="font-size:.85em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">▤</button></div>
 <div style="font-size:.5em;color:var(--txtdd);margin-top:2px">End card video/image. Leave empty for default.</div>
-<button onclick="manualRun()" style="width:100%;padding:10px;background:rgba(40,224,96,.08);border:1px solid rgba(40,224,96,.2);color:var(--grn);font-family:var(--f1);font-size:.6em;font-weight:600;letter-spacing:.12em;min-height:3em;margin-top:8px">📦 MANUAL RUN</button>
 </div></div>
-<!-- Script Only -->
-<button onclick="scriptOnly()" style="width:100%;padding:10px;background:rgba(40,160,224,.06);border:1px solid rgba(40,160,224,.15);color:var(--blu);font-family:var(--f1);font-size:.6em;font-weight:600;letter-spacing:.12em;min-height:3em;margin-bottom:6px">📝 SCRIPT ONLY</button>
+<!-- Script Only Result Mobile -->
 <div id="m-script-result" class="hd" style="background:var(--panel);border:1px solid var(--bd2);padding:.7em;margin-bottom:6px">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4em"><span style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.12em" id="m-scr-title"></span><button onclick="$('m-script-result').classList.add('hd')" style="background:none;border:none;color:var(--txtd);font-size:.8em">✕</button></div>
 <div id="m-scr-text" style="font-size:.8em;color:var(--wht);line-height:1.7;margin-bottom:.5em"></div>
@@ -480,15 +486,17 @@ function rP(){
   // Phase indicator
   if(RN){
     if($('d-ph'))$('d-ph').textContent='PHASE '+(PH+1)+'/11';
-    ['d-rb','m-rb'].forEach(id=>{if($(id)){$(id).textContent='⏳';$(id).style.background='var(--bg3)';$(id).style.color='var(--txtd)';}});
+    ['d-rb','m-rb','d-rb2','m-rb2'].forEach(id=>{if($(id)){$(id).textContent='⏳';$(id).style.background='var(--bg3)';$(id).style.color='var(--txtd)';}});
   }else{
     if($('d-ph'))$('d-ph').textContent='';
     if($('d-rb')){$('d-rb').textContent='▶ EXECUTE';$('d-rb').style.background='var(--amb)';$('d-rb').style.color='var(--bg)';}
     if($('m-rb')){$('m-rb').textContent='▶ EXECUTE';$('m-rb').style.background='var(--amb)';$('m-rb').style.color='var(--bg)';}
+    if($('d-rb2')){$('d-rb2').textContent='▶ EXECUTE';$('d-rb2').style.background='var(--amb)';$('d-rb2').style.color='var(--bg)';}
+    if($('m-rb2')){$('m-rb2').textContent='▶ EXECUTE';$('m-rb2').style.background='var(--amb)';$('m-rb2').style.color='var(--bg)';}
   }
   // Resume button — show for gates and failures
   const showRes=(!RN&&(GATE||LAST_RESULT&&LAST_RESULT.status==='failed'));
-  ['d-rsb','m-rsb'].forEach(id=>{if($(id))$(id).style.display=showRes?'block':'none';});
+  ['d-rsb','m-rsb','d-rsb2'].forEach(id=>{if($(id))$(id).style.display=showRes?'block':'none';});
 }
 
 /* ═══ ACTIONS ═══ */
@@ -522,7 +530,7 @@ function addClipSlot(prefix){
   dur.style.cssText='font-family:var(--f1);font-size:.6em;color:var(--txtd);min-width:3em;text-align:right';
   const btn=document.createElement('button');
   btn.className='btn-upload';
-  btn.textContent='📁';
+  btn.textContent='▤';
   btn.onclick=function(){uploadFile(this,'video')};
   row.appendChild(inp);
   row.appendChild(dur);
@@ -688,9 +696,9 @@ async function scriptOnly(){
           d.clips.forEach(c=>{
             ph+=`<div style="background:var(--bg);border:1px solid var(--bd2);padding:.6em;margin-bottom:5px">
               <div style="font-family:var(--f1);font-size:.5em;color:var(--blu);letter-spacing:.12em;margin-bottom:.3em">CLIP ${c.index}</div>
-              <div style="font-size:.6em;color:var(--txtd);margin-bottom:.2em">🖼️ IMAGE</div>
+              <div style="font-size:.6em;color:var(--txtd);margin-bottom:.2em">◉️ IMAGE</div>
               <div style="font-size:.7em;color:var(--wht);line-height:1.5;margin-bottom:.4em;cursor:pointer;user-select:all" title="Click to select">${c.image_prompt}</div>
-              <div style="font-size:.6em;color:var(--txtd);margin-bottom:.2em">🎥 MOTION</div>
+              <div style="font-size:.6em;color:var(--txtd);margin-bottom:.2em">▶ MOTION</div>
               <div style="font-size:.7em;color:var(--wht);line-height:1.5;cursor:pointer;user-select:all" title="Click to select">${c.motion_prompt}</div>
             </div>`;
           });
@@ -699,7 +707,7 @@ async function scriptOnly(){
       });
     }else{alert(d.error||'Script generation failed');}
   }catch(e){alert('Error: '+e);}
-  btn.textContent='📝 SCRIPT ONLY';btn.disabled=false;
+  btn.textContent='✎ SCRIPT ONLY';btn.disabled=false;
 }
 async function poll(){
   if(!RN)return;
