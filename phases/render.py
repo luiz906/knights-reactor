@@ -123,7 +123,13 @@ def caption_case(text: str, is_first_chunk: bool = False) -> str:
         # "I" standalone
         elif w in ('i', "i'm", "i've", "i'll", "i'd"):
             words[i] = w[0].upper() + w[1:]
-    return " ".join(words)
+    # Remove periods (keep commas, question marks, exclamation marks)
+    result = " ".join(words)
+    result = result.replace(".", "")
+    # Capitalize letter after ? or !
+    import re as _re2
+    result = _re2.sub(r'([?!])\s+([a-z])', lambda m: m.group(1) + ' ' + m.group(2).upper(), result)
+    return result
 
 
 def create_srt(script_text: str, transcription: dict = None) -> str:
