@@ -32,7 +32,7 @@ class Config:
     SCRIPT_MODEL      = "gpt-4o"
     SCRIPT_TEMP       = 0.85
     SCRIPT_WORDS      = 90
-    SCENE_STYLE       = "photorealistic"
+    SCENE_INTENSITY   = "measured"
     SCENE_CAMERA      = "steady"
     SCENE_MOOD_BIAS   = "auto"
     SCENE_STORY       = "auto"

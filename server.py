@@ -69,7 +69,7 @@ def apply_model_settings():
     if s.get("script_temp"):    Config.SCRIPT_TEMP = float(s["script_temp"])
     if s.get("script_words"):   Config.SCRIPT_WORDS = int(float(s["script_words"]))
     # Scene Engine
-    if s.get("scene_style"):    Config.SCENE_STYLE = s["scene_style"]
+    if s.get("scene_intensity"): Config.SCENE_INTENSITY = s["scene_intensity"]
     if s.get("scene_camera"):   Config.SCENE_CAMERA = s["scene_camera"]
     if s.get("scene_mood"):     Config.SCENE_MOOD_BIAS = s["scene_mood"]
     if s.get("scene_story"):    Config.SCENE_STORY = s["scene_story"]

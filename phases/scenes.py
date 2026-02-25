@@ -29,12 +29,18 @@ FIGURES = [
 ]
 
 IMAGE_SUFFIXES = {
-    "storm": "Cinematic dark atmosphere, cold blue-grey tones, rain, fog, 9:16 vertical, {style}.",
-    "fire": "Cinematic dark atmosphere, orange ember glow against darkness, smoke, ash particles, 9:16 vertical, {style}.",
-    "dawn": "Cinematic golden hour light, warm amber highlights, cold shadows, fog, 9:16 vertical, {style}.",
-    "night": "Cinematic moonlit scene, silver-blue cold tones, deep shadows, mist, 9:16 vertical, {style}.",
-    "grey": "Cinematic overcast atmosphere, muted grey tones, rain, wet surfaces, 9:16 vertical, {style}.",
-    "battle": "Cinematic dark atmosphere, smoke, distant fire, debris, dramatic lighting, 9:16 vertical, {style}.",
+    "storm": "Cinematic dark atmosphere, cold blue-grey tones, rain, fog, 9:16 vertical.",
+    "fire": "Cinematic dark atmosphere, orange ember glow against darkness, smoke, ash particles, 9:16 vertical.",
+    "dawn": "Cinematic golden hour light, warm amber highlights, cold shadows, fog, 9:16 vertical.",
+    "night": "Cinematic moonlit scene, silver-blue cold tones, deep shadows, mist, 9:16 vertical.",
+    "grey": "Cinematic overcast atmosphere, muted grey tones, rain, wet surfaces, 9:16 vertical.",
+    "battle": "Cinematic dark atmosphere, smoke, distant fire, debris, dramatic lighting, 9:16 vertical.",
+}
+
+INTENSITY_MODIFIERS = {
+    "still": "Minimal movement. Near-static frame. Subtle breathing and cape drift only. Contemplative stillness.",
+    "measured": "Slow deliberate motion. Controlled pacing. Weighted purposeful movement.",
+    "dynamic": "Fast aggressive motion. Explosive energy. Rapid camera movement. Combat intensity. Urgent momentum.",
 }
 
 CAMERA_STYLES = {
@@ -168,7 +174,7 @@ def scene_engine(script: dict, topic: dict) -> list:
     theme_override = getattr(Config, 'SCENE_THEME', 'auto')
     figure_override = getattr(Config, 'SCENE_FIGURE', 'auto')
 
-    log.info(f"🎬 Phase 3: Scene Engine v7 | Clips: {Config.CLIP_COUNT} | Style: {Config.SCENE_STYLE} | Camera: {Config.SCENE_CAMERA}")
+    log.info(f"🎬 Phase 3: Scene Engine v7 | Clips: {Config.CLIP_COUNT} | Intensity: {getattr(Config, 'SCENE_INTENSITY', 'measured')} | Camera: {Config.SCENE_CAMERA}")
     log.info(f"   Overrides — Story: {story_override} | Theme: {theme_override} | Figure: {figure_override}")
 
     all_text = " ".join([
@@ -227,8 +233,10 @@ def scene_engine(script: dict, topic: dict) -> list:
         figure = pick(FIGURES)
 
     # ── BUILD CLIPS ─────────────────────────────────────────
-    img_suffix = IMAGE_SUFFIXES.get(story["mood"], IMAGE_SUFFIXES["dawn"]).format(style=Config.SCENE_STYLE)
-    tech_suffix = CAMERA_STYLES.get(Config.SCENE_CAMERA, CAMERA_STYLES["steady"]) + " 9:16 vertical."
+    img_suffix = IMAGE_SUFFIXES.get(story["mood"], IMAGE_SUFFIXES["dawn"])
+    intensity = getattr(Config, 'SCENE_INTENSITY', 'measured')
+    intensity_mod = INTENSITY_MODIFIERS.get(intensity, INTENSITY_MODIFIERS["measured"])
+    tech_suffix = CAMERA_STYLES.get(Config.SCENE_CAMERA, CAMERA_STYLES["steady"]) + " " + intensity_mod + " 9:16 vertical."
 
     clips = []
     story_clips = story["clips"]
