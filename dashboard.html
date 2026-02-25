@@ -191,6 +191,9 @@ body{overflow:auto}
 <div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.15em;margin:10px 0 4px">VOICEOVER (OPTIONAL)</div>
 <div style="display:flex;gap:4px"><input class="fin mc-vo" placeholder="Voiceover audio URL (mp3/wav/m4a)" style="font-size:.8em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'audio')">📁</button></div>
 <div style="font-size:.55em;color:var(--txtdd);margin-top:3px">With voiceover: skips ALL AI generation. Whisper transcribes → GPT generates title & captions.</div>
+<div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.15em;margin:10px 0 4px">CTA CLIP (OPTIONAL)</div>
+<div style="display:flex;gap:4px"><input class="fin mc-cta" placeholder="CTA clip URL (end card video/image)" style="font-size:.8em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
+<div style="font-size:.55em;color:var(--txtdd);margin-top:3px">Plays at the end of the video. Leave empty to use default from settings.</div>
 <div style="display:flex;gap:6px;margin-top:10px">
 <button onclick="manualRun()" style="flex:1;padding:8px;background:rgba(40,224,96,.08);border:1px solid rgba(40,224,96,.2);color:var(--grn);font-family:var(--f1);font-size:.65em;font-weight:600;letter-spacing:.15em">📦 MANUAL RUN</button>
 </div>
@@ -281,6 +284,9 @@ body{overflow:auto}
 <div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.12em;margin:8px 0 3px">VOICEOVER (OPTIONAL)</div>
 <div style="display:flex;gap:4px"><input class="fin mc-vo" placeholder="Voiceover audio URL" style="font-size:.85em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'audio')">📁</button></div>
 <div style="font-size:.5em;color:var(--txtdd);margin-top:2px">With VO: skips all AI gen. Whisper + GPT only (~$0.02)</div>
+<div style="font-family:var(--f1);font-size:.55em;color:var(--amb);letter-spacing:.12em;margin:8px 0 3px">CTA CLIP (OPTIONAL)</div>
+<div style="display:flex;gap:4px"><input class="fin mc-cta" placeholder="CTA clip URL (end card)" style="font-size:.85em;flex:1"><button class="btn-upload" onclick="uploadFile(this,'video')">📁</button></div>
+<div style="font-size:.5em;color:var(--txtdd);margin-top:2px">End card video/image. Leave empty for default.</div>
 <button onclick="manualRun()" style="width:100%;padding:10px;background:rgba(40,224,96,.08);border:1px solid rgba(40,224,96,.2);color:var(--grn);font-family:var(--f1);font-size:.6em;font-weight:600;letter-spacing:.12em;min-height:3em;margin-top:8px">📦 MANUAL RUN</button>
 </div></div>
 <!-- Script Only -->
@@ -525,7 +531,7 @@ async function uploadFile(btn, type){
     if(!file)return;
     // Find the text input next to this button
     const row=btn.parentElement;
-    const textInput=row.querySelector('.mc-url,.mc-vo');
+    const textInput=row.querySelector('.mc-url,.mc-vo,.mc-cta');
     if(!textInput)return;
     // Show uploading state
     const origText=btn.textContent;
@@ -576,10 +582,17 @@ async function manualRun(){
     const v=inp.value.trim();
     if(v&&v.startsWith('http'))vo=v;
   });
+  // Gather CTA clip URL
+  let cta='';
+  document.querySelectorAll('.mc-cta').forEach(inp=>{
+    const v=inp.value.trim();
+    if(v&&v.startsWith('http'))cta=v;
+  });
   const body={clips:urls};
   if(vo)body.voiceover=vo;
+  if(cta)body.cta_url=cta;
   const mode=vo?'FULL MANUAL (clips + voiceover)':'MANUAL (clips only)';
-  if(!confirm(`Start ${mode} run?\n\n${urls.length} clip(s)${vo?'\n+ voiceover':''}${vo?'\n\nSkips ALL AI generation (~$0.02)':''}`))return;
+  if(!confirm(`Start ${mode} run?\n\n${urls.length} clip(s)${vo?'\n+ voiceover':''}${cta?'\n+ custom CTA':''}${vo?'\n\nSkips ALL AI generation (~$0.02)':''}`))return;
   const r=await fetch('/api/manual-run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const d=await r.json();
   if(r.ok){RN=true;PH=0;PD=[];GATE=null;rP();poll();}

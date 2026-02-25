@@ -247,6 +247,7 @@ async def trigger_manual_run(bg: BackgroundTasks, req: Request):
     body = await req.json()
     clip_urls = body.get("clips", [])
     voiceover_url = body.get("voiceover", "").strip()
+    cta_url = body.get("cta_url", "").strip()
     topic_id = body.get("topic_id")
     if not clip_urls or len(clip_urls) < 1:
         return JSONResponse({"error": "Provide at least 1 clip URL"}, 400)
@@ -256,13 +257,17 @@ async def trigger_manual_run(bg: BackgroundTasks, req: Request):
         return JSONResponse({"error": "No valid clip URLs provided"}, 400)
     # Validate voiceover URL if provided
     vo = voiceover_url if voiceover_url.startswith("http") else None
+    # Override CTA if provided
+    if cta_url and cta_url.startswith("http"):
+        Config.CTA_URL = cta_url
+        Config.CTA_ENABLED = True
     # Full manual = clips + voiceover (skip all AI gen)
     # Partial manual = clips only (still generates script + voiceover via AI)
     mode = "full-manual" if vo else "manual"
     if vo:
         topic_id = None  # Full manual doesn't need a topic
     bg.add_task(execute_pipeline, 0, topic_id, valid, vo)
-    return {"status": "started", "mode": mode, "clips": len(valid), "voiceover": bool(vo)}
+    return {"status": "started", "mode": mode, "clips": len(valid), "voiceover": bool(vo), "cta": bool(cta_url)}
 
 @app.post("/api/script-only")
 async def generate_script_only(req: Request):
