@@ -21,6 +21,29 @@ import secrets
 
 app = FastAPI(title="Knights Reactor")
 
+# ─── STATIC FILES & SUB-APPS ─────────────────────────────────
+from fastapi.staticfiles import StaticFiles
+import shutil as _shutil
+
+_APP_DIR = Path(__file__).parent
+_static_dir = _APP_DIR / "static"
+_static_dir.mkdir(exist_ok=True)
+
+# If CSS/JS files are at root level (flat repo), copy into static/
+for _fname in ["style.css", "app.js"]:
+    _root = _APP_DIR / _fname
+    _dest = _static_dir / _fname
+    if _root.exists() and (not _dest.exists() or _root.stat().st_mtime > _dest.stat().st_mtime):
+        _shutil.copy2(str(_root), str(_dest))
+
+app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
+
+try:
+    from graphics import router as graphics_router
+    app.include_router(graphics_router)
+except ImportError:
+    pass
+
 # Session token (regenerates on restart, lives in memory)
 SESSION_TOKEN = secrets.token_hex(32)
 
@@ -708,44 +731,6 @@ async def save_settings(req: Request):
     save_json(SETTINGS_FILE, await req.json())
     apply_model_settings()
     return {"status": "saved"}
-
-# ─── BRANDS API ───────────────────────────────────────────────
-BRANDS_DIR = DATA_DIR / "brands"
-
-@app.get("/api/brands")
-async def get_brands():
-    """Return all brands from /var/data/brands/"""
-    BRANDS_DIR.mkdir(exist_ok=True)
-    brands = []
-    for d in sorted(BRANDS_DIR.iterdir()):
-        if d.is_dir():
-            cfg = d / "config.json"
-            if cfg.exists():
-                try:
-                    data = json.loads(cfg.read_text())
-                    data["id"] = d.name
-                    if "name" not in data:
-                        data["name"] = d.name.replace("_", " ").title()
-                    brands.append(data)
-                except:
-                    brands.append({"id": d.name, "name": d.name.replace("_", " ").title()})
-    return brands
-
-@app.post("/api/brands")
-async def save_brand(req: Request):
-    """Create or update a brand."""
-    body = await req.json()
-    brand_id = body.get("id", "").strip().lower().replace(" ", "_")
-    if not brand_id:
-        return JSONResponse({"error": "Brand ID required"}, 400)
-    BRANDS_DIR.mkdir(exist_ok=True)
-    brand_dir = BRANDS_DIR / brand_id
-    brand_dir.mkdir(exist_ok=True)
-    cfg = {k: v for k, v in body.items() if k != "id"}
-    if "name" not in cfg:
-        cfg["name"] = brand_id.replace("_", " ").title()
-    (brand_dir / "config.json").write_text(json.dumps(cfg, indent=2))
-    return {"status": "saved", "id": brand_id}
 
 @app.post("/api/test-connection")
 async def test_conn(req: Request):
