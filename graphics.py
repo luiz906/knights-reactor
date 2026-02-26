@@ -107,8 +107,6 @@ def _gpt(prompt, temp=0.9, max_tok=200):
 
 
 # ─── GRAPHICS SCENE ENGINE (ported from n8n JS v10) ──────────
-# Real-world lettering prompt builder with randomized moods,
-# carriers, scenes, typography, and brand integration.
 import random as _rng
 
 def _pick(arr): return _rng.choice(arr)
@@ -189,7 +187,6 @@ _MOOD_POOLS = {
     },
 }
 
-# ── CENTER-SAFE TEXT + CAMERA RULES ──
 _CENTER_SAFE = [
     "Text sits centered in the frame safe area for cropping safety.",
     "Leave visible surface border around the text on all sides (at least 12-15% padding).",
@@ -208,7 +205,6 @@ _ANTI_MOCKUP = [
     "Avoid overly perfect typography and overly perfect surfaces.",
 ]
 
-# ── TYPOGRAPHY ──
 _TYPO_STYLES = [
     "plain sans-serif lettering, clear and commercial, like a real-world sign shop would produce",
     "bold condensed sans-serif, clean and readable at distance, uniform stroke weight",
@@ -216,7 +212,6 @@ _TYPO_STYLES = [
     "utilitarian sans-serif, evenly spaced, legible first, style second",
 ]
 
-# ── SCENES ──
 _SCENES = [
     {"id": "S01", "desc": "city sidewalk in daylight near small storefronts, real street colors, clean concrete and glass", "tags": ["day","street","urban"]},
     {"id": "S02", "desc": "parking lot edge in daylight with sunlit cars, natural color, no rain, no fog", "tags": ["day","street","commercial"]},
@@ -236,7 +231,6 @@ _MOOD_SCENE_PREF = {
     "MIXED_LIGHT": ["mixed","interior","night"],
 }
 
-# ── CARRIERS ──
 _CARRIERS = [
     {"carrier": "white vinyl cut lettering on the back window of a parked car", "cat": "vehicle"},
     {"carrier": "a message on a car window written with paint marker (imperfect stroke edges)", "cat": "vehicle"},
@@ -309,83 +303,46 @@ _CAMERA_RULES = [
 
 
 def build_graphics_prompt(quote_text: str, brand: dict = None) -> str:
-    """Build a full photorealistic lettering prompt from quote + brand.
-    Direct port of n8n Code in JavaScript v10.
-    """
+    """Build a full photorealistic lettering prompt from quote + brand."""
     TEXT = quote_text
-
-    # Brand visual directive
     guidelines = (brand or {}).get("guidelines", "")
     if guidelines:
         brand_visual = f"Brand art direction: align with these guidelines — {str(guidelines)[:600]}. Translate voice into photography choices (composition, light, restraint)."
     else:
         brand_visual = "Overall mood: intentional, editorial, human. Not trendy. Not mockup."
 
-    # Pick mood (weighted)
     mood_key = _pick_weighted([m["key"] for m in _MOODS], [m["w"] for m in _MOODS])
     mood = _MOOD_POOLS[mood_key]
-
-    # Pick scene matching mood
     pref_tags = _MOOD_SCENE_PREF.get(mood_key, ["day"])
     compatible = [s for s in _SCENES if any(t in pref_tags for t in s["tags"])]
     scene = _pick(compatible) if compatible else _pick(_SCENES)
-
-    # Pick carrier + behaviors
     carrier_def = _pick(_CARRIERS)
     cat = carrier_def["cat"]
     behaviors = _pickN(_BEHAVIORS.get(cat, []), 2)
-
-    # Pick all random elements
     typography = _pick(_TYPO_STYLES)
     lighting = _pick(mood["lighting"])
     color = _pick(mood["color"])
     camera = _pick(_CAMERA_RULES)
     moment = _pick(_LIFE_MOMENTS)
 
-    # Assemble prompt (same structure as JS)
     prompt = _join(
         "Photorealistic candid vertical photograph.",
         f"The exact text displayed must be: {TEXT}.",
         "Do not include quotation marks in the rendered text.",
-
-        # Center-safe + straight camera
-        _pick(_CENTER_SAFE),
-        _pick(_CENTER_SAFE),
+        _pick(_CENTER_SAFE), _pick(_CENTER_SAFE),
         "Keep the text centered in the frame safe area. Leave visible border around it on all sides.",
-
-        # Typography + legibility
-        f"Typography: {typography}.",
-        _pick(_HIERARCHY),
-        _pick(_HIERARCHY),
-
-        # Color/Exposure
-        mood["exposure"] + ".",
-        color + ".",
-
-        # Scene + lighting
-        f"Scene: {scene['desc']}.",
-        f"Lighting: {lighting}.",
-
-        # Carrier + physics
+        f"Typography: {typography}.", _pick(_HIERARCHY), _pick(_HIERARCHY),
+        mood["exposure"] + ".", color + ".",
+        f"Scene: {scene['desc']}.", f"Lighting: {lighting}.",
         f"The phrase appears on {carrier_def['carrier']}.",
         ". ".join(behaviors) + "." if behaviors else "",
-
-        # Camera + candid life
-        f"Lens/feel: {camera}.",
-        f"Include a subtle real-life moment: {moment}.",
-
-        # Brand + anti-mockup
-        _CLEANLINESS,
-        brand_visual,
-        _pick(_ANTI_MOCKUP),
-        _pick(_ANTI_MOCKUP),
+        f"Lens/feel: {camera}.", f"Include a subtle real-life moment: {moment}.",
+        _CLEANLINESS, brand_visual, _pick(_ANTI_MOCKUP), _pick(_ANTI_MOCKUP),
     )
-
     return prompt
 
 
 # ─── INDIVIDUAL PHASE ENDPOINTS ──────────────────────────────
-# Each phase is its own API call so the UI controls the flow
 
 @router.get("/api/brands")
 async def api_brands():
@@ -393,7 +350,6 @@ async def api_brands():
 
 @router.get("/api/topics/{brand_id}")
 async def api_get_topics(brand_id: str):
-    """Get topics list from shared brand topics.json."""
     bd = BRANDS_DIR / brand_id
     tf = bd / "topics.json"
     if not tf.exists():
@@ -406,10 +362,9 @@ async def api_get_topics(brand_id: str):
 
 @router.post("/api/phase/topic")
 async def api_phase_topic(req: Request):
-    """Pick a random new topic from the shared topics list, or generate one via AI."""
     body = await req.json()
     brand_id = body.get("brand_id", "")
-    mode = body.get("mode", "random")  # random | ai
+    mode = body.get("mode", "random")
     brand = next((b for b in get_brands() if b["id"] == brand_id), None)
     if not brand: return JSONResponse({"error": "Brand not found"}, 400)
 
@@ -426,7 +381,6 @@ async def api_phase_topic(req: Request):
         pick = _rng.choice(new_topics)
         return {"topic": pick["idea"], "topic_id": pick.get("id", ""), "category": pick.get("category", ""), "scripture": pick.get("scripture", "")}
 
-    # AI fallback
     try:
         topic = _gpt(
             f"Generate ONE viral image post topic for '{brand['name']}'. "
@@ -438,7 +392,6 @@ async def api_phase_topic(req: Request):
 
 @router.post("/api/phase/quote")
 async def api_phase_quote(req: Request):
-    """Generate graphic copy from topic (ported from n8n Graphic Copy1 node)."""
     body = await req.json()
     brand = next((b for b in get_brands() if b["id"] == body.get("brand_id")), {})
     topic = body.get("topic", "")
@@ -463,7 +416,6 @@ async def api_phase_quote(req: Request):
 
 @router.post("/api/phase/prompt")
 async def api_phase_prompt(req: Request):
-    """Build a photorealistic lettering image prompt via Scene Engine."""
     body = await req.json()
     brand = next((b for b in get_brands() if b["id"] == body.get("brand_id")), {})
     quote = body.get("quote", "")
@@ -477,7 +429,6 @@ async def api_phase_prompt(req: Request):
 
 @router.post("/api/phase/image")
 async def api_phase_image(req: Request):
-    """Generate the image. Returns job_id for polling."""
     body = await req.json()
     prompt = body.get("prompt", "")
     model = body.get("model", Config.IMAGE_MODEL)
@@ -492,7 +443,6 @@ async def api_phase_image(req: Request):
             url = _rep_create(model, params)
             JOBS[job_id]["phase"] = "polling"
             image_url = _rep_poll(url, timeout=180)
-            # Upload to R2
             r = requests.get(image_url, timeout=60); r.raise_for_status()
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             brand_id = body.get("brand_id", "unknown")
@@ -509,12 +459,10 @@ JOBS = {}
 
 @router.get("/api/phase/image/{job_id}")
 async def api_poll_image(job_id: str):
-    """Poll image generation status."""
     return JOBS.get(job_id, {"status": "unknown"})
 
 @router.post("/api/phase/captions")
 async def api_phase_captions(req: Request):
-    """Generate platform captions (ported from n8n Generate Caption1 node)."""
     body = await req.json()
     brand = next((b for b in get_brands() if b["id"] == body.get("brand_id")), {})
     quote = body.get("quote", "")
@@ -555,7 +503,6 @@ async def api_phase_captions(req: Request):
 
 @router.post("/api/save")
 async def api_save(req: Request):
-    """Save completed post to gallery."""
     body = await req.json()
     gallery = load_json(GFX_GALLERY_FILE, [])
     entry = {
@@ -579,12 +526,11 @@ async def api_save(req: Request):
 
 @router.post("/api/publish")
 async def api_publish(req: Request):
-    """Publish image + captions to platforms via Blotato."""
     body = await req.json()
     brand_id = body.get("brand_id", "")
     image_url = body.get("image_url", "")
     captions = body.get("captions", {})
-    platforms = body.get("platforms", [])  # e.g. ["instagram","facebook","twitter","threads"]
+    platforms = body.get("platforms", [])
     gallery_id = body.get("gallery_id", "")
 
     brand = next((b for b in get_brands() if b["id"] == brand_id), None)
@@ -598,7 +544,6 @@ async def api_publish(req: Request):
     acct = brand.get("blotato", {})
     results = {}
 
-    # Upload image to Blotato
     media_url = image_url
     try:
         r = requests.post("https://backend.blotato.com/v2/media",
@@ -609,7 +554,6 @@ async def api_publish(req: Request):
     except Exception as e:
         return JSONResponse({"error": f"Media upload failed: {e}"}, 500)
 
-    # Post to each selected platform
     for plat in platforms:
         acct_id = acct.get(plat, "")
         if not acct_id:
@@ -620,15 +564,10 @@ async def api_publish(req: Request):
         payload = {
             "post": {
                 "accountId": acct_id,
-                "content": {
-                    "text": caption,
-                    "mediaUrls": [media_url],
-                    "platform": plat,
-                },
+                "content": {"text": caption, "mediaUrls": [media_url], "platform": plat},
                 "target": {"targetType": plat},
             }
         }
-        # Platform-specific extras
         if plat == "facebook" and acct.get("facebook_page"):
             payload["post"]["target"]["pageId"] = acct["facebook_page"]
         if plat == "tiktok":
@@ -648,7 +587,6 @@ async def api_publish(req: Request):
         except Exception as e:
             results[plat] = {"ok": False, "error": str(e)}
 
-    # Mark as published in gallery
     if gallery_id:
         gallery = load_json(GFX_GALLERY_FILE, [])
         for item in gallery:
@@ -673,7 +611,10 @@ async def api_del_gallery(item_id: str):
     return {"status": "deleted"}
 
 
-# ─── DASHBOARD ────────────────────────────────────────────────
+# ─── DASHBOARD HTML ──────────────────────────────────────────
+# Loads shared /static/style.css + supplemental /static/graphics.css
+# No inline <style> block — single source of truth for design system
+
 @router.get("/", response_class=HTMLResponse)
 async def gfx_page():
     return GFX_HTML
@@ -681,168 +622,13 @@ async def gfx_page():
 GFX_HTML = r"""<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Graphics Engine — Knights Reactor</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Orbitron:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
-<style>
-:root{
---bg:#0a0904;--bg2:#0f0d06;--bg3:#16140c;--panel:#16140c;
---bd:rgba(244,171,37,.2);--bd2:rgba(244,171,37,.12);
---amb:#f4ab25;--amb2:#cc8f00;--amblo:rgba(244,171,37,.04);
---txt:#f4ab25;--txtd:#64748b;--txtdd:#475569;
---grn:#00e676;--grn2:rgba(0,230,118,.05);
---red:#ff003c;--red2:rgba(255,0,60,.05);
---blu:#00f3ff;--blu2:rgba(0,243,255,.05);
---wht:#e2e8f0;--fg:255,255,255;
---f1:'Orbitron',sans-serif;--f2:'JetBrains Mono',monospace;--f3:'Space Grotesk',sans-serif;
---r:8px;--r-lg:12px;
---glow-a:0 0 8px rgba(244,171,37,.4)
-}
-html.light{
---bg:#f8f7f5;--bg2:#f0ece4;--bg3:#e8e2d6;--panel:#f0ece4;
---bd:rgba(140,100,20,.2);--bd2:rgba(140,100,20,.14);
---amb:#9a6c10;--amb2:#6e4c0c;--amblo:rgba(140,100,20,.06);
---txt:#9a6c10;--txtd:#78716c;--txtdd:#a8a29e;
---grn:#16a34a;--grn2:rgba(22,163,74,.06);--red:#dc2626;--red2:rgba(220,38,38,.06);
---blu:#0284c7;--blu2:rgba(2,132,199,.06);
---wht:#292524;--fg:41,37,36;--glow-a:none
-}
-html.light select.fin option{background:var(--panel);color:var(--amb)}
-html.light .btn-amb{color:#fff}
-html.light .btn-grn{color:#fff}
-*{margin:0;padding:0;box-sizing:border-box}
-html{font-size:clamp(13px,1.15vw,19px)}
-body{background:var(--bg);color:var(--wht);font-family:var(--f3);min-height:100vh;-webkit-font-smoothing:antialiased}
-.material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 20;vertical-align:middle}
-::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--amb2);border-radius:4px}::-webkit-scrollbar-track{background:transparent}
-button{font-family:var(--f3);cursor:pointer}input,select,textarea{font-family:var(--f3)}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-@keyframes spin{to{transform:rotate(360deg)}}
-.spin{display:inline-block;animation:spin 1s linear infinite}
-.hd{display:none}
+<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/graphics.css">
+</head><body>
 
-/* ── SHELL ── */
-.shell{display:flex;height:100vh;overflow:hidden}
-.sidebar{width:16em;background:var(--bg2);border-right:1px solid var(--bd2);display:flex;flex-direction:column;flex-shrink:0}
-.sb-logo{padding:1.4em 1.5em;border-bottom:1px solid rgba(var(--fg),.06)}
-.sb-logo h1{font-family:var(--f3);font-size:.85em;font-weight:700;color:#fff;letter-spacing:.08em;line-height:1.4;text-shadow:0 0 8px rgba(244,171,37,.4)}
-.sb-logo p{font-family:var(--f2);font-size:.45em;color:var(--amb);letter-spacing:.15em;margin-top:.3em;opacity:.6}
-.sb-nav{flex:1;padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
-.sb-i{width:100%;display:flex;align-items:center;gap:.7em;padding:.6em .9em;background:none;border:none;border-left:2px solid transparent;color:var(--txtd);font-size:.7em;letter-spacing:.04em;transition:all .15s;text-align:left;font-weight:500;text-transform:uppercase;border-radius:0 var(--r) var(--r) 0;text-decoration:none}
-.sb-i:hover{color:#fff;background:rgba(var(--fg),.03)}
-.sb-i.on{color:var(--amb);border-left-color:var(--amb);background:rgba(244,171,37,.08);font-weight:600}
-.sb-i .material-symbols-outlined{font-size:1.1em;opacity:.6}.sb-i.on .material-symbols-outlined{opacity:1}
-.main-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
-
-/* ── TOPBAR ── */
-.topbar{height:3.5em;background:rgba(10,9,4,.5);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--bd2);display:flex;align-items:center;justify-content:space-between;padding:0 1.5em;flex-shrink:0}
-.topbar-t{font-family:var(--f3);font-size:.7em;letter-spacing:.1em;color:#fff;font-weight:700;text-transform:uppercase}
-.topbar-s{display:flex;align-items:center;gap:12px}
-.top-tabs{display:flex;gap:0;height:100%}
-.top-tab{font-family:var(--f3);font-size:.6em;font-weight:600;color:var(--txtd);background:none;border:none;border-bottom:2px solid transparent;padding:0 1em;letter-spacing:.12em;text-transform:uppercase;transition:all .12s}
-.top-tab:hover{color:var(--amb)}
-.top-tab.on{color:var(--amb);border-bottom-color:var(--amb)}
-
-/* ── CONTENT ── */
-.content{flex:1;overflow-y:auto;padding:2em 2.5em}
-.page{display:none;max-width:56em;margin:0 auto}.page.on{display:block}
-
-/* ── SECTION HEADERS (inspo layout) ── */
-.sec-head{display:flex;align-items:center;gap:.7em;margin-bottom:.7em;margin-top:1.5em}
-.sec-head:first-child{margin-top:0}
-.sec-num{background:var(--amb);color:var(--bg);font-family:var(--f2);font-size:.55em;font-weight:700;padding:.15em .5em;border-radius:var(--r);min-width:1.6em;text-align:center}
-.sec-title{font-family:var(--f3);font-size:.7em;font-weight:700;letter-spacing:.2em;color:#fff;text-transform:uppercase}
-
-/* ── PANELS ── */
-.panel{background:var(--panel);border:1px solid var(--bd2);padding:1.4em 1.6em;border-radius:var(--r-lg);margin-bottom:.5em}
-.panel-locked{opacity:.25;pointer-events:none;filter:grayscale(.5)}
-.panel-active{border-left:3px solid var(--blu);background:rgba(0,243,255,.015)}
-.panel-done{border-left:3px solid var(--grn);background:rgba(0,230,118,.015)}
-
-/* ── FORM ── */
-.fg{display:grid;grid-template-columns:1fr 1fr;gap:.6em 1.2em}
-.fg-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6em 1.2em}
-.fg-full{grid-column:1/-1}
-.fi{margin-bottom:0}
-.fl{font-size:.55em;color:var(--txtd);text-transform:uppercase;letter-spacing:.2em;margin-bottom:.35em;font-weight:600}
-.fin{width:100%;padding:.6em .8em;background:var(--bg);border:1px solid var(--bd2);font-size:.85em;color:var(--amb);outline:none;font-family:var(--f3);border-radius:var(--r);transition:border-color .15s}
-.fin:focus{border-color:var(--amb);box-shadow:0 0 8px rgba(244,171,37,.08)}
-select.fin{-webkit-appearance:none;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23f4ab25'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-color:var(--bg);padding-right:30px}
-select.fin option{background:var(--bg2);color:var(--amb)}
-textarea.fin{min-height:4em;resize:vertical;line-height:1.6}
-
-/* ── BUTTONS ── */
-.btn-row{display:flex;gap:.4em;flex-wrap:wrap;margin-top:.8em}
-.btn-row-end{display:flex;justify-content:flex-end;gap:.4em;flex-wrap:wrap;margin-top:1em}
-.btn{font-family:var(--f3);font-size:.6em;font-weight:700;padding:.6em 1.2em;border:none;cursor:pointer;letter-spacing:.1em;transition:all .15s;text-transform:uppercase;border-radius:var(--r)}
-.btn-amb{background:var(--amb);color:var(--bg)}.btn-amb:hover{filter:brightness(1.08);box-shadow:var(--glow-a)}
-.btn-out{background:none;border:1px solid var(--bd2);color:var(--amb)}.btn-out:hover{background:var(--amblo);border-color:var(--amb)}
-.btn-grn{background:var(--grn);color:var(--bg)}.btn-grn:hover{filter:brightness(1.08);box-shadow:0 0 8px rgba(0,230,118,.3)}
-.btn-red{background:var(--red2);border:1px solid rgba(255,0,60,.15);color:var(--red)}.btn-red:hover{background:rgba(255,0,60,.08)}
-.btn-blu{background:var(--blu2);border:1px solid rgba(0,243,255,.15);color:var(--blu)}.btn-blu:hover{background:rgba(0,243,255,.08)}
-.btn:disabled{opacity:.25;cursor:not-allowed}
-
-/* ── STATUS ── */
-.status{font-size:.6em;color:var(--txtd);margin-top:.5em;min-height:1.2em;line-height:1.5}
-
-/* ── IMAGE PREVIEW ── */
-.img-box{border:1px solid var(--bd2);padding:3px;background:var(--bg);border-radius:var(--r);margin:.6em 0;max-width:22em}
-.img-box img{width:100%;display:block;border-radius:calc(var(--r) - 2px)}
-
-/* ── CAPTIONS ── */
-.cap-block{background:var(--bg);border:1px solid var(--bd2);padding:.7em;margin-bottom:.4em;border-radius:var(--r)}
-.cap-plat{font-family:var(--f3);font-size:.5em;letter-spacing:.15em;color:var(--txtd);margin-bottom:.3em;text-transform:uppercase;font-weight:700;display:flex;align-items:center;gap:.4em}
-.cap-plat .material-symbols-outlined{font-size:1.2em}
-.cap-text{width:100%;min-height:3.2em;padding:.5em .6em;background:transparent;border:1px solid rgba(var(--fg),.04);color:var(--wht);font-family:var(--f3);font-size:.8em;resize:vertical;outline:none;border-radius:var(--r);transition:border-color .15s}
-.cap-text:focus{border-color:var(--amb)}
-
-/* ── GALLERY ── */
-.gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
-.gi{background:var(--panel);border:1px solid var(--bd2);overflow:hidden;position:relative;cursor:pointer;transition:border-color .15s;border-radius:var(--r)}
-.gi img{width:100%;display:block}.gi:hover{border-color:var(--amb)}
-.gi-info{padding:8px 10px}.gi-topic{font-size:.65em;color:var(--wht);font-weight:600}
-.gi-meta{font-size:.5em;color:var(--txtd);margin-top:3px;font-family:var(--f2)}
-.gi-quote{font-size:.55em;color:var(--txtdd);margin-top:2px;font-style:italic}
-.gi-del{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.85);border:1px solid rgba(255,0,60,.15);color:var(--red);font-size:.55em;padding:2px 6px;cursor:pointer;display:none;border-radius:var(--r)}
-.gi:hover .gi-del{display:block}
-
-/* ── MODAL ── */
-.mbg{display:none;position:fixed;inset:0;background:rgba(10,9,4,.95);z-index:999;align-items:center;justify-content:center;flex-direction:column;padding:20px;backdrop-filter:blur(8px)}
-.mbg.show{display:flex}
-.mimg{max-width:90vw;max-height:70vh;object-fit:contain;border:1px solid var(--bd2);border-radius:var(--r-lg)}
-.mx{position:fixed;top:12px;right:16px;background:none;border:none;color:var(--amb);font-size:1.5em;cursor:pointer;z-index:1000}
-.mdet{color:var(--wht);font-size:.7em;margin-top:10px;text-align:center;max-width:80vw;line-height:1.6}
-.mdet b{color:var(--amb);font-family:var(--f3);font-weight:700}
-
-/* ── SUMMARY ROW ── */
-.sum-row{display:grid;grid-template-columns:auto 1fr;gap:1em;align-items:start}
-.sum-img{max-width:16em}
-.sum-details .fl{margin-top:.5em}
-.sum-val{font-size:.8em;color:var(--wht);line-height:1.4}
-.sum-val.amber{color:var(--amb);font-style:italic}
-
-/* ── PUBLISH TOGGLES ── */
-.pub-grid{display:flex;flex-wrap:wrap;gap:.4em;margin:.5em 0}
-.pub-chip{display:flex;align-items:center;gap:.35em;font-size:.65em;color:var(--wht);cursor:pointer;padding:.3em .6em;background:var(--bg);border:1px solid var(--bd2);border-radius:var(--r);transition:all .15s;user-select:none}
-.pub-chip:has(input:checked){border-color:var(--grn);background:var(--grn2);color:var(--grn)}
-.pub-chip input{display:none}
-
-/* ── FOOTER ── */
-.footer{height:2.5em;border-top:1px solid rgba(var(--fg),.04);background:var(--bg2);display:flex;align-items:center;justify-content:space-between;padding:0 1.5em;flex-shrink:0}
-.footer span{font-family:var(--f2);font-size:.45em;color:var(--txtdd);letter-spacing:.1em}
-.footer .ok{color:var(--grn)}
-
-/* ── MOBILE ── */
-@media(max-width:768px){
-  .shell{flex-direction:column;height:auto}.sidebar{display:none}
-  .content{padding:1em}
-  .fg,.fg-3{grid-template-columns:1fr}
-  .sum-row{grid-template-columns:1fr}
-  .gal{grid-template-columns:repeat(2,1fr)}
-  .top-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch}
-}
-</style></head><body>
-
-<div class="shell">
+<div class="gfx-shell">
 <!-- ═══ SIDEBAR ═══ -->
 <aside class="sidebar">
 <div class="sb-logo"><h1>Knights<br>Reactor</h1><p>GRAPHICS ENGINE v2</p></div>
@@ -851,7 +637,7 @@ textarea.fin{min-height:4em;resize:vertical;line-height:1.6}
 <a class="sb-i on" href="/graphics"><span class="material-symbols-outlined">palette</span>GRAPHICS</a>
 </nav>
 <div style="padding:.8em 1.2em;border-top:1px solid rgba(var(--fg),.06)">
-<button onclick="document.documentElement.classList.toggle('light');localStorage.setItem('kr-theme',document.documentElement.classList.contains('light')?'light':'dark')" style="width:100%;padding:6px;font-size:.5em;letter-spacing:.15em;color:var(--txtd);background:none;border:1px solid var(--bd2);font-family:var(--f1);cursor:pointer;border-radius:var(--r)">☀ TOGGLE THEME</button>
+<button onclick="document.documentElement.classList.toggle('light');localStorage.setItem('kr-theme',document.documentElement.classList.contains('light')?'light':'dark')" style="width:100%;padding:6px;font-size:.5em;letter-spacing:.15em;color:var(--txtd);background:none;border:1px solid var(--bd2);font-family:var(--f3);cursor:pointer;border-radius:var(--r)">☀ TOGGLE THEME</button>
 </div>
 </aside>
 
@@ -1015,7 +801,7 @@ textarea.fin{min-height:4em;resize:vertical;line-height:1.6}
 
 </div><!-- /content -->
 
-<div class="footer">
+<div class="gfx-footer">
   <div><span>SYSTEM STATE: </span><span class="ok" id="footer-state">READY</span></div>
   <span id="footer-time"></span>
 </div>
@@ -1049,7 +835,6 @@ function gN(p,b){
 // ─── BRANDS ──────────────────────────────────────────────────
 async function lB(){
   try{
-    // Try main brand API first (has all brands)
     const r=await(await fetch('/api/brands')).json();
     if(r.brands && r.brands.length){
       $('s-brand').innerHTML=r.brands.map(b=>`<option value="${b.id}"${b.id===r.active?' selected':''}>${b.display_name||b.id}</option>`).join('');
@@ -1058,7 +843,6 @@ async function lB(){
       return;
     }
   }catch(e){}
-  // Fallback to graphics-local brand API
   try{
     const brands=await(await fetch(API+'/brands')).json();
     $('s-brand').innerHTML=brands.map(b=>`<option value="${b.id}">${b.name}</option>`).join('')||'<option>No brands</option>';
@@ -1076,7 +860,6 @@ function updateSteps(){
     else if(i===STATE.step) el.classList.add('panel-active');
     else el.classList.add('panel-locked');
   }
-  // Update footer state
   const fs=$('footer-state');
   if(fs){
     if(STATE.step<=1)fs.textContent='READY';
@@ -1099,10 +882,8 @@ function lockStep(n){
   if(n===3) STATE.prompt=$('f-prompt').value.trim();
   STATE.step=n+1;
   updateSteps();
-  // Auto-scroll to next section
   const next=$('st-'+(n+1));
   if(next)next.scrollIntoView({behavior:'smooth',block:'center'});
-  // Auto-trigger next phase
   if(n===1) genQuote();
   if(n===2) genPrompt();
   if(n===3) genImage();
@@ -1307,4 +1088,3 @@ setInterval(()=>{const ft=$('footer-time');if(ft)ft.textContent=new Date().toLoc
 // ─── INIT ────────────────────────────────────────────────────
 lB();updateSteps();
 </script></body></html>"""
-
