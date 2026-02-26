@@ -1,9 +1,9 @@
 <!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>Knights Reactor</title>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#08080a;--bg2:#0c0c10;--bg3:#111118;--panel:#0d0d12;--bd:rgba(227,160,40,.12);--bd2:rgba(227,160,40,.06);--amb:#e3a028;--amb2:#c88a1a;--amblo:rgba(227,160,40,.05);--txt:#e3a028;--txtd:#7a5a18;--txtdd:#3a2a08;--grn:#28e060;--grn2:rgba(40,224,96,.08);--red:#e04028;--red2:rgba(224,64,40,.08);--blu:#28a0e0;--blu2:rgba(40,160,224,.08);--wht:#c8c0a8;--f1:'Orbitron',monospace;--f2:'Rajdhani',sans-serif;--f3:'Share Tech Mono',monospace}
+:root{--bg:#0a0904;--bg2:#0f0d06;--bg3:#16140c;--panel:#16140c;--bd:rgba(244,171,37,.2);--bd2:rgba(244,171,37,.12);--amb:#f4ab25;--amb2:#cc8f00;--amblo:rgba(244,171,37,.04);--txt:#f4ab25;--txtd:#64748b;--txtdd:#475569;--grn:#00e676;--grn2:rgba(0,230,118,.05);--red:#ff003c;--red2:rgba(255,0,60,.05);--blu:#00f3ff;--blu2:rgba(0,243,255,.05);--wht:#e2e8f0;--f1:'Space Grotesk',sans-serif;--f2:'JetBrains Mono',monospace;--f3:'Space Grotesk',sans-serif}
 html.light{--bg:#ede8de;--bg2:#e4ded2;--bg3:#d8d0c0;--panel:#f2eee6;--bd:rgba(120,80,10,.22);--bd2:rgba(120,80,10,.14);--amb:#7a5208;--amb2:#5e3e04;--amblo:rgba(120,80,10,.08);--txt:#7a5208;--txtd:#6a4a10;--txtdd:#8a7a58;--grn:#157830;--grn2:rgba(21,120,48,.1);--red:#b02818;--red2:rgba(176,40,24,.1);--blu:#1060a0;--blu2:rgba(16,96,160,.1);--wht:#2a2418}
 html.light select.fin option{background:var(--panel);color:var(--amb)}
 html.light .login-box{box-shadow:0 2px 20px rgba(0,0,0,.08)}
@@ -196,8 +196,8 @@ body{overflow:auto}
 <button class="sb-i" onclick="dNav('runs',this)"><span>◈</span>RUNS</button>
 <button class="sb-i" onclick="dNav('logs',this)"><span>▤</span>LOGS</button>
 <button class="sb-i" onclick="dNav('preview',this)"><span>◉</span>PREVIEW</button>
-<button class="sb-i" onclick="dNav('settings',this)"><span>⚙</span>CONFIG</button>
-<button class="sb-i" onclick="dNav('health',this)"><span>◎</span>STATUS</button>
+<button class="sb-i" onclick="window.location.href='/graphics'"><span>◆</span>GRAPHICS</button>
+<button class="sb-i" onclick="dNav('settings',this)"><span>⚙</span>SETTINGS</button>
 </div>
 <div class="sb-ft">
 <button class="sb-exec" id="d-rb" onclick="runNow()">▶ EXECUTE</button>
@@ -286,12 +286,14 @@ body{overflow:auto}
 <div id="d-pvs" class="hd" style="margin-top:12px"><div class="ptitle">SCRIPT</div><div id="d-pst" class="panel" style="font-size:.8em;color:var(--wht);line-height:1.7"></div></div>
 </div>
 
-<div class="dpage" id="dp-settings"><div id="d-ss" class="sm hd">✓ SAVED</div><div id="d-sf"></div><button class="sv" onclick="saveSett()">SAVE CONFIGURATION</button></div>
-
-<div class="dpage" id="dp-health">
+<div class="dpage" id="dp-settings"><div id="d-ss" class="sm hd">✓ SAVED</div><div id="d-sf"></div><button class="sv" onclick="saveSett()">SAVE CONFIGURATION</button>
+<!-- Status Section (was separate page) -->
+<div style="margin-top:1.2em">
+<div class="ptitle">SYSTEM STATUS</div>
 <div class="panel" id="d-hl" style="margin-bottom:10px"></div>
 <div class="panel" style="padding:12px"><div class="ptitle">DIAGNOSTICS</div><button style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--bd2);color:var(--amb);font-size:.8em" onclick="testAll()">TEST ALL CONNECTIONS →</button></div>
-<button onclick="sessionStorage.removeItem('kt');$('L').style.display='flex';$('A').classList.add('hd')" style="width:100%;padding:9px;margin-top:10px;border:1px solid rgba(224,64,40,.2);background:var(--red2);font-family:var(--f1);font-size:.6em;color:var(--red);letter-spacing:.2em">⚠ DISCONNECT</button>
+<button onclick="sessionStorage.removeItem('kt');$('L').style.display='flex';$('A').classList.add('hd')" style="width:100%;padding:9px;margin-top:10px;border:1px solid rgba(255,0,60,.2);background:var(--red2);font-family:var(--f1);font-size:.6em;color:var(--red);letter-spacing:.2em">⚠ DISCONNECT</button>
+</div>
 </div>
 
 </div></div></div>
@@ -311,11 +313,11 @@ body{overflow:auto}
 <div class="mcont">
 
 <div class="mpage on" id="mp-pipeline">
-<!-- Sub-nav tabs -->
-<div style="display:flex;gap:4px;margin-bottom:8px">
-<button class="btn-sm" style="flex:1;font-size:.55em;padding:.5em" onclick="mNav('pipeline',document.querySelector('.bnav-i'))">⚡ PIPELINE</button>
-<button class="btn-sm" style="flex:1;font-size:.55em;padding:.5em" onclick="mNav('topics',document.querySelector('.bnav-i'))">✦ TOPICS</button>
-<button class="btn-sm" style="flex:1;font-size:.55em;padding:.5em" onclick="mNav('runs',document.querySelector('.bnav-i'))">◈ RUNS</button>
+<!-- Quick-nav pills -->
+<div style="display:flex;gap:4px;margin-bottom:8px;overflow-x:auto">
+<button style="padding:.4em .7em;background:var(--amblo);border:1px solid var(--bd);color:var(--amb);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('pipeline',document.querySelectorAll('.bnav-i')[0])">⚡ PIPELINE</button>
+<button style="padding:.4em .7em;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('topics',document.querySelectorAll('.bnav-i')[0])">✦ TOPICS</button>
+<button style="padding:.4em .7em;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('runs',document.querySelectorAll('.bnav-i')[0])">◈ RUNS</button>
 </div>
 <div id="m-gate"></div>
 <!-- Script Only Result Mobile -->
@@ -377,18 +379,15 @@ body{overflow:auto}
 </div>
 
 <div class="mpage" id="mp-settings">
-<!-- Sub-nav -->
-<div style="display:flex;gap:4px;margin-bottom:8px">
-<button class="btn-sm" style="flex:1;font-size:.55em;padding:.5em" onclick="mNav('settings',document.querySelectorAll('.bnav-i')[4])">⚙ CONFIG</button>
-<button class="btn-sm" style="flex:1;font-size:.55em;padding:.5em" onclick="mNav('health',document.querySelectorAll('.bnav-i')[4])">◎ STATUS</button>
-</div>
-<div id="m-ss" class="sm hd">✓ SAVED</div><div id="m-sf"></div><button class="sv" onclick="saveSett()">SAVE CONFIGURATION</button></div>
-
-<div class="mpage" id="mp-health">
+<div id="m-ss" class="sm hd">✓ SAVED</div><div id="m-sf"></div><button class="sv" onclick="saveSett()">SAVE CONFIGURATION</button>
+<!-- Status Section -->
+<div style="margin-top:1em">
+<div style="font-family:var(--f1);font-size:.6em;color:var(--amb);letter-spacing:.15em;margin-bottom:6px">SYSTEM STATUS</div>
 <div class="panel" id="m-hl" style="margin-bottom:8px"></div>
 <button style="width:100%;padding:12px;background:var(--bg);border:1px solid var(--bd2);color:var(--amb);font-size:.8em;min-height:3.2em" onclick="testAll()">TEST ALL CONNECTIONS →</button>
 <button id="m-thm" onclick="toggleTheme()" style="width:100%;padding:12px;margin-top:8px;background:none;border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.65em;letter-spacing:.2em;min-height:3.2em">☀ LIGHT MODE</button>
-<button onclick="sessionStorage.removeItem('kt');$('L').style.display='flex';$('A').classList.add('hd')" style="width:100%;padding:12px;margin-top:8px;border:1px solid rgba(224,64,40,.2);background:var(--red2);font-family:var(--f1);font-size:.65em;color:var(--red);letter-spacing:.2em;min-height:3.2em">⚠ DISCONNECT</button>
+<button onclick="sessionStorage.removeItem('kt');$('L').style.display='flex';$('A').classList.add('hd')" style="width:100%;padding:12px;margin-top:8px;border:1px solid rgba(255,0,60,.2);background:var(--red2);font-family:var(--f1);font-size:.65em;color:var(--red);letter-spacing:.2em;min-height:3.2em">⚠ DISCONNECT</button>
+</div>
 </div>
 
 </div>
@@ -398,6 +397,7 @@ body{overflow:auto}
 <button class="bnav-i" onclick="mNav('manual',this)"><span class="bnav-icon">◈</span><span class="bnav-lbl">MANUAL</span></button>
 <button class="bnav-i" onclick="mNav('logs',this)"><span class="bnav-icon">▤</span><span class="bnav-lbl">LOGS</span></button>
 <button class="bnav-i" onclick="mNav('preview',this)"><span class="bnav-icon">◉</span><span class="bnav-lbl">ASSETS</span></button>
+<button class="bnav-i" onclick="window.location.href='/graphics'"><span class="bnav-icon">◆</span><span class="bnav-lbl">GRAPHICS</span></button>
 <button class="bnav-i" onclick="mNav('settings',this)"><span class="bnav-icon">⚙</span><span class="bnav-lbl">SETTINGS</span></button>
 </nav>
 </div>
@@ -424,7 +424,7 @@ let stOpen={};
 const IMG_MODELS={replicate:[{v:"google/nano-banana-pro",l:"Nano Banana Pro"},{v:"google/nano-banana",l:"Nano Banana"},{v:"xai/grok-imagine-image",l:"Grok Aurora"},{v:"bytedance/seedream-4.5",l:"Seedream 4.5"},{v:"black-forest-labs/flux-1.1-pro",l:"Flux 1.1 Pro"},{v:"black-forest-labs/flux-schnell",l:"Flux Schnell"},{v:"black-forest-labs/flux-dev",l:"Flux Dev"},{v:"ideogram-ai/ideogram-v3-quality",l:"Ideogram v3 Q"},{v:"ideogram-ai/ideogram-v3-turbo",l:"Ideogram v3 T"},{v:"recraft-ai/recraft-v3",l:"Recraft v3"},{v:"stability-ai/stable-diffusion-3.5-large",l:"SD 3.5 L"},{v:"google-deepmind/imagen-4-preview",l:"Imagen 4"}]};
 const VID_MODELS={replicate:[{v:"bytedance/seedance-1-lite",l:"Seedance Lite"},{v:"bytedance/seedance-1",l:"Seedance Pro"},{v:"wavespeedai/wan-2.1-i2v-480p",l:"Wan 480p"},{v:"wavespeedai/wan-2.1-i2v-720p",l:"Wan 720p"},{v:"xai/grok-imagine-video",l:"Grok Video"},{v:"minimax/video-01-live",l:"Minimax Live"},{v:"minimax/video-01",l:"Minimax v01"},{v:"kwaivgi/kling-v2.0-image-to-video",l:"Kling v2.0"},{v:"luma/ray-2-flash",l:"Luma Flash"},{v:"luma/ray-2",l:"Luma Ray 2"},{v:"google-deepmind/veo-3",l:"Veo 3"}]};
 const SVCS=[{n:"OPENAI",d:"GPT-4o + Whisper",k:"openai"},{n:"REPLICATE",d:"Image + Video",k:"replicate"},{n:"ELEVENLABS",d:"Voice Synthesis",k:"elevenlabs"},{n:"SHOTSTACK",d:"Video Render",k:"shotstack"},{n:"R2",d:"Asset Storage",k:"r2"},{n:"BLOTATO",d:"Publishing",k:"blotato"}];
-const titles={pipeline:'⚡ PIPELINE MONITOR',manual:'◈ MANUAL PIPELINE',topics:'✦ TOPIC DATABASE',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ CONFIGURATION',health:'◎ SYSTEM STATUS'};
+const titles={pipeline:'⚡ PIPELINE MONITOR',manual:'◈ MANUAL PIPELINE',topics:'✦ TOPIC DATABASE',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ SETTINGS',health:'◎ SYSTEM STATUS'};
 
 /* THEME */
 function toggleTheme(){const on=document.documentElement.classList.toggle('light');localStorage.setItem('kr-theme',on?'light':'dark');updThemeBtn();}
@@ -436,8 +436,8 @@ async function go(){const p=$('pw').value;if(!p){$('le').style.display='block';r
 async function autoLogin(){const t=sessionStorage.getItem('kt');if(!t)return;try{const r=await(await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})})).json();if(r.ok){$('L').style.display='none';$('A').classList.remove('hd');init();}}catch(e){}}
 
 /* NAV */
-function dNav(p,btn){document.querySelectorAll('.dpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));$('dp-'+p).classList.add('on');if(btn)btn.classList.add('on');$('d-title').textContent=titles[p]||p;if(p==='topics')loadTopics();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();}
-function mNav(p,btn){document.querySelectorAll('.mpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.bnav-i').forEach(b=>b.classList.remove('on'));$('mp-'+p).classList.add('on');if(btn)btn.classList.add('on');if(p==='topics')loadTopics();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();}
+function dNav(p,btn){document.querySelectorAll('.dpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));$('dp-'+p).classList.add('on');if(btn)btn.classList.add('on');$('d-title').textContent=titles[p]||p;if(p==='topics')loadTopics();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();if(p==='channels')loadChannels();}
+function mNav(p,btn){document.querySelectorAll('.mpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.bnav-i').forEach(b=>b.classList.remove('on'));$('mp-'+p).classList.add('on');if(btn)btn.classList.add('on');if(p==='topics')loadTopics();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();}
 
 /* ═══ GATE BANNERS ═══ */
 function rGate(){
