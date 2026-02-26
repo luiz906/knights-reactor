@@ -697,6 +697,18 @@ GFX_HTML = r"""<!DOCTYPE html><html lang="en"><head>
 --r:8px;--r-lg:12px;
 --glow-a:0 0 8px rgba(244,171,37,.4)
 }
+html.light{
+--bg:#f8f7f5;--bg2:#f0ece4;--bg3:#e8e2d6;--panel:#f0ece4;
+--bd:rgba(140,100,20,.2);--bd2:rgba(140,100,20,.14);
+--amb:#9a6c10;--amb2:#6e4c0c;--amblo:rgba(140,100,20,.06);
+--txt:#9a6c10;--txtd:#78716c;--txtdd:#a8a29e;
+--grn:#16a34a;--grn2:rgba(22,163,74,.06);--red:#dc2626;--red2:rgba(220,38,38,.06);
+--blu:#0284c7;--blu2:rgba(2,132,199,.06);
+--wht:#292524;--fg:41,37,36;--glow-a:none
+}
+html.light select.fin option{background:var(--panel);color:var(--amb)}
+html.light .btn-amb{color:#fff}
+html.light .btn-grn{color:#fff}
 *{margin:0;padding:0;box-sizing:border-box}
 html{font-size:clamp(13px,1.15vw,19px)}
 body{background:var(--bg);color:var(--wht);font-family:var(--f3);min-height:100vh;-webkit-font-smoothing:antialiased}
@@ -838,6 +850,9 @@ textarea.fin{min-height:4em;resize:vertical;line-height:1.6}
 <a class="sb-i" href="/"><span class="material-symbols-outlined">bolt</span>PIPELINE</a>
 <a class="sb-i on" href="/graphics"><span class="material-symbols-outlined">palette</span>GRAPHICS</a>
 </nav>
+<div style="padding:.8em 1.2em;border-top:1px solid rgba(var(--fg),.06)">
+<button onclick="document.documentElement.classList.toggle('light');localStorage.setItem('kr-theme',document.documentElement.classList.contains('light')?'light':'dark')" style="width:100%;padding:6px;font-size:.5em;letter-spacing:.15em;color:var(--txtd);background:none;border:1px solid var(--bd2);font-family:var(--f1);cursor:pointer;border-radius:var(--r)">☀ TOGGLE THEME</button>
+</div>
 </aside>
 
 <!-- ═══ MAIN ═══ -->
@@ -1028,8 +1043,22 @@ function gN(p,b){
   if(p==='gallery')lG();
 }
 
+// ─── THEME ────────────────────────────────────────────────────
+(function(){if(localStorage.getItem('kr-theme')==='light')document.documentElement.classList.add('light');})();
+
 // ─── BRANDS ──────────────────────────────────────────────────
 async function lB(){
+  try{
+    // Try main brand API first (has all brands)
+    const r=await(await fetch('/api/brands')).json();
+    if(r.brands && r.brands.length){
+      $('s-brand').innerHTML=r.brands.map(b=>`<option value="${b.id}"${b.id===r.active?' selected':''}>${b.display_name||b.id}</option>`).join('');
+      $('s-brand').onchange=()=>loadTopics();
+      loadTopics();
+      return;
+    }
+  }catch(e){}
+  // Fallback to graphics-local brand API
   try{
     const brands=await(await fetch(API+'/brands')).json();
     $('s-brand').innerHTML=brands.map(b=>`<option value="${b.id}">${b.name}</option>`).join('')||'<option>No brands</option>';
@@ -1278,3 +1307,4 @@ setInterval(()=>{const ft=$('footer-time');if(ft)ft.textContent=new Date().toLoc
 // ─── INIT ────────────────────────────────────────────────────
 lB();updateSteps();
 </script></body></html>"""
+
