@@ -30,7 +30,7 @@ _static_dir = _APP_DIR / "static"
 _static_dir.mkdir(exist_ok=True)
 
 # If CSS/JS files are at root level (flat repo), copy into static/
-for _fname in ["style.css", "app.js"]:
+for _fname in ["style.css", "app.js", "graphics.css"]:
     _root = _APP_DIR / _fname
     _dest = _static_dir / _fname
     if _root.exists() and (not _dest.exists() or _root.stat().st_mtime > _dest.stat().st_mtime):
