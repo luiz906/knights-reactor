@@ -680,237 +680,353 @@ async def gfx_page():
 
 GFX_HTML = r"""<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Graphics Engine</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
+<title>Graphics Engine — Knights Reactor</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Orbitron:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#000;--bg2:#020202;--bg3:#0a0a0a;--panel:#050505;--bd:rgba(255,179,0,.08);--bd2:#1a1a1a;--amb:#ffb300;--amb2:#cc8f00;--amblo:rgba(255,179,0,.04);--txt:#ffb300;--txtd:#6b6b6b;--txtdd:#3a3a3a;--grn:#00e676;--grn2:rgba(0,230,118,.05);--red:#ff003c;--red2:rgba(255,0,60,.05);--blu:#00e5ff;--blu2:rgba(0,229,255,.05);--wht:#d9d9d9;--fg:255,255,255;--f1:'Orbitron',monospace;--f2:'JetBrains Mono',monospace;--f3:'JetBrains Mono',monospace;--glow-a:0 0 15px rgba(255,179,0,.25)}
-*{margin:0;padding:0;box-sizing:border-box}body{background:var(--bg);color:var(--txt);font-family:var(--f3);min-height:100vh}
-::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--amb);box-shadow:0 0 6px var(--amb)}::-webkit-scrollbar-track{background:var(--bg)}
+:root{
+--bg:#0a0904;--bg2:#0f0d06;--bg3:#16140c;--panel:#16140c;
+--bd:rgba(244,171,37,.2);--bd2:rgba(244,171,37,.12);
+--amb:#f4ab25;--amb2:#cc8f00;--amblo:rgba(244,171,37,.04);
+--txt:#f4ab25;--txtd:#64748b;--txtdd:#475569;
+--grn:#00e676;--grn2:rgba(0,230,118,.05);
+--red:#ff003c;--red2:rgba(255,0,60,.05);
+--blu:#00f3ff;--blu2:rgba(0,243,255,.05);
+--wht:#e2e8f0;--fg:255,255,255;
+--f1:'Orbitron',sans-serif;--f2:'JetBrains Mono',monospace;--f3:'Space Grotesk',sans-serif;
+--r:8px;--r-lg:12px;
+--glow-a:0 0 8px rgba(244,171,37,.4)
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{font-size:clamp(13px,1.15vw,19px)}
+body{background:var(--bg);color:var(--wht);font-family:var(--f3);min-height:100vh;-webkit-font-smoothing:antialiased}
 .material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 20;vertical-align:middle}
-.wrap{max-width:1100px;margin:0 auto;padding:14px}
-.hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--bd2);margin-bottom:14px}
-.hdr h1{font-family:var(--f1);font-size:.8em;font-weight:900;letter-spacing:.15em;text-shadow:0 0 12px rgba(255,179,0,.3)}
-.hdr a{color:var(--txtd);font-size:.6em;text-decoration:none;letter-spacing:.12em;transition:color .12s}.hdr a:hover{color:var(--amb)}
-.tabs{display:flex;gap:2px;border-bottom:1px solid var(--bd2);margin-bottom:14px}
-.tab{font-family:var(--f1);font-size:.55em;color:var(--txtd);background:none;border:none;border-bottom:2px solid transparent;padding:.65em .9em;cursor:pointer;letter-spacing:.15em;font-weight:500;transition:all .12s}.tab:hover{color:var(--amb)}.tab.on{color:var(--amb);border-bottom-color:var(--amb);text-shadow:0 0 8px rgba(255,179,0,.3);font-weight:700}
-.page{display:none}.page.on{display:block}
-.card{background:var(--panel);border:1px solid var(--bd2);padding:.9em;margin-bottom:.5em}
-.card-t{font-family:var(--f1);font-size:.55em;font-weight:700;letter-spacing:.2em;color:var(--txtd);margin-bottom:.5em;display:flex;align-items:center;gap:.5em}
-.card-t::before{content:'';width:3px;height:.8em;background:var(--amb);box-shadow:var(--glow-a)}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:.8em}
-@media(max-width:600px){.row{grid-template-columns:1fr}}
-.fi{margin-bottom:.5em}.lbl{font-size:.55em;color:var(--txtd);letter-spacing:.15em;margin-bottom:.25em;text-transform:uppercase;font-weight:500}
-.inp{width:100%;padding:.55em .7em;background:var(--bg);border:1px solid var(--bd2);color:var(--amb);font-family:var(--f3);font-size:.85em;outline:none;border-radius:0;transition:border-color .15s}
-.inp:focus{border-color:var(--amb);box-shadow:0 0 8px rgba(255,179,0,.06)}
-select.inp{-webkit-appearance:none;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23ffb300'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-color:var(--bg);padding-right:30px}
-textarea.inp{min-height:3.5em;resize:vertical;line-height:1.5}
-.btn{font-family:var(--f1);font-size:.55em;padding:.55em 1.1em;border:none;cursor:pointer;letter-spacing:.12em;transition:all .12s;font-weight:700}
-.btn-go{background:var(--amb);color:#000}.btn-go:hover{box-shadow:0 0 16px rgba(255,179,0,.3);filter:brightness(1.08)}
-.btn-out{background:none;border:1px solid var(--bd2);color:var(--amb)}.btn-out:hover{background:var(--amblo);border-color:var(--bd)}
-.btn-grn{background:rgba(0,230,118,.12);border:1px solid rgba(0,230,118,.2);color:var(--grn)}.btn-grn:hover{box-shadow:0 0 12px rgba(0,230,118,.2)}
-.btn-red{background:var(--red2);border:1px solid rgba(255,0,60,.12);color:var(--red)}
-.btn-blu{background:var(--blu2);border:1px solid rgba(0,229,255,.12);color:var(--blu)}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--amb2);border-radius:4px}::-webkit-scrollbar-track{background:transparent}
+button{font-family:var(--f3);cursor:pointer}input,select,textarea{font-family:var(--f3)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{display:inline-block;animation:spin 1s linear infinite}
+.hd{display:none}
+
+/* ── SHELL ── */
+.shell{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:16em;background:var(--bg2);border-right:1px solid var(--bd2);display:flex;flex-direction:column;flex-shrink:0}
+.sb-logo{padding:1.4em 1.5em;border-bottom:1px solid rgba(var(--fg),.06)}
+.sb-logo h1{font-family:var(--f3);font-size:.85em;font-weight:700;color:#fff;letter-spacing:.08em;line-height:1.4;text-shadow:0 0 8px rgba(244,171,37,.4)}
+.sb-logo p{font-family:var(--f2);font-size:.45em;color:var(--amb);letter-spacing:.15em;margin-top:.3em;opacity:.6}
+.sb-nav{flex:1;padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+.sb-i{width:100%;display:flex;align-items:center;gap:.7em;padding:.6em .9em;background:none;border:none;border-left:2px solid transparent;color:var(--txtd);font-size:.7em;letter-spacing:.04em;transition:all .15s;text-align:left;font-weight:500;text-transform:uppercase;border-radius:0 var(--r) var(--r) 0;text-decoration:none}
+.sb-i:hover{color:#fff;background:rgba(var(--fg),.03)}
+.sb-i.on{color:var(--amb);border-left-color:var(--amb);background:rgba(244,171,37,.08);font-weight:600}
+.sb-i .material-symbols-outlined{font-size:1.1em;opacity:.6}.sb-i.on .material-symbols-outlined{opacity:1}
+.main-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── TOPBAR ── */
+.topbar{height:3.5em;background:rgba(10,9,4,.5);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--bd2);display:flex;align-items:center;justify-content:space-between;padding:0 1.5em;flex-shrink:0}
+.topbar-t{font-family:var(--f3);font-size:.7em;letter-spacing:.1em;color:#fff;font-weight:700;text-transform:uppercase}
+.topbar-s{display:flex;align-items:center;gap:12px}
+.top-tabs{display:flex;gap:0;height:100%}
+.top-tab{font-family:var(--f3);font-size:.6em;font-weight:600;color:var(--txtd);background:none;border:none;border-bottom:2px solid transparent;padding:0 1em;letter-spacing:.12em;text-transform:uppercase;transition:all .12s}
+.top-tab:hover{color:var(--amb)}
+.top-tab.on{color:var(--amb);border-bottom-color:var(--amb)}
+
+/* ── CONTENT ── */
+.content{flex:1;overflow-y:auto;padding:2em 2.5em}
+.page{display:none;max-width:56em;margin:0 auto}.page.on{display:block}
+
+/* ── SECTION HEADERS (inspo layout) ── */
+.sec-head{display:flex;align-items:center;gap:.7em;margin-bottom:.7em;margin-top:1.5em}
+.sec-head:first-child{margin-top:0}
+.sec-num{background:var(--amb);color:var(--bg);font-family:var(--f2);font-size:.55em;font-weight:700;padding:.15em .5em;border-radius:var(--r);min-width:1.6em;text-align:center}
+.sec-title{font-family:var(--f3);font-size:.7em;font-weight:700;letter-spacing:.2em;color:#fff;text-transform:uppercase}
+
+/* ── PANELS ── */
+.panel{background:var(--panel);border:1px solid var(--bd2);padding:1.4em 1.6em;border-radius:var(--r-lg);margin-bottom:.5em}
+.panel-locked{opacity:.25;pointer-events:none;filter:grayscale(.5)}
+.panel-active{border-left:3px solid var(--blu);background:rgba(0,243,255,.015)}
+.panel-done{border-left:3px solid var(--grn);background:rgba(0,230,118,.015)}
+
+/* ── FORM ── */
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:.6em 1.2em}
+.fg-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6em 1.2em}
+.fg-full{grid-column:1/-1}
+.fi{margin-bottom:0}
+.fl{font-size:.55em;color:var(--txtd);text-transform:uppercase;letter-spacing:.2em;margin-bottom:.35em;font-weight:600}
+.fin{width:100%;padding:.6em .8em;background:var(--bg);border:1px solid var(--bd2);font-size:.85em;color:var(--amb);outline:none;font-family:var(--f3);border-radius:var(--r);transition:border-color .15s}
+.fin:focus{border-color:var(--amb);box-shadow:0 0 8px rgba(244,171,37,.08)}
+select.fin{-webkit-appearance:none;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23f4ab25'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-color:var(--bg);padding-right:30px}
+select.fin option{background:var(--bg2);color:var(--amb)}
+textarea.fin{min-height:4em;resize:vertical;line-height:1.6}
+
+/* ── BUTTONS ── */
+.btn-row{display:flex;gap:.4em;flex-wrap:wrap;margin-top:.8em}
+.btn-row-end{display:flex;justify-content:flex-end;gap:.4em;flex-wrap:wrap;margin-top:1em}
+.btn{font-family:var(--f3);font-size:.6em;font-weight:700;padding:.6em 1.2em;border:none;cursor:pointer;letter-spacing:.1em;transition:all .15s;text-transform:uppercase;border-radius:var(--r)}
+.btn-amb{background:var(--amb);color:var(--bg)}.btn-amb:hover{filter:brightness(1.08);box-shadow:var(--glow-a)}
+.btn-out{background:none;border:1px solid var(--bd2);color:var(--amb)}.btn-out:hover{background:var(--amblo);border-color:var(--amb)}
+.btn-grn{background:var(--grn);color:var(--bg)}.btn-grn:hover{filter:brightness(1.08);box-shadow:0 0 8px rgba(0,230,118,.3)}
+.btn-red{background:var(--red2);border:1px solid rgba(255,0,60,.15);color:var(--red)}.btn-red:hover{background:rgba(255,0,60,.08)}
+.btn-blu{background:var(--blu2);border:1px solid rgba(0,243,255,.15);color:var(--blu)}.btn-blu:hover{background:rgba(0,243,255,.08)}
 .btn:disabled{opacity:.25;cursor:not-allowed}
 
-/* PHASE STEPS */
-.step{background:var(--panel);border:1px solid var(--bd2);padding:1em;margin-bottom:.5em;border-left:3px solid var(--txtdd);transition:all .3s}
-.step.active{border-left-color:var(--blu);background:rgba(0,229,255,.015)}
-.step.done{border-left-color:var(--grn);background:rgba(0,230,118,.01)}
-.step.locked{opacity:.3;pointer-events:none}
-.step-head{display:flex;align-items:center;gap:.6em;margin-bottom:.5em}
-.step-num{font-family:var(--f1);font-size:.55em;font-weight:900;width:1.6em;height:1.6em;display:flex;align-items:center;justify-content:center;border:1px solid var(--bd2);color:var(--txtd)}
-.step.active .step-num{border-color:var(--blu);color:var(--blu);box-shadow:0 0 8px rgba(0,229,255,.15)}
-.step.done .step-num{border-color:var(--grn);color:var(--grn);background:var(--grn2)}
-.step-title{font-family:var(--f1);font-size:.65em;font-weight:700;letter-spacing:.15em}
-.step.active .step-title{color:var(--blu)}
-.step.done .step-title{color:var(--grn)}
-.step-actions{display:flex;gap:6px;margin-top:.6em;flex-wrap:wrap}
-.step-status{font-size:.6em;color:var(--txtd);margin-top:.3em}
-.spin{display:inline-block;animation:spin 1s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
+/* ── STATUS ── */
+.status{font-size:.6em;color:var(--txtd);margin-top:.5em;min-height:1.2em;line-height:1.5}
 
-/* IMAGE PREVIEW */
-.img-preview{border:1px solid var(--amb);padding:3px;background:var(--bg);margin:.5em 0;max-width:400px}
-.img-preview img{width:100%;display:block}
+/* ── IMAGE PREVIEW ── */
+.img-box{border:1px solid var(--bd2);padding:3px;background:var(--bg);border-radius:var(--r);margin:.6em 0;max-width:22em}
+.img-box img{width:100%;display:block;border-radius:calc(var(--r) - 2px)}
 
-/* CAPTIONS */
-.cap-block{border:1px solid var(--bd2);padding:.5em;margin-bottom:.4em}
-.cap-plat{font-family:var(--f1);font-size:.45em;letter-spacing:.15em;color:var(--txtd);margin-bottom:.25em;text-transform:uppercase;font-weight:700}
-.cap-text{width:100%;min-height:3em;padding:.4em;background:var(--bg);border:1px solid var(--bd2);color:var(--wht);font-family:var(--f3);font-size:.8em;resize:vertical;outline:none;transition:border-color .15s}
+/* ── CAPTIONS ── */
+.cap-block{background:var(--bg);border:1px solid var(--bd2);padding:.7em;margin-bottom:.4em;border-radius:var(--r)}
+.cap-plat{font-family:var(--f3);font-size:.5em;letter-spacing:.15em;color:var(--txtd);margin-bottom:.3em;text-transform:uppercase;font-weight:700;display:flex;align-items:center;gap:.4em}
+.cap-plat .material-symbols-outlined{font-size:1.2em}
+.cap-text{width:100%;min-height:3.2em;padding:.5em .6em;background:transparent;border:1px solid rgba(var(--fg),.04);color:var(--wht);font-family:var(--f3);font-size:.8em;resize:vertical;outline:none;border-radius:var(--r);transition:border-color .15s}
 .cap-text:focus{border-color:var(--amb)}
 
-/* GALLERY */
+/* ── GALLERY ── */
 .gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
-.gi{background:var(--panel);border:1px solid var(--bd2);overflow:hidden;position:relative;cursor:pointer;transition:border-color .15s}
+.gi{background:var(--panel);border:1px solid var(--bd2);overflow:hidden;position:relative;cursor:pointer;transition:border-color .15s;border-radius:var(--r)}
 .gi img{width:100%;display:block}.gi:hover{border-color:var(--amb)}
-.gi-info{padding:6px 8px}.gi-topic{font-size:.65em;color:var(--wht);font-family:var(--f2);font-weight:700}
-.gi-meta{font-size:.5em;color:var(--txtd);margin-top:2px}
+.gi-info{padding:8px 10px}.gi-topic{font-size:.65em;color:var(--wht);font-weight:600}
+.gi-meta{font-size:.5em;color:var(--txtd);margin-top:3px;font-family:var(--f2)}
 .gi-quote{font-size:.55em;color:var(--txtdd);margin-top:2px;font-style:italic}
-.gi-del{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.9);border:1px solid var(--bd2);color:var(--red);font-size:.55em;padding:2px 6px;cursor:pointer;display:none}
+.gi-del{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.85);border:1px solid rgba(255,0,60,.15);color:var(--red);font-size:.55em;padding:2px 6px;cursor:pointer;display:none;border-radius:var(--r)}
 .gi:hover .gi-del{display:block}
 
-/* MODAL */
-.mbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:999;align-items:center;justify-content:center;flex-direction:column;padding:20px}
+/* ── MODAL ── */
+.mbg{display:none;position:fixed;inset:0;background:rgba(10,9,4,.95);z-index:999;align-items:center;justify-content:center;flex-direction:column;padding:20px;backdrop-filter:blur(8px)}
 .mbg.show{display:flex}
-.mimg{max-width:90vw;max-height:70vh;object-fit:contain;border:1px solid var(--amb)}
+.mimg{max-width:90vw;max-height:70vh;object-fit:contain;border:1px solid var(--bd2);border-radius:var(--r-lg)}
 .mx{position:fixed;top:12px;right:16px;background:none;border:none;color:var(--amb);font-size:1.5em;cursor:pointer;z-index:1000}
 .mdet{color:var(--wht);font-size:.7em;margin-top:10px;text-align:center;max-width:80vw;line-height:1.6}
-.mdet b{color:var(--amb);font-family:var(--f1);font-size:.85em;letter-spacing:.08em}
-</style></head><body>
-<div class="wrap">
-<div class="hdr"><h1>⬡ GRAPHICS ENGINE</h1><a href="/">← VIDEO PIPELINE</a></div>
+.mdet b{color:var(--amb);font-family:var(--f3);font-weight:700}
 
-<div class="tabs">
-<button class="tab on" onclick="gN('create',this)">✦ CREATE</button>
-<button class="tab" onclick="gN('gallery',this)">◉ GALLERY</button>
+/* ── SUMMARY ROW ── */
+.sum-row{display:grid;grid-template-columns:auto 1fr;gap:1em;align-items:start}
+.sum-img{max-width:16em}
+.sum-details .fl{margin-top:.5em}
+.sum-val{font-size:.8em;color:var(--wht);line-height:1.4}
+.sum-val.amber{color:var(--amb);font-style:italic}
+
+/* ── PUBLISH TOGGLES ── */
+.pub-grid{display:flex;flex-wrap:wrap;gap:.4em;margin:.5em 0}
+.pub-chip{display:flex;align-items:center;gap:.35em;font-size:.65em;color:var(--wht);cursor:pointer;padding:.3em .6em;background:var(--bg);border:1px solid var(--bd2);border-radius:var(--r);transition:all .15s;user-select:none}
+.pub-chip:has(input:checked){border-color:var(--grn);background:var(--grn2);color:var(--grn)}
+.pub-chip input{display:none}
+
+/* ── FOOTER ── */
+.footer{height:2.5em;border-top:1px solid rgba(var(--fg),.04);background:var(--bg2);display:flex;align-items:center;justify-content:space-between;padding:0 1.5em;flex-shrink:0}
+.footer span{font-family:var(--f2);font-size:.45em;color:var(--txtdd);letter-spacing:.1em}
+.footer .ok{color:var(--grn)}
+
+/* ── MOBILE ── */
+@media(max-width:768px){
+  .shell{flex-direction:column;height:auto}.sidebar{display:none}
+  .content{padding:1em}
+  .fg,.fg-3{grid-template-columns:1fr}
+  .sum-row{grid-template-columns:1fr}
+  .gal{grid-template-columns:repeat(2,1fr)}
+  .top-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch}
+}
+</style></head><body>
+
+<div class="shell">
+<!-- ═══ SIDEBAR ═══ -->
+<aside class="sidebar">
+<div class="sb-logo"><h1>Knights<br>Reactor</h1><p>GRAPHICS ENGINE v2</p></div>
+<nav class="sb-nav">
+<a class="sb-i" href="/"><span class="material-symbols-outlined">bolt</span>PIPELINE</a>
+<a class="sb-i on" href="/graphics"><span class="material-symbols-outlined">palette</span>GRAPHICS</a>
+</nav>
+</aside>
+
+<!-- ═══ MAIN ═══ -->
+<div class="main-area">
+<div class="topbar">
+  <div class="topbar-t">Graphics &amp; Assets</div>
+  <div class="top-tabs">
+    <button class="top-tab on" onclick="gN('create',this)">Create</button>
+    <button class="top-tab" onclick="gN('gallery',this)">Library</button>
+  </div>
 </div>
 
-<!-- ═══ CREATE TAB — Step-by-step pipeline ═══ -->
+<div class="content">
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- CREATE PAGE -->
+<!-- ════════════════════════════════════════════════ -->
 <div class="page on" id="p-create">
 
-  <!-- SETUP -->
-  <div class="card">
-    <div class="card-t">SETUP</div>
-    <div class="row">
-      <div class="fi"><div class="lbl">BRAND</div><select class="inp" id="s-brand"></select></div>
-      <div class="fi"><div class="lbl">ASPECT RATIO</div><select class="inp" id="s-aspect">
+  <!-- ── 01 SETUP ── -->
+  <div class="sec-head"><div class="sec-num">01</div><div class="sec-title">Setup</div></div>
+  <div class="panel">
+    <div class="fg-3">
+      <div class="fi"><div class="fl">Brand</div><select class="fin" id="s-brand"></select></div>
+      <div class="fi"><div class="fl">Aspect Ratio</div><select class="fin" id="s-aspect">
         <option value="1:1">1:1 Square</option><option value="9:16">9:16 Vertical</option>
         <option value="4:5">4:5 Portrait</option><option value="16:9">16:9 Landscape</option>
       </select></div>
+      <div class="fi"><div class="fl">Image Model</div><select class="fin" id="s-model">
+        <option value="black-forest-labs/flux-1.1-pro">Flux 1.1 Pro ~$0.04</option>
+        <option value="black-forest-labs/flux-schnell">Flux Schnell ~$0.003</option>
+        <option value="google/nano-banana-pro">Nano Banana Pro ~$0.10</option>
+        <option value="google/nano-banana">Nano Banana ~$0.02</option>
+        <option value="xai/grok-imagine-image">Grok Aurora ~$0.07</option>
+        <option value="bytedance/seedream-4.5">Seedream 4.5 ~$0.03</option>
+        <option value="ideogram-ai/ideogram-v3-quality">Ideogram v3 Q ~$0.08</option>
+        <option value="ideogram-ai/ideogram-v3-turbo">Ideogram v3 T ~$0.02</option>
+        <option value="recraft-ai/recraft-v3">Recraft v3 ~$0.04</option>
+        <option value="google-deepmind/imagen-4-preview">Imagen 4 ~$0.04</option>
+      </select></div>
     </div>
-    <div class="fi"><div class="lbl">IMAGE MODEL</div><select class="inp" id="s-model">
-      <option value="black-forest-labs/flux-1.1-pro">Flux 1.1 Pro ~$0.04</option>
-      <option value="black-forest-labs/flux-schnell">Flux Schnell ~$0.003</option>
-      <option value="google/nano-banana-pro">Nano Banana Pro ~$0.10</option>
-      <option value="google/nano-banana">Nano Banana ~$0.02</option>
-      <option value="xai/grok-imagine-image">Grok Aurora ~$0.07</option>
-      <option value="bytedance/seedream-4.5">Seedream 4.5 ~$0.03</option>
-      <option value="ideogram-ai/ideogram-v3-quality">Ideogram v3 Q ~$0.08</option>
-      <option value="ideogram-ai/ideogram-v3-turbo">Ideogram v3 T ~$0.02</option>
-      <option value="recraft-ai/recraft-v3">Recraft v3 ~$0.04</option>
-      <option value="google-deepmind/imagen-4-preview">Imagen 4 ~$0.04</option>
-    </select></div>
   </div>
 
-  <!-- STEP 1: TOPIC -->
-  <div class="step active" id="st-1">
-    <div class="step-head"><div class="step-num">1</div><div class="step-title">TOPIC</div></div>
-    <div class="fi"><div class="lbl">Pick from Topics list or type your own</div>
-      <select class="inp" id="f-topic-list" onchange="pickTopic(this.value)" style="margin-bottom:.4em">
+  <!-- ── 02 TOPIC ── -->
+  <div class="sec-head"><div class="sec-num">02</div><div class="sec-title">Topic</div></div>
+  <div class="panel" id="st-1">
+    <div class="fi"><div class="fl">Select from Topics DB or type your own</div>
+      <select class="fin" id="f-topic-list" onchange="pickTopic(this.value)" style="margin-bottom:.5em">
         <option value="">— Select a topic —</option>
       </select>
-      <textarea class="inp" id="f-topic" rows="2" placeholder="Select from list above, use Random, or type your own..."></textarea>
+      <textarea class="fin" id="f-topic" rows="2" placeholder="Select above, use Random, or type freely..."></textarea>
     </div>
-    <div class="step-actions">
-      <button class="btn btn-go" onclick="loadTopics()">↻ REFRESH LIST</button>
-      <button class="btn btn-go" onclick="randomTopic()">🎲 RANDOM</button>
-      <button class="btn btn-out" onclick="genTopicAI()">⚡ AI GENERATE</button>
-      <button class="btn btn-grn" onclick="lockStep(1)" id="btn-lock1">APPROVE & NEXT →</button>
+    <div class="btn-row">
+      <button class="btn btn-out" onclick="loadTopics()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">refresh</span> Refresh</button>
+      <button class="btn btn-out" onclick="randomTopic()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">casino</span> Random</button>
+      <button class="btn btn-amb" onclick="genTopicAI()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">auto_awesome</span> AI Generate</button>
     </div>
-    <div class="step-status" id="st1-status"></div>
+    <div class="btn-row-end">
+      <button class="btn btn-grn" onclick="lockStep(1)" id="btn-lock1">Apply &amp; Next →</button>
+    </div>
+    <div class="status" id="st1-status"></div>
   </div>
 
-  <!-- STEP 2: QUOTE -->
-  <div class="step locked" id="st-2">
-    <div class="step-head"><div class="step-num">2</div><div class="step-title">QUOTE</div></div>
-    <div class="fi"><div class="lbl">Quote / text overlay for the image</div>
-      <textarea class="inp" id="f-quote" rows="2" placeholder="AI will generate a quote from your topic..."></textarea>
+  <!-- ── 03 QUOTE ── -->
+  <div class="sec-head"><div class="sec-num">03</div><div class="sec-title">Quote</div></div>
+  <div class="panel panel-locked" id="st-2">
+    <div class="fi"><div class="fl">Quote / text overlay for the image</div>
+      <textarea class="fin" id="f-quote" rows="2" placeholder="AI generates from your topic..."></textarea>
     </div>
-    <div class="step-actions">
-      <button class="btn btn-go" onclick="genQuote()">⚡ GENERATE QUOTE</button>
-      <button class="btn btn-out" onclick="genQuote()">↻ REGENERATE</button>
-      <button class="btn btn-grn" onclick="lockStep(2)">APPROVE & NEXT →</button>
+    <div class="btn-row">
+      <button class="btn btn-amb" onclick="genQuote()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">auto_awesome</span> Generate</button>
+      <button class="btn btn-out" onclick="genQuote()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">refresh</span> Regenerate</button>
     </div>
-    <div class="step-status" id="st2-status"></div>
+    <div class="btn-row-end">
+      <button class="btn btn-grn" onclick="lockStep(2)">Apply &amp; Next →</button>
+    </div>
+    <div class="status" id="st2-status"></div>
   </div>
 
-  <!-- STEP 3: SCENE PROMPT -->
-  <div class="step locked" id="st-3">
-    <div class="step-head"><div class="step-num">3</div><div class="step-title">IMAGE PROMPT</div></div>
-    <div class="fi"><div class="lbl">Scene Engine builds a photorealistic lettering prompt (mood + carrier + scene + brand)</div>
-      <textarea class="inp" id="f-prompt" rows="4" placeholder="Click Generate to build a randomized scene prompt, or write your own..."></textarea>
+  <!-- ── 04 IMAGE PROMPT ── -->
+  <div class="sec-head"><div class="sec-num">04</div><div class="sec-title">Image Prompt</div></div>
+  <div class="panel panel-locked" id="st-3">
+    <div class="fi"><div class="fl">Scene Engine builds a photorealistic lettering prompt</div>
+      <textarea class="fin" id="f-prompt" rows="5" placeholder="Click Generate to build a randomized scene, or write your own..."></textarea>
     </div>
-    <div class="step-actions">
-      <button class="btn btn-go" onclick="genPrompt()">⚡ GENERATE PROMPT</button>
-      <button class="btn btn-out" onclick="genPrompt()">↻ REGENERATE</button>
-      <button class="btn btn-grn" onclick="lockStep(3)">APPROVE & GENERATE IMAGE →</button>
+    <div class="btn-row">
+      <button class="btn btn-amb" onclick="genPrompt()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">auto_awesome</span> Generate</button>
+      <button class="btn btn-out" onclick="genPrompt()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">refresh</span> Regenerate</button>
     </div>
-    <div class="step-status" id="st3-status"></div>
+    <div class="btn-row-end">
+      <button class="btn btn-grn" onclick="lockStep(3)">Apply &amp; Generate Image →</button>
+    </div>
+    <div class="status" id="st3-status"></div>
   </div>
 
-  <!-- STEP 4: IMAGE -->
-  <div class="step locked" id="st-4">
-    <div class="step-head"><div class="step-num">4</div><div class="step-title">IMAGE GENERATION</div></div>
+  <!-- ── 05 IMAGE ── -->
+  <div class="sec-head"><div class="sec-num">05</div><div class="sec-title">Image Generation</div></div>
+  <div class="panel panel-locked" id="st-4">
     <div id="img-area"></div>
-    <div class="step-actions">
-      <button class="btn btn-go" onclick="genImage()" id="btn-genimg">⚡ GENERATE IMAGE</button>
-      <button class="btn btn-out" onclick="genImage()">↻ REGENERATE</button>
-      <button class="btn btn-grn" onclick="lockStep(4)" id="btn-lock4" disabled>APPROVE IMAGE & NEXT →</button>
+    <div class="btn-row">
+      <button class="btn btn-amb" onclick="genImage()" id="btn-genimg"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">image</span> Generate Image</button>
+      <button class="btn btn-out" onclick="genImage()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">refresh</span> Regenerate</button>
     </div>
-    <div class="step-status" id="st4-status"></div>
+    <div class="btn-row-end">
+      <button class="btn btn-grn" onclick="lockStep(4)" id="btn-lock4" disabled>Approve &amp; Next →</button>
+    </div>
+    <div class="status" id="st4-status"></div>
   </div>
 
-  <!-- STEP 5: CAPTIONS -->
-  <div class="step locked" id="st-5">
-    <div class="step-head"><div class="step-num">5</div><div class="step-title">CAPTIONS</div></div>
+  <!-- ── 06 CAPTIONS ── -->
+  <div class="sec-head"><div class="sec-num">06</div><div class="sec-title">Captions</div></div>
+  <div class="panel panel-locked" id="st-5">
     <div id="cap-area"></div>
-    <div class="step-actions">
-      <button class="btn btn-go" onclick="genCaptions()">⚡ GENERATE CAPTIONS</button>
-      <button class="btn btn-out" onclick="genCaptions()">↻ REGENERATE</button>
-      <button class="btn btn-grn" onclick="lockStep(5)">APPROVE & SAVE →</button>
+    <div class="btn-row">
+      <button class="btn btn-amb" onclick="genCaptions()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">auto_awesome</span> Generate Captions</button>
+      <button class="btn btn-out" onclick="genCaptions()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">refresh</span> Regenerate</button>
     </div>
-    <div class="step-status" id="st5-status"></div>
+    <div class="btn-row-end">
+      <button class="btn btn-grn" onclick="lockStep(5)">Approve &amp; Save →</button>
+    </div>
+    <div class="status" id="st5-status"></div>
   </div>
 
-  <!-- STEP 6: SAVE / PUBLISH -->
-  <div class="step locked" id="st-6">
-    <div class="step-head"><div class="step-num">6</div><div class="step-title">SAVE & PUBLISH</div></div>
+  <!-- ── 07 SAVE & PUBLISH ── -->
+  <div class="sec-head"><div class="sec-num">07</div><div class="sec-title">Save &amp; Publish</div></div>
+  <div class="panel panel-locked" id="st-6">
     <div id="final-summary"></div>
-    <div style="margin:.6em 0;padding:.6em;background:var(--bg);border:1px solid var(--bd2)">
-      <div class="lbl" style="margin-bottom:.4em">PUBLISH TO PLATFORMS</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px" id="pub-toggles">
-        <label style="display:flex;align-items:center;gap:4px;font-size:.7em;color:var(--wht);cursor:pointer"><input type="checkbox" class="pub-plat" value="instagram" checked> Instagram</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:.7em;color:var(--wht);cursor:pointer"><input type="checkbox" class="pub-plat" value="facebook" checked> Facebook</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:.7em;color:var(--wht);cursor:pointer"><input type="checkbox" class="pub-plat" value="twitter" checked> X/Twitter</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:.7em;color:var(--wht);cursor:pointer"><input type="checkbox" class="pub-plat" value="threads" checked> Threads</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:.7em;color:var(--wht);cursor:pointer"><input type="checkbox" class="pub-plat" value="tiktok"> TikTok</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:.7em;color:var(--wht);cursor:pointer"><input type="checkbox" class="pub-plat" value="pinterest"> Pinterest</label>
+    <div style="margin:.6em 0">
+      <div class="fl">Publish to platforms</div>
+      <div class="pub-grid" id="pub-toggles">
+        <label class="pub-chip"><input type="checkbox" class="pub-plat" value="instagram" checked><span class="material-symbols-outlined" style="font-size:1em">photo_camera</span> Instagram</label>
+        <label class="pub-chip"><input type="checkbox" class="pub-plat" value="facebook" checked><span class="material-symbols-outlined" style="font-size:1em">groups</span> Facebook</label>
+        <label class="pub-chip"><input type="checkbox" class="pub-plat" value="twitter" checked><span class="material-symbols-outlined" style="font-size:1em">tag</span> X / Twitter</label>
+        <label class="pub-chip"><input type="checkbox" class="pub-plat" value="threads" checked><span class="material-symbols-outlined" style="font-size:1em">thread_unread</span> Threads</label>
+        <label class="pub-chip"><input type="checkbox" class="pub-plat" value="tiktok"><span class="material-symbols-outlined" style="font-size:1em">music_note</span> TikTok</label>
+        <label class="pub-chip"><input type="checkbox" class="pub-plat" value="pinterest"><span class="material-symbols-outlined" style="font-size:1em">push_pin</span> Pinterest</label>
       </div>
     </div>
-    <div class="step-actions">
-      <button class="btn btn-grn" onclick="savePost()">💾 SAVE TO GALLERY</button>
-      <button class="btn btn-blu" onclick="publishPost()">📡 PUBLISH NOW</button>
-      <button class="btn btn-go" onclick="resetFlow()">✦ START NEW POST</button>
+    <div class="btn-row">
+      <button class="btn btn-grn" onclick="savePost()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">save</span> Save to Gallery</button>
+      <button class="btn btn-blu" onclick="publishPost()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">cell_tower</span> Publish Now</button>
+      <button class="btn btn-amb" onclick="resetFlow()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">add</span> New Post</button>
     </div>
-    <div class="step-status" id="st6-status"></div>
+    <div class="status" id="st6-status"></div>
   </div>
 
+  <div style="height:3em"></div>
 </div>
 
-<!-- ═══ GALLERY TAB ═══ -->
+<!-- ════════════════════════════════════════════════ -->
+<!-- GALLERY PAGE -->
+<!-- ════════════════════════════════════════════════ -->
 <div class="page" id="p-gallery">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6em">
-    <span style="font-family:var(--f1);font-size:.6em;letter-spacing:.12em;color:var(--txtd)">SAVED POSTS</span>
-    <span id="g-count" style="font-size:.55em;color:var(--txtdd)"></span>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8em">
+    <div class="sec-head" style="margin:0"><div class="sec-title">Saved Posts</div></div>
+    <span id="g-count" style="font-family:var(--f2);font-size:.55em;color:var(--txtd)"></span>
   </div>
   <div class="gal" id="g-grid"></div>
 </div>
 
-<!-- MODAL -->
-<div class="mbg" id="modal" onclick="if(event.target===this)cM()">
-  <button class="mx" onclick="cM()">✕</button>
-  <img class="mimg" id="m-img">
-  <div class="mdet" id="m-det"></div>
+</div><!-- /content -->
+
+<div class="footer">
+  <div><span>SYSTEM STATE: </span><span class="ok" id="footer-state">READY</span></div>
+  <span id="footer-time"></span>
 </div>
 
+</div><!-- /main-area -->
+</div><!-- /shell -->
+
+<!-- MODAL -->
+<div class="mbg" id="modal" onclick="cM()">
+<button class="mx" onclick="cM()">✕</button>
+<img class="mimg" id="m-img" src="">
+<div class="mdet" id="m-det"></div>
 </div>
+
 <script>
 const $=id=>document.getElementById(id), API='/graphics/api';
 let STATE={step:1, brand_id:'', topic:'', quote:'', prompt:'', image_url:'', captions:{}, gallery_id:''};
 
 // ─── NAV ─────────────────────────────────────────────────────
-function gN(p,b){document.querySelectorAll('.page').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));$('p-'+p).classList.add('on');if(b)b.classList.add('on');if(p==='gallery')lG();}
+function gN(p,b){
+  document.querySelectorAll('.page').forEach(e=>e.classList.remove('on'));
+  document.querySelectorAll('.top-tab').forEach(b=>b.classList.remove('on'));
+  $('p-'+p).classList.add('on');
+  if(b)b.classList.add('on');
+  if(p==='gallery')lG();
+}
 
 // ─── BRANDS ──────────────────────────────────────────────────
 async function lB(){
@@ -925,34 +1041,38 @@ async function lB(){
 // ─── STEP MANAGEMENT ─────────────────────────────────────────
 function updateSteps(){
   for(let i=1;i<=6;i++){
-    const el=$('st-'+i);
-    el.classList.remove('active','done','locked');
-    if(i<STATE.step) el.classList.add('done');
-    else if(i===STATE.step) el.classList.add('active');
-    else el.classList.add('locked');
+    const el=$('st-'+i);if(!el)continue;
+    el.classList.remove('panel-active','panel-done','panel-locked');
+    if(i<STATE.step) el.classList.add('panel-done');
+    else if(i===STATE.step) el.classList.add('panel-active');
+    else el.classList.add('panel-locked');
+  }
+  // Update footer state
+  const fs=$('footer-state');
+  if(fs){
+    if(STATE.step<=1)fs.textContent='READY';
+    else if(STATE.step<=6)fs.textContent='STEP_'+STATE.step+'_ACTIVE';
+    else fs.textContent='COMPLETE';
   }
 }
 function lockStep(n){
-  // Validate current step has content
   if(n===1 && !$('f-topic').value.trim()){alert('Enter or generate a topic first');return;}
   if(n===2 && !$('f-quote').value.trim()){alert('Enter or generate a quote first');return;}
   if(n===3 && !$('f-prompt').value.trim()){alert('Enter or generate an image prompt first');return;}
   if(n===4 && !STATE.image_url){alert('Generate an image first');return;}
   if(n===5){
-    // Collect edited captions
     const caps={};
     document.querySelectorAll('.cap-text').forEach(el=>{caps[el.dataset.plat]=el.value;});
     STATE.captions=caps;
   }
-
-  // Save state
   if(n===1) STATE.topic=$('f-topic').value.trim();
   if(n===2) STATE.quote=$('f-quote').value.trim();
   if(n===3) STATE.prompt=$('f-prompt').value.trim();
-
   STATE.step=n+1;
   updateSteps();
-
+  // Auto-scroll to next section
+  const next=$('st-'+(n+1));
+  if(next)next.scrollIntoView({behavior:'smooth',block:'center'});
   // Auto-trigger next phase
   if(n===1) genQuote();
   if(n===2) genPrompt();
@@ -964,42 +1084,41 @@ function lockStep(n){
 // ─── PHASE 1: TOPIC ─────────────────────────────────────────
 let TOPICS_CACHE=[];
 async function loadTopics(){
-  const brand=$('s-brand').value;if(!brand){alert('Select a brand');return;}
+  const brand=$('s-brand').value;if(!brand)return;
   try{
     const r=await(await fetch(API+'/topics/'+brand)).json();
     TOPICS_CACHE=r.topics||[];
     const sel=$('f-topic-list');
-    sel.innerHTML='<option value="">— Select a topic ('+r.new+' new / '+r.total+' total) —</option>';
-    const newT=TOPICS_CACHE.filter(t=>t.status==='new');
-    newT.forEach(t=>{const o=document.createElement('option');o.value=t.idea;o.textContent=t.idea+(t.category?' ['+t.category+']':'');sel.appendChild(o);});
+    sel.innerHTML='<option value="">— '+r.new+' new / '+r.total+' total —</option>';
+    TOPICS_CACHE.filter(t=>t.status==='new').forEach(t=>{
+      const o=document.createElement('option');o.value=t.idea;
+      o.textContent=t.idea+(t.category?' ['+t.category+']':'');
+      sel.appendChild(o);
+    });
     $('st1-status').innerHTML='<span style="color:var(--grn)">✓ '+r.new+' new topics loaded</span>';
   }catch(e){$('st1-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
 }
 function pickTopic(val){if(val)$('f-topic').value=val;}
 async function randomTopic(){
-  const brand=$('s-brand').value;if(!brand){alert('Select a brand');return;}
-  $('st1-status').innerHTML='<span class="spin">⏳</span> Picking random topic...';
+  const brand=$('s-brand').value;if(!brand)return;
+  $('st1-status').innerHTML='<span class="spin">⏳</span> Picking random...';
   try{
-    const r=await(await fetch(API+'/phase/topic',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({brand_id:brand,mode:'random'})})).json();
-    if(r.error){$('st1-status').innerHTML=`<span style="color:var(--red)">${r.error}</span>`;return;}
-    $('f-topic').value=r.topic;
-    $('st1-status').innerHTML='<span style="color:var(--grn)">✓ Random: '+r.topic+(r.category?' ['+r.category+']':'')+'</span>';
+    const r=await(await fetch(API+'/phase/topic-random/'+brand)).json();
+    $('f-topic').value=r.topic||'';
+    $('st1-status').innerHTML='<span style="color:var(--grn)">✓ Random topic selected</span>';
   }catch(e){$('st1-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
 }
 async function genTopicAI(){
-  const brand=$('s-brand').value;if(!brand){alert('Select a brand');return;}
+  const brand=$('s-brand').value;if(!brand)return;
   $('st1-status').innerHTML='<span class="spin">⏳</span> AI generating topic...';
   try{
-    const r=await(await fetch(API+'/phase/topic',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({brand_id:brand,mode:'ai'})})).json();
-    if(r.error){$('st1-status').innerHTML=`<span style="color:var(--red)">${r.error}</span>`;return;}
-    $('f-topic').value=r.topic;
-    $('st1-status').innerHTML='<span style="color:var(--grn)">✓ AI topic generated — edit if needed</span>';
+    const r=await(await fetch(API+'/phase/topic-ai/'+brand)).json();
+    $('f-topic').value=r.topic||'';
+    $('st1-status').innerHTML='<span style="color:var(--grn)">✓ AI topic generated</span>';
   }catch(e){$('st1-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
 }
 
-// ─── PHASE 2: QUOTE ──────────────────────────────────────────
+// ─── PHASE 2: QUOTE ─────────────────────────────────────────
 async function genQuote(){
   const brand=$('s-brand').value;const topic=$('f-topic').value.trim();
   if(!topic){alert('Need a topic first');return;}
@@ -1023,7 +1142,7 @@ async function genPrompt(){
       body:JSON.stringify({brand_id:brand,quote})})).json();
     if(r.error){$('st3-status').innerHTML=`<span style="color:var(--red)">${r.error}</span>`;return;}
     $('f-prompt').value=r.prompt;
-    $('st3-status').innerHTML='<span style="color:var(--grn)">✓ Scene prompt built — edit if needed, or regenerate for a new random scene</span>';
+    $('st3-status').innerHTML='<span style="color:var(--grn)">✓ Scene prompt built — edit or regenerate</span>';
   }catch(e){$('st3-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
 }
 
@@ -1036,19 +1155,19 @@ async function genImage(){
     const r=await(await fetch(API+'/phase/image',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({brand_id:$('s-brand').value,prompt,model:$('s-model').value,aspect:$('s-aspect').value})})).json();
     if(r.error){$('st4-status').innerHTML=`<span style="color:var(--red)">${r.error}</span>`;return;}
-    // Poll
     const jid=r.job_id;
     const poll=setInterval(async()=>{
       const s=await(await fetch(API+'/phase/image/'+jid)).json();
       if(s.status==='done'){
         clearInterval(poll);
         STATE.image_url=s.r2_url||s.image_url;
-        $('img-area').innerHTML=`<div class="img-preview"><img src="${STATE.image_url}"></div>`;
+        $('img-area').innerHTML=`<div class="img-box"><img src="${STATE.image_url}"></div>`;
         $('st4-status').innerHTML='<span style="color:var(--grn)">✓ Image generated — approve or regenerate</span>';
         $('btn-lock4').disabled=false;
       }else if(s.status==='failed'){
         clearInterval(poll);
-        $('st4-status').innerHTML=`<span style="color:var(--red)">Failed: ${s.error||'Unknown error'}</span>`;
+        $('st4-status').innerHTML=`<span style="color:var(--red)">Failed: ${s.error||'Unknown'}</span>`;
+        $('btn-lock4').disabled=false;
       }else{
         $('st4-status').innerHTML=`<span class="spin">⏳</span> ${s.phase||'Generating'}...`;
       }
@@ -1057,7 +1176,13 @@ async function genImage(){
 }
 
 // ─── PHASE 5: CAPTIONS ───────────────────────────────────────
-const PLATFORMS=['instagram','facebook','tiktok','twitter','threads'];
+const PLATFORMS=[
+  {id:'instagram',icon:'photo_camera'},
+  {id:'facebook',icon:'groups'},
+  {id:'tiktok',icon:'music_note'},
+  {id:'twitter',icon:'tag'},
+  {id:'threads',icon:'thread_unread'}
+];
 async function genCaptions(){
   $('st5-status').innerHTML='<span class="spin">⏳</span> Generating captions...';
   try{
@@ -1066,28 +1191,26 @@ async function genCaptions(){
     if(r.error){$('st5-status').innerHTML=`<span style="color:var(--red)">${r.error}</span>`;return;}
     STATE.captions=r.captions||{};
     renderCaptions();
-    $('st5-status').innerHTML='<span style="color:var(--grn)">✓ Captions generated — edit each platform as needed</span>';
+    $('st5-status').innerHTML='<span style="color:var(--grn)">✓ Captions generated — edit each platform</span>';
   }catch(e){$('st5-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
 }
 function renderCaptions(){
   $('cap-area').innerHTML=PLATFORMS.map(p=>{
-    const txt=STATE.captions[p]||'';
-    const icon={instagram:'📸',facebook:'👥',tiktok:'🎵',twitter:'𝕏',threads:'🧵'}[p]||'';
-    return`<div class="cap-block"><div class="cap-plat">${icon} ${p}</div><textarea class="cap-text" data-plat="${p}" rows="3">${txt}</textarea></div>`;
+    const txt=STATE.captions[p.id]||'';
+    return`<div class="cap-block"><div class="cap-plat"><span class="material-symbols-outlined">${p.icon}</span>${p.id}</div><textarea class="cap-text" data-plat="${p.id}" rows="3">${txt}</textarea></div>`;
   }).join('');
 }
 
 // ─── PHASE 6: SUMMARY & SAVE ─────────────────────────────────
 function showSummary(){
   const brand=$('s-brand');const bn=brand.options[brand.selectedIndex]?.text||'';
-  $('final-summary').innerHTML=`
-    <div class="row"><div>
-      ${STATE.image_url?`<div class="img-preview"><img src="${STATE.image_url}"></div>`:''}
-    </div><div>
-      <div style="margin-bottom:.5em"><div class="lbl">BRAND</div><div style="font-size:.85em;color:var(--wht)">${bn}</div></div>
-      <div style="margin-bottom:.5em"><div class="lbl">TOPIC</div><div style="font-size:.85em;color:var(--wht)">${STATE.topic}</div></div>
-      <div style="margin-bottom:.5em"><div class="lbl">QUOTE</div><div style="font-size:.85em;color:var(--amb);font-style:italic">"${STATE.quote}"</div></div>
-      <div><div class="lbl">CAPTIONS</div><div style="font-size:.65em;color:var(--txtd)">${Object.keys(STATE.captions).length} platforms ready</div></div>
+  $('final-summary').innerHTML=`<div class="sum-row">
+    <div class="sum-img">${STATE.image_url?`<div class="img-box"><img src="${STATE.image_url}"></div>`:''}</div>
+    <div class="sum-details">
+      <div class="fl">Brand</div><div class="sum-val">${bn}</div>
+      <div class="fl">Topic</div><div class="sum-val">${STATE.topic}</div>
+      <div class="fl">Quote</div><div class="sum-val amber">"${STATE.quote}"</div>
+      <div class="fl">Captions</div><div class="sum-val">${Object.keys(STATE.captions).length} platforms ready</div>
     </div></div>`;
 }
 
@@ -1100,7 +1223,7 @@ async function savePost(){
         quote:STATE.quote,prompt:$('f-prompt').value,image_url:STATE.image_url,
         captions:STATE.captions,model:$('s-model').value,aspect:$('s-aspect').value})})).json();
     STATE.gallery_id=r.id||'';
-    $('st6-status').innerHTML=`<span style="color:var(--grn)">✓ Saved to gallery! ID: ${r.id||'OK'}</span>`;
+    $('st6-status').innerHTML=`<span style="color:var(--grn)">✓ Saved to gallery</span>`;
   }catch(e){$('st6-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
 }
 
@@ -1108,15 +1231,14 @@ async function publishPost(){
   const plats=[...document.querySelectorAll('.pub-plat:checked')].map(c=>c.value);
   if(!plats.length){alert('Select at least one platform');return;}
   if(!STATE.image_url){alert('No image to publish');return;}
-  // Save first if not saved
   if(!STATE.gallery_id)await savePost();
   $('st6-status').innerHTML='<span class="spin">⏳</span> Publishing to '+plats.length+' platforms...';
   try{
     const r=await(await fetch(API+'/publish',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({brand_id:$('s-brand').value,image_url:STATE.image_url,
         captions:STATE.captions,platforms:plats,gallery_id:STATE.gallery_id||''})})).json();
-    if(r.error){$('st6-status').innerHTML=`<span style="color:var(--red)">Error: ${r.error}</span>`;return;}
-    let msg=`<span style="color:var(--grn)">📡 Published ${r.ok_count}/${r.total} platforms</span>`;
+    if(r.error){$('st6-status').innerHTML=`<span style="color:var(--red)">${r.error}</span>`;return;}
+    let msg=`<span style="color:var(--grn)">Published ${r.ok_count}/${r.total} platforms</span>`;
     for(const[p,res]of Object.entries(r.results||{})){
       msg+=`<br><span style="font-size:.85em;color:${res.ok?'var(--grn)':'var(--red)'}"> ${res.ok?'✓':'✗'} ${p}${res.error?' — '+res.error:''}</span>`;
     }
@@ -1129,8 +1251,9 @@ function resetFlow(){
   $('f-topic').value='';$('f-quote').value='';$('f-prompt').value='';
   $('img-area').innerHTML='';$('cap-area').innerHTML='';$('final-summary').innerHTML='';
   $('btn-lock4').disabled=true;
-  ['st1-status','st2-status','st3-status','st4-status','st5-status','st6-status'].forEach(id=>$(id).innerHTML='');
+  ['st1-status','st2-status','st3-status','st4-status','st5-status','st6-status'].forEach(id=>{const e=$(id);if(e)e.innerHTML='';});
   updateSteps();
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 
 // ─── GALLERY ─────────────────────────────────────────────────
@@ -1138,7 +1261,7 @@ async function lG(){
   try{
     const items=await(await fetch(API+'/gallery')).json();
     $('g-count').textContent=items.length+' posts';
-    if(!items.length){$('g-grid').innerHTML='<div style="color:var(--txtd);font-size:.7em;padding:2em;text-align:center">No posts yet. Create one in the CREATE tab.</div>';return;}
+    if(!items.length){$('g-grid').innerHTML='<div style="color:var(--txtd);font-size:.7em;padding:3em;text-align:center">No posts yet. Create one in the Create tab.</div>';return;}
     $('g-grid').innerHTML=items.map(g=>`<div class="gi" onclick="sM('${g.image_url}','${esc(g.quote)}','${esc(g.topic)}','${g.brand_name||g.brand}')"><img src="${g.image_url}" loading="lazy"><div class="gi-info"><div class="gi-topic">${g.topic||''}</div><div class="gi-quote">"${(g.quote||'').substring(0,50)}"</div><div class="gi-meta">${g.brand_name||g.brand} · ${(g.created||'').substring(0,10)}</div></div><div class="gi-del" onclick="event.stopPropagation();dG('${g.id}')">✕</div></div>`).join('');
   }catch(e){}
 }
@@ -1148,6 +1271,9 @@ async function dG(id){if(!confirm('Delete this post?'))return;await fetch(API+'/
 // ─── MODAL ───────────────────────────────────────────────────
 function sM(url,quote,topic,brand){$('modal').classList.add('show');$('m-img').src=url;$('m-det').innerHTML=`<b>${brand}</b><br>${topic}<br><i>"${quote}"</i>`;}
 function cM(){$('modal').classList.remove('show');}
+
+// ─── CLOCK ───────────────────────────────────────────────────
+setInterval(()=>{const ft=$('footer-time');if(ft)ft.textContent=new Date().toLocaleTimeString('en-US',{hour12:false});},1000);
 
 // ─── INIT ────────────────────────────────────────────────────
 lB();updateSteps();
