@@ -18,7 +18,18 @@ app = FastAPI(title="Knights Reactor")
 
 # ─── STATIC FILES & SUB-APPS ─────────────────────────────────
 APP_DIR = Path(__file__).parent
-app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
+_static_dir = APP_DIR / "static"
+_static_dir.mkdir(exist_ok=True)
+
+# If CSS/JS files are at root level (flat upload), symlink into static/
+for fname in ["style.css", "app.js"]:
+    root_file = APP_DIR / fname
+    static_file = _static_dir / fname
+    if root_file.exists() and not static_file.exists():
+        import shutil
+        shutil.copy2(str(root_file), str(static_file))
+
+app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 
 try:
     from graphics import router as graphics_router
@@ -328,8 +339,13 @@ _DASHBOARD_HTML = None
 async def dashboard():
     global _DASHBOARD_HTML
     if _DASHBOARD_HTML is None:
-        html_path = APP_DIR / "templates" / "dashboard.html"
-        _DASHBOARD_HTML = html_path.read_text(encoding="utf-8")
+        # Try templates/ first, then root level (for flat repo uploads)
+        for p in [APP_DIR / "templates" / "dashboard.html", APP_DIR / "dashboard.html"]:
+            if p.exists():
+                _DASHBOARD_HTML = p.read_text(encoding="utf-8")
+                break
+        if _DASHBOARD_HTML is None:
+            _DASHBOARD_HTML = "<h1>Dashboard not found</h1><p>Upload templates/dashboard.html or dashboard.html</p>"
     return _DASHBOARD_HTML
 
 if __name__ == "__main__":
