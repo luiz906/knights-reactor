@@ -1,3 +1,4 @@
+<style>
 :root{--bg:#0a0904;--bg2:#0f0d06;--bg3:#16140c;--panel:#16140c;
 --bd:rgba(244,171,37,.2);--bd2:rgba(244,171,37,.12);
 --amb:#f4ab25;--amb2:#cc8f00;--amblo:rgba(244,171,37,.04);
@@ -30,6 +31,7 @@ body{background:var(--bg);color:var(--wht);font-family:var(--f3);height:100vh;ov
 .login-box{width:26em;padding:3em 2.2em;text-align:center;background:var(--panel);border:1px solid var(--bd2);border-radius:var(--r-lg)}
 ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--amb2);border-radius:4px}::-webkit-scrollbar-track{background:transparent}
 button{font-family:var(--f3);cursor:pointer}input,select,textarea{font-family:var(--f3)}.hd{display:none}
+.material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 20;vertical-align:middle}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 @keyframes scan{0%{top:-100%}100%{top:100%}}
 @keyframes glow{0%,100%{box-shadow:0 0 6px rgba(244,171,37,.08)}50%{box-shadow:0 0 16px rgba(244,171,37,.15)}}
@@ -116,6 +118,7 @@ select.fin option{background:var(--bg2);color:var(--amb);padding:6px}
 .sb-i:hover{color:var(--wht);background:rgba(var(--fg),.03)}
 .sb-i.on{color:var(--amb);border-left-color:var(--amb);background:rgba(244,171,37,.08);font-weight:600}
 .sb-i span{font-size:.85em;width:1.15em;text-align:center;opacity:.6}.sb-i.on span{opacity:1}
+.sb-i .material-symbols-outlined{font-size:1.15em;width:1.4em;opacity:.5}.sb-i.on .material-symbols-outlined{opacity:1}
 .sb-ft{padding:.8em 1.2em;border-top:1px solid rgba(var(--fg),.06);background:transparent}
 .sb-exec{width:100%;padding:.7em;font-family:var(--f3);font-size:.65em;font-weight:700;letter-spacing:.15em;color:var(--bg);background:var(--amb);border:none;border-radius:var(--r);transition:all .15s;text-transform:uppercase}
 .sb-exec:hover{filter:brightness(1.08);box-shadow:var(--glow-a)}
@@ -167,4 +170,3 @@ body{overflow:auto}
 .bnav-i.on{color:var(--amb)}
 .bnav-icon{font-size:1.1em;line-height:1}
 .bnav-lbl{font-family:var(--f3);font-size:.38em;letter-spacing:.08em;text-transform:uppercase;font-weight:600;white-space:nowrap}
-}
