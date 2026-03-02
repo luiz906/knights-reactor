@@ -112,14 +112,14 @@ select.fin option{background:var(--bg2);color:var(--amb);padding:6px}
 
 /* ══ MANUAL CARDS ══ */
 .man-grid{display:flex;flex-wrap:wrap;gap:8px}
-.man-card{background:var(--panel);border:1px solid var(--bd2);overflow:hidden;border-radius:var(--r);width:12em;flex-shrink:0}
-.man-card-preview{aspect-ratio:9/16;background:var(--bg);position:relative;overflow:hidden}
+.man-card{background:var(--panel);border:1px solid var(--bd2);overflow:hidden;border-radius:var(--r);width:12em;flex-shrink:0;display:flex;flex-direction:column}
+.man-card-preview{aspect-ratio:9/16;background:var(--bg);position:relative;overflow:hidden;width:100%}
 .man-card-preview video{width:100%;height:100%;object-fit:cover;display:block}
 .man-card-preview audio{width:100%;position:absolute;bottom:0;left:0}
 .man-card-empty{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.3em;color:var(--txtdd);font-size:.6em;cursor:pointer;border:2px dashed var(--bd2);transition:border-color .2s}
 .man-card-empty:hover{border-color:var(--amb);color:var(--txtd)}
-.man-card-bar{display:flex;gap:3px;padding:4px;align-items:center;background:var(--bg2)}
-.man-card-bar .fin{border:none;background:transparent;padding:.3em .4em;font-size:.7em}
+.man-card-bar{display:flex;gap:3px;padding:4px;align-items:center;background:var(--bg2);min-width:0;overflow:hidden}
+.man-card-bar .fin{border:none;background:transparent;padding:.3em .4em;font-size:.7em;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .man-card-bar .fin:focus{background:var(--bg)}
 .man-card-badge{position:absolute;top:4px;right:4px;background:rgba(8,8,10,.85);border:1px solid var(--bd);color:var(--grn);font-family:var(--f1);font-size:.55em;padding:.15em .4em;letter-spacing:.08em;border-radius:2px}
 .man-card-num{position:absolute;top:4px;left:4px;background:rgba(8,8,10,.85);border:1px solid var(--bd);color:var(--amb);font-family:var(--f1);font-size:.5em;padding:.15em .35em;letter-spacing:.08em;border-radius:2px}
