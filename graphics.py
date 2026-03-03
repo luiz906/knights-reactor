@@ -809,6 +809,14 @@ GFX_HTML = r"""<!DOCTYPE html><html lang="en"><head>
 </div><!-- /main-area -->
 </div><!-- /shell -->
 
+<!-- ═══ MOBILE BOTTOM NAV ═══ -->
+<nav class="bnav gfx-bnav">
+<a class="bnav-i" href="/"><span class="bnav-icon"><span class="material-symbols-outlined">bolt</span></span><span class="bnav-lbl">Pipeline</span></a>
+<button class="bnav-i on" onclick="gN('create',null);updBnav(this)"><span class="bnav-icon"><span class="material-symbols-outlined">brush</span></span><span class="bnav-lbl">Create</span></button>
+<button class="bnav-i" onclick="gN('gallery',null);updBnav(this)"><span class="bnav-icon"><span class="material-symbols-outlined">collections</span></span><span class="bnav-lbl">Library</span></button>
+<button class="bnav-i" onclick="document.documentElement.classList.toggle('light');localStorage.setItem('kr-theme',document.documentElement.classList.contains('light')?'light':'dark')"><span class="bnav-icon"><span class="material-symbols-outlined">contrast</span></span><span class="bnav-lbl">Theme</span></button>
+</nav>
+
 <!-- MODAL -->
 <div class="mbg" id="modal" onclick="cM()">
 <button class="mx" onclick="cM()">✕</button>
@@ -819,6 +827,9 @@ GFX_HTML = r"""<!DOCTYPE html><html lang="en"><head>
 <script>
 const $=id=>document.getElementById(id), API='/graphics/api';
 let STATE={step:1, brand_id:'', topic:'', quote:'', prompt:'', image_url:'', captions:{}, gallery_id:''};
+
+// ─── MOBILE BOTTOM NAV ──────────────────────────────────────
+function updBnav(btn){document.querySelectorAll('.gfx-bnav .bnav-i').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');}
 
 // ─── NAV ─────────────────────────────────────────────────────
 function gN(p,b){
