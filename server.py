@@ -3,16 +3,18 @@ Knights Reactor — Web Server v2
 Full admin dashboard: Pipeline, Runs, Logs, Settings, Credentials, Health
 """
 
-import json, os, threading, time
+import json, os, threading, time, hashlib, hmac, base64, logging
 from datetime import datetime
 from pathlib import Path
 
-import requests as _rq
 from fastapi import FastAPI, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from pipeline import run_pipeline, Config
 import secrets
+import requests as rq
+
+ap_log = logging.getLogger("autopost")
 
 app = FastAPI(title="Knights Reactor")
 
@@ -146,6 +148,287 @@ def execute_pipeline(resume_from: int = 0):
     RUNS.insert(0, run_entry)
     save_json(RUNS_FILE, RUNS[:100])
     log_entry("System", "ok" if result.get("status") == "published" else "error", f"Pipeline finished: {result.get('status')}")
+
+# ══════════════════════════════════════════════════════════════
+# AUTOPOST MODULE — Dropbox → Blotato image publisher
+# ══════════════════════════════════════════════════════════════
+AP_CREDS_FILE = DATA_DIR / "ap_credentials.json"
+AP_SETTINGS_FILE = DATA_DIR / "ap_settings.json"
+AP_RUNS_FILE = DATA_DIR / "ap_runs.json"
+
+AP_RUNS = load_json(AP_RUNS_FILE, []) if AP_RUNS_FILE.exists() else []
+AP_JOBS = {}  # {job_id: {status, filename, started, error, ...}}
+AP_CURSOR = {"cursor": None, "initialized": False}
+AP_TOKEN_CACHE = {"token": None, "expires": 0}
+
+def ap_cfg():
+    """Read AutoPost credentials from file or env."""
+    c = load_json(AP_CREDS_FILE, {})
+    return {
+        "dbx_app_key": c.get("DBX_APP_KEY") or os.getenv("DBX_APP_KEY", ""),
+        "dbx_app_secret": c.get("DBX_APP_SECRET") or os.getenv("DBX_APP_SECRET", ""),
+        "dbx_refresh_token": c.get("DBX_REFRESH_TOKEN") or os.getenv("DBX_REFRESH_TOKEN", ""),
+        "blotato_key": c.get("AP_BLOTATO_KEY") or os.getenv("AP_BLOTATO_KEY") or os.getenv("BLOTATO_API_KEY", ""),
+        "blotato_accounts": c.get("AP_BLOTATO_ACCOUNTS") or os.getenv("AP_BLOTATO_ACCOUNTS", ""),
+        "openai_key": c.get("AP_OPENAI_KEY") or os.getenv("AP_OPENAI_KEY") or os.getenv("OPENAI_API_KEY", ""),
+        "watch_folder": c.get("AP_WATCH_FOLDER") or "/AutoPost/Incoming",
+        "posted_folder": c.get("AP_POSTED_FOLDER") or "/AutoPost/Posted",
+        "failed_folder": c.get("AP_FAILED_FOLDER") or "/AutoPost/Failed",
+        "caption_prompt": c.get("AP_CAPTION_PROMPT") or "Describe this image for an engaging social media post. Be concise, use 1-2 relevant emojis. Under 200 characters.",
+        "max_retries": int(c.get("AP_MAX_RETRIES") or 3),
+    }
+
+def _ap_get_access_token():
+    """Get Dropbox access token via refresh token flow."""
+    now = time.time()
+    if AP_TOKEN_CACHE["token"] and AP_TOKEN_CACHE["expires"] > now + 60:
+        return AP_TOKEN_CACHE["token"]
+    cfg = ap_cfg()
+    if not all([cfg["dbx_app_key"], cfg["dbx_app_secret"], cfg["dbx_refresh_token"]]):
+        raise ValueError("Dropbox credentials not configured")
+    r = rq.post("https://api.dropbox.com/oauth2/token", data={
+        "grant_type": "refresh_token",
+        "refresh_token": cfg["dbx_refresh_token"],
+        "client_id": cfg["dbx_app_key"],
+        "client_secret": cfg["dbx_app_secret"],
+    }, timeout=15)
+    r.raise_for_status()
+    data = r.json()
+    AP_TOKEN_CACHE["token"] = data["access_token"]
+    AP_TOKEN_CACHE["expires"] = now + data.get("expires_in", 14400)
+    return AP_TOKEN_CACHE["token"]
+
+def _ap_dbx_headers():
+    return {"Authorization": f"Bearer {_ap_get_access_token()}", "Content-Type": "application/json"}
+
+def ap_init_cursor():
+    """Initialize Dropbox folder cursor for longpoll."""
+    try:
+        cfg = ap_cfg()
+        if not cfg["dbx_app_key"]:
+            return
+        token = _ap_get_access_token()
+        r = rq.post("https://api.dropboxapi.com/2/files/list_folder",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"path": cfg["watch_folder"], "recursive": False}, timeout=15)
+        if r.status_code == 200:
+            AP_CURSOR["cursor"] = r.json().get("cursor")
+            AP_CURSOR["initialized"] = True
+            ap_log.info(f"AutoPost cursor initialized for {cfg['watch_folder']}")
+        elif r.status_code == 409:
+            # Folder doesn't exist yet — create it
+            rq.post("https://api.dropboxapi.com/2/files/create_folder_v2",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                json={"path": cfg["watch_folder"]}, timeout=10)
+            ap_log.info(f"Created watch folder {cfg['watch_folder']}")
+            ap_init_cursor()  # retry
+    except Exception as e:
+        ap_log.warning(f"AutoPost init failed (non-fatal): {e}")
+
+def ap_poll_dropbox():
+    """Poll Dropbox for new files in watch folder."""
+    cfg = ap_cfg()
+    token = _ap_get_access_token()
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    if AP_CURSOR["cursor"]:
+        r = rq.post("https://api.dropboxapi.com/2/files/list_folder/continue",
+            headers=headers, json={"cursor": AP_CURSOR["cursor"]}, timeout=15)
+    else:
+        r = rq.post("https://api.dropboxapi.com/2/files/list_folder",
+            headers=headers, json={"path": cfg["watch_folder"], "recursive": False}, timeout=15)
+    r.raise_for_status()
+    data = r.json()
+    AP_CURSOR["cursor"] = data.get("cursor", AP_CURSOR["cursor"])
+
+    new_files = []
+    IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+    for entry in data.get("entries", []):
+        if entry.get(".tag") == "file":
+            name = entry.get("name", "")
+            ext = os.path.splitext(name)[1].lower()
+            if ext in IMAGE_EXTS:
+                new_files.append({"path": entry["path_lower"], "name": name})
+
+    for f in new_files:
+        jid = f"ap_{int(time.time()*1000)}_{f['name']}"
+        AP_JOBS[jid] = {"id": jid, "status": "queued", "filename": f["name"], "path": f["path"],
+                        "started": datetime.now().isoformat(), "error": None}
+        threading.Thread(target=_ap_process_wrapper, args=(jid, f["path"], f["name"]), daemon=True).start()
+
+    return len(new_files)
+
+def _ap_process_wrapper(job_id, path, name):
+    """Wrapper to process with retries."""
+    cfg = ap_cfg()
+    max_r = cfg["max_retries"]
+    for attempt in range(max_r):
+        try:
+            AP_JOBS[job_id]["status"] = "processing"
+            ap_process_file(job_id, path, name)
+            return
+        except Exception as e:
+            AP_JOBS[job_id]["error"] = str(e)
+            if attempt < max_r - 1:
+                AP_JOBS[job_id]["status"] = f"retry {attempt+2}/{max_r}"
+                time.sleep(5 * (2 ** attempt))
+            else:
+                AP_JOBS[job_id]["status"] = "failed"
+                _ap_move_file(path, cfg["failed_folder"], name)
+                ap_save_run(job_id, "failed", str(e))
+
+def ap_process_file(job_id, path, name):
+    """Full AutoPost pipeline: download → caption → upload → post → move."""
+    cfg = ap_cfg()
+    token = _ap_get_access_token()
+
+    # 1. Download image from Dropbox
+    import json as _json
+    r = rq.post("https://content.dropboxapi.com/2/files/download",
+        headers={"Authorization": f"Bearer {token}", "Dropbox-API-Arg": _json.dumps({"path": path})},
+        timeout=60)
+    r.raise_for_status()
+    img_bytes = r.content
+    ct = r.headers.get("Content-Type", "image/jpeg")
+
+    # 2. Check for sidecar caption .txt
+    caption = None
+    txt_path = os.path.splitext(path)[0] + ".txt"
+    try:
+        tr = rq.post("https://content.dropboxapi.com/2/files/download",
+            headers={"Authorization": f"Bearer {token}", "Dropbox-API-Arg": _json.dumps({"path": txt_path})},
+            timeout=10)
+        if tr.status_code == 200:
+            caption = tr.text.strip()
+    except:
+        pass
+
+    # 3. Fallback: OpenAI Vision caption
+    if not caption and cfg["openai_key"]:
+        try:
+            img_b64 = base64.b64encode(img_bytes).decode()
+            media_type = "image/jpeg" if ".jpg" in name.lower() or ".jpeg" in name.lower() else "image/png"
+            vr = rq.post("https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {cfg['openai_key']}", "Content-Type": "application/json"},
+                json={"model": "gpt-4o-mini", "max_tokens": 300,
+                      "messages": [{"role": "user", "content": [
+                          {"type": "text", "text": cfg["caption_prompt"]},
+                          {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{img_b64}"}}
+                      ]}]}, timeout=30)
+            vr.raise_for_status()
+            caption = vr.json()["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            ap_log.warning(f"Vision caption failed: {e}")
+            caption = name.rsplit(".", 1)[0].replace("_", " ").replace("-", " ")
+
+    if not caption:
+        caption = name.rsplit(".", 1)[0].replace("_", " ").replace("-", " ")
+
+    AP_JOBS[job_id]["caption"] = caption[:200]
+
+    # 4. Upload to Blotato media
+    img_b64_str = base64.b64encode(img_bytes).decode()
+    ext = os.path.splitext(name)[1].lower()
+    mime = {"jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}.get(ext, "image/jpeg")
+
+    mr = rq.post("https://backend.blotato.com/v2/media",
+        headers={"Authorization": f"Bearer {cfg['blotato_key']}", "Content-Type": "application/json"},
+        json={"base64": f"data:{mime};base64,{img_b64_str}"}, timeout=30)
+    mr.raise_for_status()
+    media_url = mr.json().get("url", "")
+
+    # 5. Post to all configured accounts
+    accounts = []
+    if cfg["blotato_accounts"]:
+        try:
+            accounts = _json.loads(cfg["blotato_accounts"]) if isinstance(cfg["blotato_accounts"], str) else cfg["blotato_accounts"]
+        except:
+            pass
+
+    posted = []
+    for acct in accounts:
+        aid = acct.get("id", "")
+        platform = acct.get("platform", "")
+        if not aid or not platform:
+            continue
+        payload = {"post": {"accountId": str(aid), "content": {"text": caption, "mediaUrls": [media_url], "platform": platform},
+                            "target": {"targetType": platform}}}
+        if acct.get("pageId"):
+            payload["post"]["target"]["pageId"] = acct["pageId"]
+        try:
+            pr = rq.post("https://backend.blotato.com/v2/posts",
+                headers={"Authorization": f"Bearer {cfg['blotato_key']}", "Content-Type": "application/json"},
+                json=payload, timeout=20)
+            posted.append({"platform": platform, "ok": pr.ok, "status": pr.status_code})
+        except Exception as e:
+            posted.append({"platform": platform, "ok": False, "error": str(e)})
+
+    AP_JOBS[job_id]["posted"] = posted
+    AP_JOBS[job_id]["media_url"] = media_url
+
+    # 6. Move to Posted folder
+    _ap_move_file(path, cfg["posted_folder"], name)
+    # Also move sidecar txt if it exists
+    try:
+        _ap_move_file(txt_path, cfg["posted_folder"], os.path.splitext(name)[0] + ".txt")
+    except:
+        pass
+
+    AP_JOBS[job_id]["status"] = "posted"
+    ap_save_run(job_id, "posted", None)
+
+def _ap_move_file(from_path, to_folder, name):
+    """Move file in Dropbox."""
+    token = _ap_get_access_token()
+    to_path = f"{to_folder}/{name}"
+    # Ensure target folder exists
+    try:
+        rq.post("https://api.dropboxapi.com/2/files/create_folder_v2",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"path": to_folder}, timeout=10)
+    except:
+        pass
+    rq.post("https://api.dropboxapi.com/2/files/move_v2",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json={"from_path": from_path, "to_path": to_path, "autorename": True}, timeout=15)
+
+def ap_save_run(job_id, status, error):
+    """Save run entry to disk."""
+    job = AP_JOBS.get(job_id, {})
+    entry = {"id": job_id, "date": datetime.now().strftime("%b %d, %I:%M %p"),
+             "filename": job.get("filename", "?"), "status": status,
+             "caption": job.get("caption", "")[:100], "error": error,
+             "platforms": [p.get("platform") for p in job.get("posted", []) if p.get("ok")]}
+    AP_RUNS.insert(0, entry)
+    AP_RUNS[:] = AP_RUNS[:200]
+    try:
+        save_json(AP_RUNS_FILE, AP_RUNS)
+    except:
+        pass
+
+def _ap_bg_poller():
+    """Background thread: poll Dropbox every 5 minutes."""
+    time.sleep(15)  # wait for boot
+    while True:
+        try:
+            if ap_cfg()["dbx_app_key"]:
+                if not AP_CURSOR["initialized"]:
+                    ap_init_cursor()
+                if AP_CURSOR["cursor"]:
+                    n = ap_poll_dropbox()
+                    if n:
+                        ap_log.info(f"AutoPost poll: {n} new files")
+        except Exception as e:
+            ap_log.warning(f"AutoPost poll error: {e}")
+        time.sleep(300)
+
+# Start background poller
+threading.Thread(target=_ap_bg_poller, daemon=True).start()
+# Init cursor on boot
+try:
+    ap_init_cursor()
+except:
+    pass
 
 # ─── API ──────────────────────────────────────────────────────
 
@@ -311,260 +594,73 @@ async def test_conn(req: Request):
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
-
-# ══════════════════════════════════════════════════════════════
-# AUTO-POST ENGINE  (Dropbox → Caption → Blotato)
-# Shares: DATA_DIR, load_json, save_json, log_entry
-# ══════════════════════════════════════════════════════════════
-
-AP_CREDS_FILE    = DATA_DIR / "ap_credentials.json"
-AP_SETTINGS_FILE = DATA_DIR / "ap_settings.json"
-AP_RUNS_FILE     = DATA_DIR / "ap_runs.json"
-
-AP_RUNS   = load_json(AP_RUNS_FILE, [])
-AP_JOBS   = {}       # {path: {status,file,attempts,error,posted_at}}
-AP_CURSOR = None     # Dropbox longpoll cursor
-
-def ap_cfg(key, default=""):
-    s = load_json(AP_SETTINGS_FILE, {})
-    c = load_json(AP_CREDS_FILE, {})
-    return s.get(key) or c.get(key) or os.environ.get(key, default)
-
-def ap_save_run(file_name, status, platforms, error=None):
-    AP_RUNS.insert(0, {
-        "id": len(AP_RUNS)+1, "date": datetime.now().strftime("%b %d, %I:%M %p"),
-        "file": file_name, "status": status, "platforms": platforms, "error": error,
-    })
-    save_json(AP_RUNS_FILE, AP_RUNS[:200])
-
-def _ap_make_dbx_headers():
-    refresh   = ap_cfg("DROPBOX_REFRESH_TOKEN")
-    app_key   = ap_cfg("DROPBOX_APP_KEY")
-    app_secret= ap_cfg("DROPBOX_APP_SECRET")
-    if not (refresh and app_key and app_secret):
-        return None
-    try:
-        r = _rq.post("https://api.dropbox.com/oauth2/token", data={
-            "grant_type": "refresh_token", "refresh_token": refresh,
-            "client_id": app_key, "client_secret": app_secret,
-        }, timeout=15)
-        r.raise_for_status()
-        token = r.json().get("access_token")
-        return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    except Exception as e:
-        log_entry("AutoPost", "error", f"Dropbox auth: {e}")
-        return None
-
-def ap_init_cursor():
-    global AP_CURSOR
-    hdrs = _ap_make_dbx_headers()
-    if not hdrs: return
-    watch = ap_cfg("DROPBOX_WATCH_PATH", "/AutoPost")
-    try:
-        r = _rq.post("https://api.dropboxapi.com/2/files/list_folder",
-            headers=hdrs, json={"path": watch, "recursive": False}, timeout=15)
-        r.raise_for_status()
-        AP_CURSOR = r.json().get("cursor")
-        log_entry("AutoPost", "info", f"Dropbox cursor init: {watch}")
-    except Exception as e:
-        log_entry("AutoPost", "error", f"Dropbox init: {e}")
-
-def ap_poll_dropbox():
-    global AP_CURSOR
-    if not AP_CURSOR:
-        ap_init_cursor(); return
-    hdrs = _ap_make_dbx_headers()
-    if not hdrs: return
-    IMG_EXT = {".jpg",".jpeg",".png",".gif",".webp"}
-    posted_lo = ap_cfg("DROPBOX_POSTED_PATH","/AutoPost/Posted").lower()
-    failed_lo = ap_cfg("DROPBOX_FAILED_PATH","/AutoPost/Failed").lower()
-    try:
-        r = _rq.post("https://api.dropboxapi.com/2/files/list_folder/continue",
-            headers=hdrs, json={"cursor": AP_CURSOR}, timeout=15)
-        r.raise_for_status()
-        data = r.json()
-        AP_CURSOR = data.get("cursor", AP_CURSOR)
-        new_files = [
-            e for e in data.get("entries",[])
-            if e.get(".tag")=="file"
-            and os.path.splitext(e["name"])[1].lower() in IMG_EXT
-            and posted_lo not in e["path_lower"]
-            and failed_lo not in e["path_lower"]
-        ]
-        for f in new_files:
-            if f["path_lower"] not in AP_JOBS:
-                AP_JOBS[f["path_lower"]] = {"status":"queued","file":f["name"],"attempts":0,"error":None,"posted_at":None}
-                log_entry("AutoPost","info",f"Queued: {f['name']}")
-                threading.Thread(target=ap_process_file, args=(f["path_lower"],f["name"]), daemon=True).start()
-    except Exception as e:
-        log_entry("AutoPost","error",f"Poll: {e}")
-
-def ap_process_file(path, name):
-    import base64 as _b64
-    job = AP_JOBS[path]
-    max_retries = int(ap_cfg("AP_MAX_RETRIES","3"))
-    for attempt in range(1, max_retries+1):
-        job["attempts"] = attempt
-        try:
-            # 1. Download image
-            job["status"] = "downloading"
-            hdrs = _ap_make_dbx_headers()
-            dl_hdrs = {k:v for k,v in hdrs.items() if k!="Content-Type"}
-            dl_hdrs["Dropbox-API-Arg"] = json.dumps({"path": path})
-            r = _rq.post("https://content.dropboxapi.com/2/files/download",
-                headers=dl_hdrs, timeout=60)
-            r.raise_for_status()
-            image_bytes = r.content
-            ext = os.path.splitext(name)[1].lower().lstrip(".")
-            mime = {"png":"image/png","gif":"image/gif","webp":"image/webp"}.get(ext,"image/jpeg")
-
-            # 2. Caption — sidecar .txt wins over AI
-            caption = None
-            txt_path = os.path.splitext(path)[0]+".txt"
-            try:
-                th = {k:v for k,v in hdrs.items() if k!="Content-Type"}
-                th["Dropbox-API-Arg"] = json.dumps({"path": txt_path})
-                tr = _rq.post("https://content.dropboxapi.com/2/files/download",
-                    headers=th, timeout=15)
-                if tr.ok: caption = tr.text.strip()
-            except: pass
-            if not caption:
-                job["status"] = "captioning"
-                oai_key = ap_cfg("OPENAI_API_KEY")
-                if oai_key:
-                    prompt = ap_cfg("AP_CAPTION_PROMPT",
-                        "Write a concise, engaging social media caption. 1-3 sentences. No hashtag spam.")
-                    b64img = _b64.b64encode(image_bytes).decode()
-                    cr = _rq.post("https://api.openai.com/v1/chat/completions",
-                        headers={"Authorization":f"Bearer {oai_key}","Content-Type":"application/json"},
-                        json={"model":"gpt-4o-mini","max_tokens":300,"messages":[{"role":"user","content":[
-                            {"type":"text","text":prompt},
-                            {"type":"image_url","image_url":{"url":f"data:{mime};base64,{b64img}","detail":"low"}},
-                        ]}]}, timeout=30)
-                    cr.raise_for_status()
-                    caption = cr.json()["choices"][0]["message"]["content"].strip()
-                else:
-                    caption = os.path.splitext(name)[0].replace("_"," ")
-
-            # 3. Upload to Blotato
-            job["status"] = "uploading"
-            blotato_key = ap_cfg("BLOTATO_API_KEY")
-            import base64 as _b64i
-            b64d = _b64i.b64encode(image_bytes).decode()
-            mr = _rq.post("https://backend.blotato.com/v2/media",
-                headers={"Authorization":f"Bearer {blotato_key}","Content-Type":"application/json"},
-                json={"url":f"data:{mime};base64,{b64d}"}, timeout=60)
-            mr.raise_for_status()
-            media_url = mr.json().get("url")
-
-            # 4. Post to each account
-            job["status"] = "posting"
-            accts_raw = ap_cfg("BLOTATO_ACCOUNTS","[]")
-            try: accounts = json.loads(accts_raw) if isinstance(accts_raw,str) else accts_raw
-            except: accounts = []
-            posted = []
-            for acct in accounts:
-                try:
-                    pr = _rq.post("https://backend.blotato.com/v2/posts",
-                        headers={"Authorization":f"Bearer {blotato_key}","Content-Type":"application/json"},
-                        json={"post":{"accountId":acct["accountId"],"content":{
-                            "text":caption,"mediaUrls":[media_url],"platform":acct["platform"]},
-                            "target":{"targetType":acct["platform"]}}}, timeout=30)
-                    if pr.ok:
-                        posted.append(acct["platform"])
-                        log_entry("AutoPost","ok",f"Posted {name} → {acct['platform']}")
-                except: pass
-
-            # 5. Move to /Posted/
-            posted_folder = ap_cfg("DROPBOX_POSTED_PATH","/AutoPost/Posted")
-            hdrs2 = _ap_make_dbx_headers()
-            if hdrs2:
-                try: _rq.post("https://api.dropboxapi.com/2/files/create_folder_v2",
-                    headers=hdrs2,json={"path":posted_folder,"autorename":False},timeout=10)
-                except: pass
-                try: _rq.post("https://api.dropboxapi.com/2/files/move_v2",
-                    headers=hdrs2,json={"from_path":path,"to_path":f"{posted_folder}/{name}","autorename":True},timeout=15)
-                except: pass
-
-            job["status"]="posted"; job["posted_at"]=datetime.now().strftime("%b %d, %I:%M %p")
-            ap_save_run(name,"posted",posted)
-            log_entry("AutoPost","ok",f"Done: {name} ({len(posted)} platforms)")
-            return
-        except Exception as e:
-            job["error"]=str(e)
-            log_entry("AutoPost","error",f"{name} attempt {attempt}: {e}")
-            if attempt < max_retries: time.sleep(2**attempt)
-
-    job["status"]="failed"
-    failed_folder = ap_cfg("DROPBOX_FAILED_PATH","/AutoPost/Failed")
-    hdrs3 = _ap_make_dbx_headers()
-    if hdrs3:
-        try: _rq.post("https://api.dropboxapi.com/2/files/create_folder_v2",
-            headers=hdrs3,json={"path":failed_folder,"autorename":False},timeout=10)
-        except: pass
-        try: _rq.post("https://api.dropboxapi.com/2/files/move_v2",
-            headers=hdrs3,json={"from_path":path,"to_path":f"{failed_folder}/{name}","autorename":True},timeout=15)
-        except: pass
-    ap_save_run(name,"failed",[],error=job.get("error"))
-
-# ── AutoPost API ───────────────────────────────────────────────
+# ─── AUTOPOST API ─────────────────────────────────────────────
 @app.get("/ap/webhook/dropbox")
-async def ap_webhook_verify(challenge: str = ""):
-    if not challenge: return JSONResponse({"error":"no challenge"},400)
-    from fastapi.responses import PlainTextResponse
-    return PlainTextResponse(challenge)
+async def ap_webhook_verify(req: Request):
+    """Dropbox webhook challenge verification."""
+    challenge = req.query_params.get("challenge", "")
+    return HTMLResponse(content=challenge, headers={"Content-Type": "text/plain", "X-Content-Type-Options": "nosniff"})
 
 @app.post("/ap/webhook/dropbox")
 async def ap_webhook_notify(req: Request, bg: BackgroundTasks):
-    import hashlib, hmac as _hm
+    """Dropbox webhook notification — validate HMAC, trigger poll."""
     body = await req.body()
-    secret = ap_cfg("DROPBOX_APP_SECRET","")
-    if secret:
-        sig = req.headers.get("x-dropbox-signature","")
-        exp = _hm.new(secret.encode(), body, hashlib.sha256).hexdigest()
-        if sig != exp: return JSONResponse({"error":"bad sig"},403)
+    sig = req.headers.get("X-Dropbox-Signature", "")
+    cfg = ap_cfg()
+    if cfg["dbx_app_secret"]:
+        expected = hmac.new(cfg["dbx_app_secret"].encode(), body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            return JSONResponse({"error": "Invalid signature"}, 403)
     bg.add_task(ap_poll_dropbox)
-    return JSONResponse({"ok":True})
+    return {"ok": True}
 
 @app.post("/ap/trigger")
-async def ap_trigger(bg: BackgroundTasks):
-    bg.add_task(ap_poll_dropbox); return {"ok":True}
+async def ap_manual_trigger(bg: BackgroundTasks):
+    """Manual poll trigger."""
+    try:
+        bg.add_task(ap_poll_dropbox)
+        return {"ok": True, "msg": "Poll triggered"}
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, 500)
 
 @app.get("/ap/status")
 async def ap_status():
-    stats = {"total":len(AP_RUNS),"posted":sum(1 for r in AP_RUNS if r["status"]=="posted"),
-             "failed":sum(1 for r in AP_RUNS if r["status"]=="failed"),
-             "active":sum(1 for j in AP_JOBS.values() if j["status"] not in ("posted","failed","queued"))}
-    return {"jobs":list(AP_JOBS.values())[:20],"recent":AP_RUNS[:20],"stats":stats}
+    total = len(AP_RUNS)
+    posted = sum(1 for r in AP_RUNS if r.get("status") == "posted")
+    failed = sum(1 for r in AP_RUNS if r.get("status") == "failed")
+    active = [j for j in AP_JOBS.values() if j.get("status") not in ("posted", "failed")]
+    return {"total": total, "posted": posted, "failed": failed, "active_count": len(active),
+            "jobs": list(AP_JOBS.values())[-20:], "runs": AP_RUNS[:50],
+            "cursor_ok": AP_CURSOR["initialized"]}
 
 @app.get("/ap/credentials")
 async def ap_get_creds():
-    return {k:bool(v) for k,v in load_json(AP_CREDS_FILE,{}).items()}
+    c = load_json(AP_CREDS_FILE, {})
+    return {k: bool(v and str(v).strip()) for k, v in c.items()}
 
 @app.post("/ap/credentials")
 async def ap_save_creds(req: Request):
     body = await req.json()
-    existing = load_json(AP_CREDS_FILE,{})
-    existing.update({k:v for k,v in body.items() if v is not None})
-    save_json(AP_CREDS_FILE, existing); return {"status":"saved"}
+    existing = load_json(AP_CREDS_FILE, {})
+    for k, v in body.items():
+        if v is not None:
+            existing[k] = v
+    save_json(AP_CREDS_FILE, existing)
+    AP_TOKEN_CACHE["token"] = None  # force re-auth
+    return {"status": "saved"}
 
 @app.get("/ap/settings")
-async def ap_get_settings(): return load_json(AP_SETTINGS_FILE,{})
+async def ap_get_settings():
+    return load_json(AP_SETTINGS_FILE, {})
 
 @app.post("/ap/settings")
 async def ap_save_settings(req: Request):
-    save_json(AP_SETTINGS_FILE, await req.json()); return {"status":"saved"}
+    save_json(AP_SETTINGS_FILE, await req.json())
+    return {"status": "saved"}
 
 @app.get("/ap/runs")
-async def ap_get_runs(): return AP_RUNS[:50]
-
-# Boot: init cursor + 5-min fallback poll
-threading.Thread(target=ap_init_cursor, daemon=True).start()
-def _ap_fallback():
-    while True:
-        time.sleep(300)
-        ap_poll_dropbox()
-threading.Thread(target=_ap_fallback, daemon=True).start()
+async def ap_get_runs():
+    return AP_RUNS[:50]
 
 # ─── DASHBOARD ────────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
@@ -590,6 +686,8 @@ button{font-family:var(--f3);cursor:pointer}input,select{font-family:var(--f3)}.
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 @keyframes scan{0%{top:-100%}100%{top:100%}}
 @keyframes glow{0%,100%{box-shadow:0 0 5px rgba(227,160,40,.15)}50%{box-shadow:0 0 15px rgba(227,160,40,.25)}}
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.ap-spin{display:inline-block;width:.8em;height:.8em;border:2px solid var(--bd2);border-top-color:var(--blu);border-radius:50%;animation:spin .8s linear infinite}
 
 /* BADGES */
 .bg{font-size:.6em;padding:.15em .5em;display:inline-flex;align-items:center;gap:4px;letter-spacing:1px;text-transform:uppercase}
@@ -714,7 +812,6 @@ body{overflow:auto}
 .pgrid{grid-template-columns:repeat(2,1fr)}
 .logp{max-height:28em;overflow-y:auto;font-size:.7em;line-height:1.8;background:var(--panel);border:1px solid var(--bd2);padding:10px}
 }
-@keyframes spin{to{transform:rotate(360deg)}}
 </style></head><body>
 
 <div id="L"><div class="login-box">
@@ -752,6 +849,24 @@ body{overflow:auto}
 
 <div class="dpage on" id="dp-pipeline"><div class="g4" id="d-stats" style="margin-bottom:12px"></div><div class="phgrid" id="d-pl"></div></div>
 
+<div class="dpage" id="dp-autopost">
+<div class="g4" id="d-apst" style="margin-bottom:12px"></div>
+<div class="g2" style="margin-bottom:12px">
+<div class="panel"><div class="ptitle">ACTIVE JOBS</div><div id="d-apjobs" style="max-height:18em;overflow-y:auto"><div style="font-size:.7em;color:var(--txtd)">No active jobs</div></div></div>
+<div class="panel"><div class="ptitle">RECENT POSTS</div><div id="d-apruns" style="max-height:18em;overflow-y:auto"><div style="font-size:.7em;color:var(--txtd)">No posts yet</div></div></div>
+</div>
+<div class="panel" style="margin-bottom:12px"><div class="ptitle">DROPBOX MONITOR</div>
+<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+<div style="flex:1;font-size:.7em;color:var(--txtd)">Webhook: <span id="d-apwh" style="color:var(--amb);word-break:break-all"></span></div>
+<button onclick="apTrigger()" style="padding:.5em 1.2em;border:1px solid var(--amb);background:var(--amblo);color:var(--amb);font-family:var(--f1);font-size:.6em;letter-spacing:.1em">⟳ POLL NOW</button>
+</div>
+<div id="d-apcur" style="font-size:.6em;color:var(--txtd);margin-top:6px"></div>
+</div>
+<div id="d-apss" class="sm hd">✓ SAVED</div>
+<div id="d-apcfg"></div>
+<button class="sv" onclick="apSaveCfg()">SAVE AUTOPOST CONFIG</button>
+</div>
+
 <div class="dpage" id="dp-runs"><div class="g4" id="d-rs" style="margin-bottom:12px"></div><div class="panel" id="d-rl"></div></div>
 
 <div class="dpage" id="dp-logs"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="ptitle" style="margin:0">SYSTEM LOGS</span><span id="d-lc" style="font-size:.65em;color:var(--txtd)"></span></div><div class="logp" id="d-la"></div></div>
@@ -772,33 +887,6 @@ body{overflow:auto}
 <button onclick="sessionStorage.removeItem('kt');$('L').style.display='flex';$('A').classList.add('hd')" style="width:100%;padding:9px;margin-top:10px;border:1px solid rgba(224,64,40,.2);background:var(--red2);font-family:var(--f1);font-size:.6em;color:var(--red);letter-spacing:.2em">⚠ DISCONNECT</button>
 </div>
 
-<div class="dpage" id="dp-autopost">
-<div class="g4" id="d-ap-stats" style="margin-bottom:12px"></div>
-<div class="g2" style="margin-bottom:.7em">
-<div>
-<div class="ptitle">ACTIVE JOBS</div>
-<div id="d-ap-jobs"><div class="ph dm" style="font-size:.7em;color:var(--txtd);text-align:center;padding:1.2em">Waiting for Dropbox images…</div></div>
-</div>
-<div>
-<div class="ptitle">RECENT POSTS</div>
-<div class="panel" style="padding:0" id="d-ap-runs"><div class="rw" style="color:var(--txtd);font-size:.7em">No posts yet</div></div>
-</div>
-</div>
-<div class="panel">
-<div class="ptitle">DROPBOX MONITOR</div>
-<div style="display:flex;gap:1.2em;flex-wrap:wrap;align-items:center">
-<div style="flex:1;min-width:10em"><div class="fl">WATCH FOLDER</div><div style="font-size:.75em;color:var(--wht);background:var(--bg);border:1px solid var(--bd2);padding:.35em .6em">/AutoPost/</div></div>
-<div style="flex:1;min-width:10em"><div class="fl">WEBHOOK URL</div><div style="font-size:.65em;color:var(--wht);background:var(--bg);border:1px solid var(--bd2);padding:.35em .6em;word-break:break-all" id="d-ap-wh">—</div></div>
-<div style="flex:0 0 auto"><button onclick="apTrigger()" style="padding:.6em 1.2em;border:1px solid var(--amb);background:var(--amblo);color:var(--amb);font-family:var(--f1);font-size:.6em;letter-spacing:.15em">▶ TRIGGER POLL</button></div>
-</div>
-</div>
-<div style="margin-top:.7em">
-<div class="ptitle">CONFIGURATION</div>
-<div id="d-ap-cfg"></div>
-<button class="sv" onclick="apSaveCfg()">SAVE AUTO-POST CONFIG</button>
-</div>
-</div>
-
 </div></div></div>
 
 <div class="mob-wrap">
@@ -816,6 +904,20 @@ body{overflow:auto}
 <div class="mcont">
 
 <div class="mpage on" id="mp-pipeline"><div id="m-pl"></div></div>
+
+<div class="mpage" id="mp-autopost">
+<div class="g4m" id="m-apst"></div>
+<div class="panel" style="margin-bottom:8px"><div class="ptitle">ACTIVE JOBS</div><div id="m-apjobs" style="max-height:14em;overflow-y:auto"><div style="font-size:.7em;color:var(--txtd)">No active jobs</div></div></div>
+<div class="panel" style="margin-bottom:8px"><div class="ptitle">RECENT POSTS</div><div id="m-apruns" style="max-height:14em;overflow-y:auto"><div style="font-size:.7em;color:var(--txtd)">No posts yet</div></div></div>
+<div class="panel" style="margin-bottom:8px"><div class="ptitle">DROPBOX MONITOR</div>
+<div style="font-size:.65em;color:var(--txtd);margin-bottom:6px">Webhook: <span id="m-apwh" style="color:var(--amb);word-break:break-all"></span></div>
+<button onclick="apTrigger()" style="width:100%;padding:.7em;border:1px solid var(--amb);background:var(--amblo);color:var(--amb);font-family:var(--f1);font-size:.6em;letter-spacing:.1em;min-height:2.8em">⟳ POLL NOW</button>
+<div id="m-apcur" style="font-size:.6em;color:var(--txtd);margin-top:6px"></div>
+</div>
+<div id="m-apss" class="sm hd">✓ SAVED</div>
+<div id="m-apcfg"></div>
+<button class="sv" onclick="apSaveCfg()">SAVE AUTOPOST CONFIG</button>
+</div>
 
 <div class="mpage" id="mp-runs"><div class="g4m" id="m-rs"></div><div class="panel" id="m-rl"></div></div>
 
@@ -835,20 +937,6 @@ body{overflow:auto}
 <div class="panel" id="m-hl" style="margin-bottom:8px"></div>
 <button style="width:100%;padding:12px;background:var(--bg);border:1px solid var(--bd2);color:var(--amb);font-size:.8em;min-height:3.2em" onclick="testAll()">TEST ALL CONNECTIONS →</button>
 <button onclick="sessionStorage.removeItem('kt');$('L').style.display='flex';$('A').classList.add('hd')" style="width:100%;padding:12px;margin-top:8px;border:1px solid rgba(224,64,40,.2);background:var(--red2);font-family:var(--f1);font-size:.65em;color:var(--red);letter-spacing:.2em;min-height:3.2em">⚠ DISCONNECT</button>
-</div>
-
-<div class="mpage" id="mp-autopost">
-<div class="g4m" id="m-ap-stats" style="margin-bottom:8px"></div>
-<div class="ptitle">ACTIVE JOBS</div>
-<div id="m-ap-jobs" style="margin-bottom:10px"><div class="ph dm" style="font-size:.7em;color:var(--txtd);text-align:center;padding:1em">Waiting for Dropbox images…</div></div>
-<div class="ptitle">RECENT POSTS</div>
-<div class="panel" style="padding:0;margin-bottom:10px" id="m-ap-runs"><div class="rw" style="color:var(--txtd);font-size:.7em">No posts yet</div></div>
-<div class="ptitle">WEBHOOK URL</div>
-<div style="font-size:.65em;color:var(--wht);background:var(--panel);border:1px solid var(--bd2);padding:.5em .7em;word-break:break-all;margin-bottom:10px" id="m-ap-wh">—</div>
-<button onclick="apTrigger()" style="width:100%;padding:12px;border:1px solid var(--amb);background:var(--amblo);color:var(--amb);font-family:var(--f1);font-size:.65em;letter-spacing:.15em;min-height:3.2em;margin-bottom:10px">▶ TRIGGER POLL</button>
-<div class="ptitle">CONFIGURATION</div>
-<div id="m-ap-cfg"></div>
-<button class="sv" onclick="apSaveCfg()">SAVE AUTO-POST CONFIG</button>
 </div>
 
 </div></div>
@@ -876,7 +964,7 @@ const IMG_MODELS={replicate:[{v:"google/nano-banana-pro",l:"Nano Banana Pro ~$0.
 const VID_MODELS={replicate:[{v:"bytedance/seedance-1-lite",l:"Seedance Lite ~$0.25"},{v:"bytedance/seedance-1",l:"Seedance Pro ~$0.50"},{v:"wavespeedai/wan-2.1-i2v-480p",l:"Wan 480p ~$0.10"},{v:"wavespeedai/wan-2.1-i2v-720p",l:"Wan 720p ~$0.20"},{v:"xai/grok-imagine-video",l:"Grok Video ~$0.30"},{v:"minimax/video-01-live",l:"Minimax Live ~$0.25"},{v:"minimax/video-01",l:"Minimax v01 ~$0.50"},{v:"kwaivgi/kling-v2.0-image-to-video",l:"Kling v2.0 ~$0.30"},{v:"luma/ray-2-flash",l:"Luma Flash ~$0.20"},{v:"luma/ray-2",l:"Luma Ray 2 ~$0.40"},{v:"google-deepmind/veo-3",l:"Veo 3 ~$0.50"}]};
 const SVCS=[{n:"OPENAI",d:"GPT-4o + Whisper",k:"openai"},{n:"REPLICATE",d:"Image + Video",k:"replicate"},{n:"ELEVENLABS",d:"Voice Synthesis",k:"elevenlabs"},{n:"SHOTSTACK",d:"Video Render",k:"shotstack"},{n:"R2",d:"Asset Storage",k:"r2"},{n:"AIRTABLE",d:"Topic DB",k:"airtable"},{n:"BLOTATO",d:"Publishing",k:"blotato"}];
 
-const titles={pipeline:'⚡ PIPELINE MONITOR',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ CONFIGURATION',health:'◎ SYSTEM STATUS'};
+const titles={pipeline:'⚡ PIPELINE MONITOR',autopost:'◈ AUTO-POST',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ CONFIGURATION',health:'◎ SYSTEM STATUS'};
 
 /* THEME */
 function toggleTheme(){const on=document.documentElement.classList.toggle('light');localStorage.setItem('kr-theme',on?'light':'dark');updThemeBtn();}
@@ -888,8 +976,8 @@ async function go(){const p=$('pw').value;if(!p){$('le').style.display='block';r
 async function autoLogin(){const t=sessionStorage.getItem('kt');if(!t)return;try{const r=await(await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})})).json();if(r.ok){$('L').style.display='none';$('A').classList.remove('hd');init();}}catch(e){}}
 
 /* NAV */
-function dNav(p,btn){document.querySelectorAll('.dpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));$('dp-'+p).classList.add('on');if(btn)btn.classList.add('on');$('d-title').textContent=titles[p]||p;if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();}
-function mNav(p,btn){document.querySelectorAll('.mpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.mt').forEach(b=>b.classList.remove('on'));$('mp-'+p).classList.add('on');if(btn)btn.classList.add('on');if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();}
+function dNav(p,btn){document.querySelectorAll('.dpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));$('dp-'+p).classList.add('on');if(btn)btn.classList.add('on');$('d-title').textContent=titles[p]||p;if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='autopost'){apPoll();setApWebhookUrl();rApCfg();}}
+function mNav(p,btn){document.querySelectorAll('.mpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.mt').forEach(b=>b.classList.remove('on'));$('mp-'+p).classList.add('on');if(btn)btn.classList.add('on');if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='autopost'){apPoll();setApWebhookUrl();rApCfg();}}
 
 /* PIPELINE */
 function rP(){
@@ -969,88 +1057,47 @@ async function saveSett(){await fetch('/api/settings',{method:'POST',headers:{'C
 async function rH(){try{const cfg=await(await fetch('/api/config')).json();const h='<div class="rw"><span style="font-family:var(--f1);font-size:.6em;color:var(--txtd);letter-spacing:.2em">API CONNECTIONS</span></div>'+SVCS.map(s=>`<div class="rw" style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-family:var(--f1);font-size:.7em;font-weight:600;letter-spacing:.15em;color:var(--wht)">${s.n}</div><div style="font-size:.55em;color:var(--txtd);margin-top:.05em">${s.d}</div></div>${B(cfg[s.k]?'configured':'missing')}</div>`).join('');['d-hl','m-hl'].forEach(id=>{if($(id))$(id).innerHTML=h;});}catch(e){}}
 async function testAll(){alert('Testing...');for(const s of['openai','replicate','elevenlabs','airtable']){try{await(await fetch('/api/test-connection',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({service:s})})).json();}catch(e){}}rH();alert('Done!');}
 
-/* AUTO-POST */
+/* AUTOPOST */
 const AP_CFG_FIELDS=[
-  {k:"DROPBOX_APP_KEY",l:"Dropbox App Key",pw:true},{k:"DROPBOX_APP_SECRET",l:"Dropbox App Secret",pw:true},
-  {k:"DROPBOX_REFRESH_TOKEN",l:"Refresh Token",pw:true},{k:"DROPBOX_WATCH_PATH",l:"Watch Folder",d:"/AutoPost"},
-  {k:"DROPBOX_POSTED_PATH",l:"Posted Folder",d:"/AutoPost/Posted"},{k:"DROPBOX_FAILED_PATH",l:"Failed Folder",d:"/AutoPost/Failed"},
-  {k:"BLOTATO_API_KEY",l:"Blotato API Key",pw:true},
-  {k:"BLOTATO_ACCOUNTS",l:"Blotato Accounts (JSON)",d:'[{"platform":"instagram","accountId":""}]'},
-  {k:"OPENAI_API_KEY",l:"OpenAI Key (optional)",pw:true},
-  {k:"AP_CAPTION_PROMPT",l:"Caption Prompt",d:"Write a concise, engaging social media caption. 1-3 sentences."},
-  {k:"AP_MAX_RETRIES",l:"Max Retries",d:"3"},
+{t:"DROPBOX",f:[{k:"DBX_APP_KEY",l:"App Key"},{k:"DBX_APP_SECRET",l:"App Secret"},{k:"DBX_REFRESH_TOKEN",l:"Refresh Token"}]},
+{t:"BLOTATO",f:[{k:"AP_BLOTATO_KEY",l:"API Key"},{k:"AP_BLOTATO_ACCOUNTS",l:"Accounts JSON",ph:'[{"id":"12345","platform":"instagram"},{"id":"67890","platform":"facebook","pageId":"pg123"}]'}]},
+{t:"AI CAPTION",f:[{k:"AP_OPENAI_KEY",l:"OpenAI Key"},{k:"AP_CAPTION_PROMPT",l:"Caption Prompt"}]},
+{t:"FOLDERS",f:[{k:"AP_WATCH_FOLDER",l:"Watch Folder",d:"/AutoPost/Incoming"},{k:"AP_POSTED_FOLDER",l:"Posted Folder",d:"/AutoPost/Posted"},{k:"AP_FAILED_FOLDER",l:"Failed Folder",d:"/AutoPost/Failed"},{k:"AP_MAX_RETRIES",l:"Max Retries",d:"3"}]}
 ];
-let AP_ST={};
+let AP_ST={},AP_CREDS_SET={};
+
+async function apPoll(){try{const r=await(await fetch('/ap/status')).json();
+const stats=[{l:'TOTAL',v:r.total,c:'amb'},{l:'POSTED',v:r.posted,c:'grn'},{l:'FAILED',v:r.failed,c:'red'},{l:'ACTIVE',v:r.active_count,c:r.active_count?'blu':'txtd'}];
+const sh=stats.map(s=>`<div class="stat"><b style="color:var(--${s.c})">${s.v}</b><small style="color:var(--${s.c})">${s.l}</small></div>`).join('');
+['d-apst','m-apst'].forEach(id=>{if($(id))$(id).innerHTML=sh;});
+// Jobs
+const jh=r.jobs&&r.jobs.length?r.jobs.filter(j=>j.status!=='posted'&&j.status!=='failed').map(j=>`<div class="rw"><div style="display:flex;align-items:center;gap:.5em">${j.status.includes('process')||j.status==='queued'?'<span class="ap-spin"></span>':''}<div style="flex:1"><div style="font-size:.8em;color:var(--wht)">${j.filename||'?'}</div><div style="font-size:.55em;color:var(--txtd)">${j.started||''}</div></div>${B(j.status.includes('fail')?'failed':j.status.includes('post')?'done':'running',j.status)}</div>${j.error?`<div style="font-size:.6em;color:var(--red);margin-top:3px">${j.error}</div>`:''}</div>`).join(''):'<div style="font-size:.7em;color:var(--txtd);padding:.5em">No active jobs</div>';
+['d-apjobs','m-apjobs'].forEach(id=>{if($(id))$(id).innerHTML=jh;});
+// Runs
+const rh=r.runs&&r.runs.length?r.runs.slice(0,20).map(run=>`<div class="rw"><div style="display:flex;align-items:center;gap:.5em"><div style="flex:1"><div style="font-size:.8em;color:var(--wht)">${run.filename||'?'}</div><div style="font-size:.55em;color:var(--txtd)">${run.date} · ${(run.platforms||[]).join(', ')}</div></div>${B(run.status==='posted'?'done':'failed',run.status)}</div>${run.caption?`<div style="font-size:.6em;color:var(--txtdd);margin-top:2px">${run.caption}</div>`:''}</div>`).join(''):'<div style="font-size:.7em;color:var(--txtd);padding:.5em">No posts yet</div>';
+['d-apruns','m-apruns'].forEach(id=>{if($(id))$(id).innerHTML=rh;});
+['d-apcur','m-apcur'].forEach(id=>{if($(id))$(id).textContent=r.cursor_ok?'✓ Cursor active':'⚠ Cursor not initialized';});
+}catch(e){console.error('apPoll',e);}}
+
+function setApWebhookUrl(){const u=location.origin+'/ap/webhook/dropbox';['d-apwh','m-apwh'].forEach(id=>{if($(id))$(id).textContent=u;});}
+
+async function apTrigger(){try{await fetch('/ap/trigger',{method:'POST'});setTimeout(apPoll,2000);}catch(e){alert('Error: '+e);}}
 
 function rApCfg(){
-  let h='<div class="sec"><button class="sec-h" onclick="this.nextElementSibling.classList.toggle(\'shut\');this.querySelector(\'.sec-a\').style.transform=this.nextElementSibling.classList.contains(\'shut\')?\'\':\'rotate(90deg)\'"><span class="sec-t">DROPBOX + BLOTATO</span><span class="sec-a" style="transform:rotate(90deg)">›</span></button><div class="sec-b">';
-  AP_CFG_FIELDS.forEach(f=>{
-    const v=AP_ST[f.k]||f.d||'';
-    const isLong=f.k==='BLOTATO_ACCOUNTS'||f.k==='AP_CAPTION_PROMPT';
-    h+=`<div class="fi${isLong?' w':''}"><div class="fl">${f.l}</div>`;
-    if(isLong) h+=`<textarea class="fin" style="min-height:3em" onchange="AP_ST['${f.k}']=this.value">${v}</textarea>`;
-    else h+=`<input class="fin" type="${f.pw?'password':'text'}" value="${f.pw&&v?'••••••••':v}" placeholder="${f.d||''}" onchange="AP_ST['${f.k}']=this.value">`;
-    h+='</div>';
-  });
-  h+='</div></div>';
-  ['d-ap-cfg','m-ap-cfg'].forEach(id=>{if($(id))$(id).innerHTML=h;});
-}
+let h='';AP_CFG_FIELDS.forEach((sec,si)=>{let ff='';sec.f.forEach(f=>{const set=AP_CREDS_SET[f.k];const v=AP_ST[f.k]||f.d||'';
+ff+=`<div class="fi"><div class="fl">${f.l} ${set?'<span style="color:var(--grn)">✓ SET</span>':''}</div><input class="fin" value="${v}" placeholder="${f.ph||''}" onchange="AP_ST['${f.k}']=this.value"></div>`;});
+h+=`<div class="sec"><button class="sec-h" onclick="this.nextElementSibling.classList.toggle('shut')"><span class="sec-t">${sec.t}</span><span class="sec-a">›</span></button><div class="sec-b shut">${ff}</div></div>`;});
+['d-apcfg','m-apcfg'].forEach(id=>{if($(id))$(id).innerHTML=h;});}
 
-async function apSaveCfg(){
-  const payload={};
-  AP_CFG_FIELDS.forEach(f=>{if(AP_ST[f.k]!==undefined&&AP_ST[f.k]!=='••••••••')payload[f.k]=AP_ST[f.k];});
-  await fetch('/ap/credentials',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  ['d-ss','m-ss'].forEach(id=>{if($(id)){$(id).style.display='block';setTimeout(()=>$(id).style.display='none',2500);}});
-}
+async function apSaveCfg(){const body={};AP_CFG_FIELDS.forEach(s=>s.f.forEach(f=>{if(AP_ST[f.k])body[f.k]=AP_ST[f.k];}));
+await fetch('/ap/credentials',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+['d-apss','m-apss'].forEach(id=>{if($(id)){$(id).style.display='block';setTimeout(()=>$(id).style.display='none',3000);}});
+apLoadCreds();}
 
-async function apTrigger(){await fetch('/ap/trigger',{method:'POST'});apPoll();}
-
-function apJobRow(j){
-  const sc={posted:'dn',failed:'',downloading:'rn',captioning:'rn',uploading:'rn',posting:'rn',queued:'dm'}[j.status]||'';
-  const ic={posted:'var(--grn)',failed:'var(--red)',downloading:'var(--blu)',captioning:'var(--blu)',uploading:'var(--blu)',posting:'var(--blu)',queued:'var(--txtdd)'}[j.status]||'var(--txtdd)';
-  const spin=j.status!=='posted'&&j.status!=='failed'&&j.status!=='queued';
-  return `<div class="ph ${sc}"><div style="display:flex;align-items:center;gap:.55em">
-    ${spin?`<span style="display:inline-block;width:.85em;height:.85em;border:1.5px solid var(--bd2);border-top-color:var(--blu);border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0"></span>`:`<span style="color:${ic};font-size:.8em">${j.status==='posted'?'✓':'✗'}</span>`}
-    <div style="flex:1"><div style="font-family:var(--f1);font-size:.6em;font-weight:600;letter-spacing:.12em;color:${ic}">${j.file}</div>
-    <div style="font-size:.5em;color:var(--txtd);margin-top:.05em">${j.status.toUpperCase()}${j.error?' · '+j.error.slice(0,60):''}</div></div>
-    ${B(j.status==='posted'?'done':j.status==='failed'?'failed':'running',j.status.toUpperCase())}
-  </div></div>`;
-}
-
-async function apPoll(){
-  try{
-    const r=await(await fetch('/ap/status')).json();
-    const s=r.stats||{};
-    const sh=[{l:'TOTAL',v:s.total||0,c:'amb'},{l:'POSTED',v:s.posted||0,c:'grn'},{l:'ACTIVE',v:s.active||0,c:'blu'},{l:'FAILED',v:s.failed||0,c:'red'}]
-      .map(x=>`<div class="stat"><b style="color:var(--${x.c})">${x.v}</b><small style="color:var(--${x.c})">${x.l}</small></div>`).join('');
-    ['d-ap-stats','m-ap-stats'].forEach(id=>{if($(id))$(id).innerHTML=sh;});
-    const jobs=r.jobs||[];
-    const jh=jobs.length?jobs.map(apJobRow).join(''):'<div class="ph dm" style="font-size:.7em;color:var(--txtd);text-align:center;padding:1.2em">Waiting for Dropbox images…</div>';
-    ['d-ap-jobs','m-ap-jobs'].forEach(id=>{if($(id))$(id).innerHTML=jh;});
-    const runs=r.recent||[];
-    const rh=runs.length?runs.map(ru=>`<div class="rw"><div style="display:flex;align-items:center;gap:.55em"><div style="flex:1"><div style="font-family:var(--f2);font-size:.85em;font-weight:600;color:var(--wht)">${ru.file}</div><div style="font-size:.55em;color:var(--txtd)">${ru.date}${ru.platforms&&ru.platforms.length?' · '+ru.platforms.join(', '):''}</div>${ru.error?`<div style="font-size:.55em;color:var(--red);margin-top:.1em">${ru.error}</div>`:''}</div>${B(ru.status==='posted'?'done':'failed',ru.status)}</div></div>`).join(''):'<div class="rw" style="color:var(--txtd);font-size:.7em">No posts yet</div>';
-    ['d-ap-runs','m-ap-runs'].forEach(id=>{if($(id))$(id).innerHTML=rh;});
-    if(s.active>0)setTimeout(apPoll,3000);
-  }catch(e){}
-}
-
-/* Patch nav title map */
-titles['autopost']='◈ AUTO-POST';
-
-/* Patch dNav/mNav to trigger apPoll on autopost */
-const _origDNav=dNav;
-function dNav(p,btn){_origDNav(p,btn);if(p==='autopost'){apPoll();setApWebhookUrl();}}
-const _origMNav=mNav;
-function mNav(p,btn){_origMNav(p,btn);if(p==='autopost'){apPoll();setApWebhookUrl();}}
-function setApWebhookUrl(){
-  const u=window.location.origin+'/ap/webhook/dropbox';
-  ['d-ap-wh','m-ap-wh'].forEach(id=>{if($(id))$(id).textContent=u;});
-}
+async function apLoadCreds(){try{AP_CREDS_SET=await(await fetch('/ap/credentials')).json();}catch(e){}}
 
 /* INIT */
-async function init(){rP();updThemeBtn();try{const r=await(await fetch('/api/settings')).json();STS.forEach(s=>s.f.forEach(f=>{if(r[f.k]!==undefined)ST[f.k]=r[f.k];else ST[f.k]=f.d;}));}catch(e){STS.forEach(s=>s.f.forEach(f=>ST[f.k]=f.d));}rSt();
-try{const ac=await(await fetch('/ap/credentials')).json();AP_CFG_FIELDS.forEach(f=>{if(ac[f.k])AP_ST[f.k]=f.pw?'••••••••':ac[f.k];});rApCfg();}catch(e){rApCfg();}
-try{const r=await(await fetch('/api/status')).json();if(r.result){LAST_RESULT=r.result;PD=r.phases_done||[];}if(r.running){RN=true;PH=r.phase;PD=r.phases_done||[];rP();poll();}else{rP();}}catch(e){}}
+async function init(){rP();updThemeBtn();apLoadCreds();try{const r=await(await fetch('/api/settings')).json();STS.forEach(s=>s.f.forEach(f=>{if(r[f.k]!==undefined)ST[f.k]=r[f.k];else ST[f.k]=f.d;}));}catch(e){STS.forEach(s=>s.f.forEach(f=>ST[f.k]=f.d));}rSt();try{const r=await(await fetch('/api/status')).json();if(r.result){LAST_RESULT=r.result;PD=r.phases_done||[];}if(r.running){RN=true;PH=r.phase;PD=r.phases_done||[];rP();poll();}else{rP();}}catch(e){}}
 autoLogin();
 </script></body></html>
 """
