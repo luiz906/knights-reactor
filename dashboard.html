@@ -40,6 +40,8 @@ button{font-family:var(--f3);cursor:pointer}input,select,textarea{font-family:va
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 @keyframes scan{0%{top:-100%}100%{top:100%}}
 @keyframes glow{0%,100%{box-shadow:0 0 6px rgba(244,171,37,.08)}50%{box-shadow:0 0 16px rgba(244,171,37,.15)}}
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.ap-spin{display:inline-block;width:.8em;height:.8em;border:2px solid var(--bd2);border-top-color:var(--blu);border-radius:50%;animation:spin .8s linear infinite}
 
 /* BADGES */
 .bg{font-family:var(--f3);font-size:.55em;padding:.15em .55em;display:inline-flex;align-items:center;gap:5px;letter-spacing:1px;text-transform:uppercase;font-weight:700;border-radius:var(--r)}
@@ -232,6 +234,7 @@ body{overflow:auto}
 </div>
 <div class="sb-nav">
 <button class="sb-i on" onclick="dNav('pipeline',this)"><span class="material-symbols-outlined">bolt</span>PIPELINE</button>
+<button class="sb-i" onclick="dNav('autopost',this)"><span class="material-symbols-outlined">send</span>AUTO-POST</button>
 <button class="sb-i" onclick="dNav('manual',this)"><span class="material-symbols-outlined">play_circle</span>MANUAL</button>
 <button class="sb-i" onclick="dNav('topics',this)"><span class="material-symbols-outlined">auto_awesome</span>TOPICS</button>
 <button class="sb-i" onclick="dNav('runs',this)"><span class="material-symbols-outlined">history</span>RUNS</button>
@@ -267,6 +270,24 @@ body{overflow:auto}
 <div id="d-scr-prompts"></div>
 </div>
 <div class="phgrid" id="d-pl"></div>
+</div>
+
+<div class="dpage" id="dp-autopost">
+<div class="g4" id="d-apst" style="margin-bottom:12px"></div>
+<div class="g2" style="margin-bottom:12px">
+<div class="panel"><div class="ptitle">ACTIVE JOBS</div><div id="d-apjobs" style="max-height:18em;overflow-y:auto"><div style="font-size:.7em;color:var(--txtd)">No active jobs</div></div></div>
+<div class="panel"><div class="ptitle">RECENT POSTS</div><div id="d-apruns" style="max-height:18em;overflow-y:auto"><div style="font-size:.7em;color:var(--txtd)">No posts yet</div></div></div>
+</div>
+<div class="panel" style="margin-bottom:12px"><div class="ptitle">DROPBOX MONITOR</div>
+<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+<div style="flex:1;font-size:.7em;color:var(--txtd)">Webhook: <span id="d-apwh" style="color:var(--amb);word-break:break-all"></span></div>
+<button onclick="apTrigger()" style="padding:.5em 1.2em;border:1px solid var(--amb);background:var(--amblo);color:var(--amb);font-family:var(--f1);font-size:.6em;letter-spacing:.1em">⟳ POLL NOW</button>
+</div>
+<div id="d-apcur" style="font-size:.6em;color:var(--txtd);margin-top:6px"></div>
+</div>
+<div id="d-apss" class="sm hd">✓ SAVED</div>
+<div id="d-apcfg"></div>
+<button class="sv" onclick="apSaveCfg()">SAVE AUTOPOST CONFIG</button>
 </div>
 
 <div class="dpage" id="dp-manual">
@@ -370,6 +391,20 @@ body{overflow:auto}
 </div>
 <div id="m-pl"></div></div>
 
+<div class="mpage" id="mp-autopost">
+<div class="g4m" id="m-apst"></div>
+<div class="panel" style="margin-bottom:8px"><div class="ptitle">ACTIVE JOBS</div><div id="m-apjobs" style="max-height:14em;overflow-y:auto"><div style="font-size:.7em;color:var(--txtd)">No active jobs</div></div></div>
+<div class="panel" style="margin-bottom:8px"><div class="ptitle">RECENT POSTS</div><div id="m-apruns" style="max-height:14em;overflow-y:auto"><div style="font-size:.7em;color:var(--txtd)">No posts yet</div></div></div>
+<div class="panel" style="margin-bottom:8px"><div class="ptitle">DROPBOX MONITOR</div>
+<div style="font-size:.65em;color:var(--txtd);margin-bottom:6px">Webhook: <span id="m-apwh" style="color:var(--amb);word-break:break-all"></span></div>
+<button onclick="apTrigger()" style="width:100%;padding:.7em;border:1px solid var(--amb);background:var(--amblo);color:var(--amb);font-family:var(--f1);font-size:.6em;letter-spacing:.1em;min-height:2.8em">⟳ POLL NOW</button>
+<div id="m-apcur" style="font-size:.6em;color:var(--txtd);margin-top:6px"></div>
+</div>
+<div id="m-apss" class="sm hd">✓ SAVED</div>
+<div id="m-apcfg"></div>
+<button class="sv" onclick="apSaveCfg()">SAVE AUTOPOST CONFIG</button>
+</div>
+
 <div class="mpage" id="mp-manual">
 <div style="margin-bottom:8px">
 <button onclick="manualRun()" style="width:100%;padding:.8em;background:rgba(40,224,96,.1);border:1px solid rgba(40,224,96,.25);color:var(--grn);font-family:var(--f1);font-size:.6em;font-weight:600;letter-spacing:.12em;min-height:2.8em">◈ EXECUTE MANUAL RUN</button>
@@ -435,6 +470,7 @@ body{overflow:auto}
 <!-- Bottom Nav -->
 <nav class="bnav">
 <button class="bnav-i on" onclick="mNav('pipeline',this)"><span class="bnav-icon material-symbols-outlined">bolt</span><span class="bnav-lbl">PIPELINE</span></button>
+<button class="bnav-i" onclick="mNav('autopost',this)"><span class="bnav-icon material-symbols-outlined">send</span><span class="bnav-lbl">AUTO-POST</span></button>
 <button class="bnav-i" onclick="mNav('manual',this)"><span class="bnav-icon material-symbols-outlined">play_circle</span><span class="bnav-lbl">MANUAL</span></button>
 <button class="bnav-i" onclick="mNav('logs',this)"><span class="bnav-icon material-symbols-outlined">terminal</span><span class="bnav-lbl">LOGS</span></button>
 <button class="bnav-i" onclick="mNav('preview',this)"><span class="bnav-icon material-symbols-outlined">visibility</span><span class="bnav-lbl">ASSETS</span></button>
@@ -466,7 +502,7 @@ let stOpen={};
 const IMG_MODELS={replicate:[{v:"google/nano-banana-pro",l:"Nano Banana Pro"},{v:"google/nano-banana",l:"Nano Banana"},{v:"xai/grok-imagine-image",l:"Grok Aurora"},{v:"bytedance/seedream-4.5",l:"Seedream 4.5"},{v:"black-forest-labs/flux-1.1-pro",l:"Flux 1.1 Pro"},{v:"black-forest-labs/flux-schnell",l:"Flux Schnell"},{v:"black-forest-labs/flux-dev",l:"Flux Dev"},{v:"ideogram-ai/ideogram-v3-quality",l:"Ideogram v3 Q"},{v:"ideogram-ai/ideogram-v3-turbo",l:"Ideogram v3 T"},{v:"recraft-ai/recraft-v3",l:"Recraft v3"},{v:"stability-ai/stable-diffusion-3.5-large",l:"SD 3.5 L"},{v:"google-deepmind/imagen-4-preview",l:"Imagen 4"}]};
 const VID_MODELS={replicate:[{v:"bytedance/seedance-1-lite",l:"Seedance Lite"},{v:"bytedance/seedance-1",l:"Seedance Pro"},{v:"wavespeedai/wan-2.1-i2v-480p",l:"Wan 480p"},{v:"wavespeedai/wan-2.1-i2v-720p",l:"Wan 720p"},{v:"xai/grok-imagine-video",l:"Grok Video"},{v:"minimax/video-01-live",l:"Minimax Live"},{v:"minimax/video-01",l:"Minimax v01"},{v:"kwaivgi/kling-v2.0-image-to-video",l:"Kling v2.0"},{v:"luma/ray-2-flash",l:"Luma Flash"},{v:"luma/ray-2",l:"Luma Ray 2"},{v:"google-deepmind/veo-3",l:"Veo 3"}]};
 const SVCS=[{n:"OPENAI",d:"GPT-4o + Whisper",k:"openai"},{n:"REPLICATE",d:"Image + Video",k:"replicate"},{n:"ELEVENLABS",d:"Voice Synthesis",k:"elevenlabs"},{n:"SHOTSTACK",d:"Video Render",k:"shotstack"},{n:"R2",d:"Asset Storage",k:"r2"},{n:"BLOTATO",d:"Publishing",k:"blotato"}];
-const titles={pipeline:'⚡ PIPELINE MONITOR',manual:'◈ MANUAL PIPELINE',topics:'✦ TOPIC DATABASE',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ SETTINGS',health:'◎ SYSTEM STATUS'};
+const titles={pipeline:'⚡ PIPELINE MONITOR',autopost:'◈ AUTO-POST',manual:'◈ MANUAL PIPELINE',topics:'✦ TOPIC DATABASE',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ SETTINGS',health:'◎ SYSTEM STATUS'};
 
 /* THEME */
 function toggleTheme(){const on=document.documentElement.classList.toggle('light');localStorage.setItem('kr-theme',on?'light':'dark');updThemeBtn();}
@@ -478,8 +514,8 @@ async function go(){const p=$('pw').value;if(!p){$('le').style.display='block';r
 async function autoLogin(){const t=sessionStorage.getItem('kt');if(!t)return;try{const r=await(await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})})).json();if(r.ok){$('L').style.display='none';$('A').classList.remove('hd');init();}}catch(e){}}
 
 /* NAV */
-function dNav(p,btn){document.querySelectorAll('.dpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));$('dp-'+p).classList.add('on');if(btn)btn.classList.add('on');$('d-title').textContent=titles[p]||p;if(p==='topics')loadTopics();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();if(p==='channels')loadChannels();}
-function mNav(p,btn){document.querySelectorAll('.mpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.bnav-i').forEach(b=>b.classList.remove('on'));$('mp-'+p).classList.add('on');if(btn)btn.classList.add('on');if(p==='topics')loadTopics();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();}
+function dNav(p,btn){document.querySelectorAll('.dpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));$('dp-'+p).classList.add('on');if(btn)btn.classList.add('on');$('d-title').textContent=titles[p]||p;if(p==='topics')loadTopics();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();if(p==='channels')loadChannels();if(p==='autopost'&&typeof apPoll==='function'){apPoll();setApWebhookUrl();rApCfg();}}
+function mNav(p,btn){document.querySelectorAll('.mpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.bnav-i').forEach(b=>b.classList.remove('on'));$('mp-'+p).classList.add('on');if(btn)btn.classList.add('on');if(p==='topics')loadTopics();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();if(p==='autopost'&&typeof apPoll==='function'){apPoll();setApWebhookUrl();rApCfg();}}
 
 /* ═══ GATE BANNERS ═══ */
 function rGate(){
@@ -1182,4 +1218,6 @@ async function init(){
   }catch(e){}
 }
 autoLogin();
-</script></body></html>
+</script>
+<script src="/static/autopost.js"></script>
+</body></html>
