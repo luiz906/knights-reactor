@@ -453,28 +453,50 @@ def _ap_process_file(jid, brand_name, path, name):
     if not caption:
         caption = name.rsplit(".", 1)[0].replace("_", " ").replace("-", " ")
     AP_JOBS[jid]["caption"] = caption[:200]
-    # Upload to Blotato
+    # Upload image to R2 first, then send URL to Blotato (Blotato requires URL, not base64)
     blotato_key = _ap_env("BLOTATO_API_KEY")
-    img_b64_str = base64.b64encode(img_bytes).decode()
     ext = os.path.splitext(name)[1].lower()
     mime = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}.get(ext, "image/jpeg")
-    mr = _rq.post("https://backend.blotato.com/v2/media",
-        headers={"Authorization": f"Bearer {blotato_key}", "Content-Type": "application/json"},
-        json={"base64": f"data:{mime};base64,{img_b64_str}"}, timeout=30)
-    mr.raise_for_status()
-    media_url = mr.json().get("url", "")
-    # Post to platforms using pipeline's Blotato accounts + brand's platform toggles
+    # Upload to R2
+    r2_url = ""
+    try:
+        import boto3
+        s3 = boto3.client("s3",
+            endpoint_url=_ap_env("R2_ENDPOINT"),
+            aws_access_key_id=_ap_env("R2_ACCESS_KEY"),
+            aws_secret_access_key=_ap_env("R2_SECRET_KEY"),
+            region_name="auto")
+        r2_bucket = _ap_env("R2_BUCKET", "knights-videos")
+        r2_public = _ap_env("R2_PUBLIC_URL")
+        r2_key = f"autopost/{brand_name}/{int(time.time())}_{name}"
+        s3.put_object(Bucket=r2_bucket, Key=r2_key, Body=img_bytes, ContentType=mime)
+        r2_url = f"{r2_public}/{r2_key}"
+        ap_log.info(f"AutoPost R2 upload: {r2_url}")
+    except Exception as e:
+        ap_log.warning(f"R2 upload failed, trying direct Blotato: {e}")
+    # Upload to Blotato media (requires URL)
+    media_url = ""
+    if r2_url:
+        mr = _rq.post("https://backend.blotato.com/v2/media",
+            headers={"Authorization": f"Bearer {blotato_key}", "Content-Type": "application/json"},
+            json={"url": r2_url}, timeout=30)
+        mr.raise_for_status()
+        media_url = mr.json().get("url", r2_url)
+    else:
+        raise RuntimeError("No R2 URL available for Blotato upload")
+    # Post to platforms using brand's channel IDs + platform toggles
     bd = BRANDS_DIR / brand_name
     brand_settings = load_json(bd / "settings.json", {})
-    # Account IDs from env vars (same as pipeline)
+    # Channel IDs from brand settings (ch_ fields), fallback to env vars
     acct_map = {
-        "tiktok":    {"id": _ap_env("BLOTATO_TIKTOK_ID"), "platform": "tiktok"},
-        "youtube":   {"id": _ap_env("BLOTATO_YOUTUBE_ID"), "platform": "youtube"},
-        "instagram": {"id": _ap_env("BLOTATO_INSTAGRAM_ID", "31177"), "platform": "instagram"},
-        "facebook":  {"id": _ap_env("BLOTATO_FACEBOOK_ID"), "platform": "facebook", "pageId": _ap_env("BLOTATO_FACEBOOK_PAGE_ID")},
-        "twitter":   {"id": _ap_env("BLOTATO_TWITTER_ID"), "platform": "twitter"},
-        "threads":   {"id": _ap_env("BLOTATO_THREADS_ID"), "platform": "threads"},
-        "pinterest": {"id": _ap_env("BLOTATO_PINTEREST_ID"), "platform": "pinterest"},
+        "tiktok":    {"id": brand_settings.get("ch_tiktok") or _ap_env("BLOTATO_TIKTOK_ID"), "platform": "tiktok"},
+        "youtube":   {"id": brand_settings.get("ch_youtube") or _ap_env("BLOTATO_YOUTUBE_ID"), "platform": "youtube"},
+        "instagram": {"id": brand_settings.get("ch_instagram") or _ap_env("BLOTATO_INSTAGRAM_ID"), "platform": "instagram"},
+        "facebook":  {"id": brand_settings.get("ch_facebook") or _ap_env("BLOTATO_FACEBOOK_ID"), "platform": "facebook",
+                      "pageId": brand_settings.get("ch_facebook_page") or _ap_env("BLOTATO_FACEBOOK_PAGE_ID")},
+        "twitter":   {"id": brand_settings.get("ch_twitter") or _ap_env("BLOTATO_TWITTER_ID"), "platform": "twitter"},
+        "threads":   {"id": brand_settings.get("ch_threads") or _ap_env("BLOTATO_THREADS_ID"), "platform": "threads"},
+        "pinterest": {"id": brand_settings.get("ch_pinterest") or _ap_env("BLOTATO_PINTEREST_ID"), "platform": "pinterest"},
     }
     # Platform toggles from brand settings (on_ig, on_tt, etc.)
     toggle_map = {"tiktok": "on_tt", "youtube": "on_yt", "instagram": "on_ig",
