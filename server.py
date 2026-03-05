@@ -237,42 +237,29 @@ def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: l
     log_entry("System", "ok" if result.get("status") in ("published","complete") else "error", f"Pipeline finished: {result.get('status')}")
 
 # ══════════════════════════════════════════════════════════════
-# AUTOPOST MODULE — Dropbox → Blotato image publisher
+# AUTOPOST v2 — Brand-aware Dropbox → Blotato image publisher
 # ══════════════════════════════════════════════════════════════
-AP_CREDS_FILE = DATA_DIR / "ap_credentials.json"
-AP_SETTINGS_FILE = DATA_DIR / "ap_settings.json"
 AP_RUNS_FILE = DATA_DIR / "ap_runs.json"
 AP_RUNS = load_json(AP_RUNS_FILE, []) if AP_RUNS_FILE.exists() else []
 AP_JOBS = {}
-AP_CURSOR = {"cursor": None, "initialized": False}
 AP_TOKEN_CACHE = {"token": None, "expires": 0}
+AP_CURSORS = {}  # {brand_name: cursor_string}
 
-def ap_cfg():
-    c = load_json(AP_CREDS_FILE, {})
-    return {
-        "dbx_app_key": c.get("DBX_APP_KEY") or os.getenv("DBX_APP_KEY", ""),
-        "dbx_app_secret": c.get("DBX_APP_SECRET") or os.getenv("DBX_APP_SECRET", ""),
-        "dbx_refresh_token": c.get("DBX_REFRESH_TOKEN") or os.getenv("DBX_REFRESH_TOKEN", ""),
-        "blotato_key": c.get("AP_BLOTATO_KEY") or os.getenv("AP_BLOTATO_KEY") or os.getenv("BLOTATO_API_KEY", ""),
-        "blotato_accounts": c.get("AP_BLOTATO_ACCOUNTS") or os.getenv("AP_BLOTATO_ACCOUNTS", ""),
-        "openai_key": c.get("AP_OPENAI_KEY") or os.getenv("AP_OPENAI_KEY") or os.getenv("OPENAI_API_KEY", ""),
-        "watch_folder": c.get("AP_WATCH_FOLDER") or "/AutoPost/Incoming",
-        "posted_folder": c.get("AP_POSTED_FOLDER") or "/AutoPost/Posted",
-        "failed_folder": c.get("AP_FAILED_FOLDER") or "/AutoPost/Failed",
-        "caption_prompt": c.get("AP_CAPTION_PROMPT") or "Describe this image for an engaging social media post. Be concise, use 1-2 relevant emojis. Under 200 characters.",
-        "max_retries": int(c.get("AP_MAX_RETRIES") or 3),
-    }
+def _ap_env(key, fallback=""):
+    return os.getenv(key, fallback)
 
 def _ap_get_access_token():
     now = time.time()
     if AP_TOKEN_CACHE["token"] and AP_TOKEN_CACHE["expires"] > now + 60:
         return AP_TOKEN_CACHE["token"]
-    cfg = ap_cfg()
-    if not all([cfg["dbx_app_key"], cfg["dbx_app_secret"], cfg["dbx_refresh_token"]]):
-        raise ValueError("Dropbox credentials not configured")
+    app_key = _ap_env("DBX_APP_KEY")
+    app_secret = _ap_env("DBX_APP_SECRET")
+    refresh = _ap_env("DBX_REFRESH_TOKEN")
+    if not all([app_key, app_secret, refresh]):
+        raise ValueError("Dropbox env vars not set (DBX_APP_KEY, DBX_APP_SECRET, DBX_REFRESH_TOKEN)")
     r = _rq.post("https://api.dropbox.com/oauth2/token", data={
-        "grant_type": "refresh_token", "refresh_token": cfg["dbx_refresh_token"],
-        "client_id": cfg["dbx_app_key"], "client_secret": cfg["dbx_app_secret"],
+        "grant_type": "refresh_token", "refresh_token": refresh,
+        "client_id": app_key, "client_secret": app_secret,
     }, timeout=15)
     r.raise_for_status()
     data = r.json()
@@ -280,77 +267,165 @@ def _ap_get_access_token():
     AP_TOKEN_CACHE["expires"] = now + data.get("expires_in", 14400)
     return AP_TOKEN_CACHE["token"]
 
-def ap_init_cursor():
-    try:
-        cfg = ap_cfg()
-        if not cfg["dbx_app_key"]: return
-        token = _ap_get_access_token()
-        r = _rq.post("https://api.dropboxapi.com/2/files/list_folder",
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            json={"path": cfg["watch_folder"], "recursive": False}, timeout=15)
-        if r.status_code == 200:
-            AP_CURSOR["cursor"] = r.json().get("cursor")
-            AP_CURSOR["initialized"] = True
-            ap_log.info(f"AutoPost cursor initialized for {cfg['watch_folder']}")
-        elif r.status_code == 409:
-            _rq.post("https://api.dropboxapi.com/2/files/create_folder_v2",
-                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-                json={"path": cfg["watch_folder"]}, timeout=10)
-            ap_init_cursor()
-    except Exception as e:
-        ap_log.warning(f"AutoPost init failed (non-fatal): {e}")
+def _ap_dbx(method, endpoint, json_body=None, content=False):
+    """Helper for Dropbox API calls."""
+    token = _ap_get_access_token()
+    base = "https://content.dropboxapi.com" if content else "https://api.dropboxapi.com"
+    hdrs = {"Authorization": f"Bearer {token}"}
+    if not content:
+        hdrs["Content-Type"] = "application/json"
+    return _rq.post(f"{base}{endpoint}", headers=hdrs, json=json_body if not content else None, timeout=30)
 
-def ap_poll_dropbox():
-    cfg = ap_cfg()
+def _ap_ensure_folder(path):
+    try:
+        _ap_dbx("POST", "/2/files/create_folder_v2", {"path": path, "autorename": False})
+    except: pass
+
+def ap_brand_cfg(brand_name):
+    """Get AutoPost config for a brand from its settings.json."""
+    bd = BRANDS_DIR / brand_name
+    s = load_json(bd / "settings.json", {})
+    root = f"/AutoPost/{brand_name}"
+    # Caption prompt: use brand persona or default
+    persona = s.get("brand_persona", "")
+    default_prompt = f"You are the voice of {s.get('brand_name', brand_name)}. {persona} Write an engaging social media caption for this image. Be concise, use 1-2 relevant emojis. Under 200 characters."
+    if not persona:
+        default_prompt = "Write an engaging social media caption for this image. Be concise, use 1-2 relevant emojis. Under 200 characters."
+    return {
+        "enabled": s.get("ap_enabled", False),
+        "incoming": s.get("ap_watch_folder", f"{root}/Incoming"),
+        "posted": s.get("ap_posted_folder", f"{root}/Posted"),
+        "failed": s.get("ap_failed_folder", f"{root}/Failed"),
+        "caption_prompt": s.get("ap_caption_prompt", default_prompt),
+        "brand_name": s.get("brand_name", brand_name),
+        "brand_id": brand_name,
+    }
+
+def ap_get_enabled_brands():
+    """List all brands with ap_enabled=True."""
+    brands = []
+    for d in sorted(BRANDS_DIR.iterdir()):
+        if d.is_dir():
+            cfg = ap_brand_cfg(d.name)
+            if cfg["enabled"]:
+                brands.append(cfg)
+    return brands
+
+def ap_init_brand(brand_name):
+    """Create Dropbox folders for a brand and init cursor."""
+    cfg = ap_brand_cfg(brand_name)
+    try:
+        token = _ap_get_access_token()
+        for folder in [cfg["incoming"], cfg["posted"], cfg["failed"]]:
+            _ap_ensure_folder(folder)
+        # Init cursor
+        r = _ap_dbx("POST", "/2/files/list_folder", {"path": cfg["incoming"], "recursive": False})
+        if r.status_code == 200:
+            AP_CURSORS[brand_name] = r.json().get("cursor")
+            ap_log.info(f"AutoPost: {brand_name} cursor ready — {cfg['incoming']}")
+    except Exception as e:
+        ap_log.warning(f"AutoPost init {brand_name}: {e}")
+
+def ap_list_folder(folder_path):
+    """List image files in a Dropbox folder. Returns [{name, path, modified, size}]."""
+    IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+    try:
+        r = _ap_dbx("POST", "/2/files/list_folder", {"path": folder_path, "recursive": False})
+        if r.status_code != 200:
+            return []
+        files = []
+        data = r.json()
+        for entry in data.get("entries", []):
+            if entry.get(".tag") == "file":
+                ext = os.path.splitext(entry["name"])[1].lower()
+                if ext in IMAGE_EXTS:
+                    files.append({
+                        "name": entry["name"],
+                        "path": entry["path_lower"],
+                        "modified": entry.get("client_modified", ""),
+                        "size": entry.get("size", 0),
+                    })
+        # Handle pagination
+        while data.get("has_more"):
+            r = _ap_dbx("POST", "/2/files/list_folder/continue", {"cursor": data["cursor"]})
+            if r.status_code != 200: break
+            data = r.json()
+            for entry in data.get("entries", []):
+                if entry.get(".tag") == "file":
+                    ext = os.path.splitext(entry["name"])[1].lower()
+                    if ext in IMAGE_EXTS:
+                        files.append({"name": entry["name"], "path": entry["path_lower"],
+                                      "modified": entry.get("client_modified", ""), "size": entry.get("size", 0)})
+        return files
+    except Exception as e:
+        ap_log.warning(f"List folder {folder_path}: {e}")
+        return []
+
+def ap_get_thumbnail_url(path):
+    """Get a temporary thumbnail link from Dropbox."""
+    try:
+        r = _rq.post("https://api.dropboxapi.com/2/files/get_temporary_link",
+            headers={"Authorization": f"Bearer {_ap_get_access_token()}", "Content-Type": "application/json"},
+            json={"path": path}, timeout=10)
+        if r.status_code == 200:
+            return r.json().get("link", "")
+    except: pass
+    return ""
+
+def ap_poll_brand(brand_name):
+    """Poll one brand's incoming folder for new files."""
+    cfg = ap_brand_cfg(brand_name)
+    if not cfg["enabled"]: return 0
     token = _ap_get_access_token()
     hdrs = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    if AP_CURSOR["cursor"]:
-        r = _rq.post("https://api.dropboxapi.com/2/files/list_folder/continue", headers=hdrs, json={"cursor": AP_CURSOR["cursor"]}, timeout=15)
+    cursor = AP_CURSORS.get(brand_name)
+    if cursor:
+        r = _rq.post("https://api.dropboxapi.com/2/files/list_folder/continue", headers=hdrs, json={"cursor": cursor}, timeout=15)
     else:
-        r = _rq.post("https://api.dropboxapi.com/2/files/list_folder", headers=hdrs, json={"path": cfg["watch_folder"], "recursive": False}, timeout=15)
-    r.raise_for_status()
+        r = _rq.post("https://api.dropboxapi.com/2/files/list_folder", headers=hdrs, json={"path": cfg["incoming"], "recursive": False}, timeout=15)
+    if r.status_code != 200: return 0
     data = r.json()
-    AP_CURSOR["cursor"] = data.get("cursor", AP_CURSOR["cursor"])
+    AP_CURSORS[brand_name] = data.get("cursor", cursor)
     IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
     new_files = []
     for entry in data.get("entries", []):
         if entry.get(".tag") == "file":
-            name = entry.get("name", "")
-            if os.path.splitext(name)[1].lower() in IMAGE_EXTS:
-                new_files.append({"path": entry["path_lower"], "name": name})
+            if os.path.splitext(entry["name"])[1].lower() in IMAGE_EXTS:
+                new_files.append({"path": entry["path_lower"], "name": entry["name"]})
     for f in new_files:
-        jid = f"ap_{int(time.time()*1000)}_{f['name']}"
-        AP_JOBS[jid] = {"id": jid, "status": "queued", "filename": f["name"], "path": f["path"], "started": datetime.now().isoformat(), "error": None}
-        threading.Thread(target=_ap_process_wrapper, args=(jid, f["path"], f["name"]), daemon=True).start()
+        jid = f"ap_{int(time.time()*1000)}_{brand_name}_{f['name']}"
+        AP_JOBS[jid] = {"id": jid, "status": "queued", "brand": brand_name, "filename": f["name"],
+                        "path": f["path"], "started": datetime.now().isoformat(), "error": None}
+        threading.Thread(target=_ap_process_wrapper, args=(jid, brand_name, f["path"], f["name"]), daemon=True).start()
     return len(new_files)
 
-def _ap_process_wrapper(jid, path, name):
-    cfg = ap_cfg()
-    for attempt in range(cfg["max_retries"]):
+def _ap_process_wrapper(jid, brand_name, path, name):
+    for attempt in range(3):
         try:
             AP_JOBS[jid]["status"] = "processing"
-            _ap_process_file(jid, path, name)
+            _ap_process_file(jid, brand_name, path, name)
             return
         except Exception as e:
             AP_JOBS[jid]["error"] = str(e)
-            if attempt < cfg["max_retries"] - 1:
-                AP_JOBS[jid]["status"] = f"retry {attempt+2}/{cfg['max_retries']}"
+            if attempt < 2:
+                AP_JOBS[jid]["status"] = f"retry {attempt+2}/3"
                 time.sleep(5 * (2 ** attempt))
             else:
                 AP_JOBS[jid]["status"] = "failed"
-                try: _ap_move_file(path, cfg["failed_folder"], name)
+                cfg = ap_brand_cfg(brand_name)
+                try: _ap_move_file(path, cfg["failed"], name)
                 except: pass
-                _ap_save_run(jid, "failed", str(e))
+                _ap_save_run(jid, brand_name, "failed", str(e))
 
-def _ap_process_file(jid, path, name):
-    cfg = ap_cfg()
+def _ap_process_file(jid, brand_name, path, name):
+    cfg = ap_brand_cfg(brand_name)
     token = _ap_get_access_token()
     # Download image
     r = _rq.post("https://content.dropboxapi.com/2/files/download",
         headers={"Authorization": f"Bearer {token}", "Dropbox-API-Arg": json.dumps({"path": path})}, timeout=60)
     r.raise_for_status()
     img_bytes = r.content
-    # Check sidecar caption .txt
+    # Sidecar caption
     caption = None
     txt_path = os.path.splitext(path)[0] + ".txt"
     try:
@@ -358,13 +433,14 @@ def _ap_process_file(jid, path, name):
             headers={"Authorization": f"Bearer {token}", "Dropbox-API-Arg": json.dumps({"path": txt_path})}, timeout=10)
         if tr.status_code == 200: caption = tr.text.strip()
     except: pass
-    # OpenAI Vision fallback
-    if not caption and cfg["openai_key"]:
+    # OpenAI Vision fallback with brand persona
+    openai_key = _ap_env("OPENAI_API_KEY")
+    if not caption and openai_key:
         try:
             img_b64 = base64.b64encode(img_bytes).decode()
             mt = "image/png" if name.lower().endswith(".png") else "image/jpeg"
             vr = _rq.post("https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {cfg['openai_key']}", "Content-Type": "application/json"},
+                headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
                 json={"model": "gpt-4o-mini", "max_tokens": 300,
                       "messages": [{"role": "user", "content": [
                           {"type": "text", "text": cfg["caption_prompt"]},
@@ -373,23 +449,27 @@ def _ap_process_file(jid, path, name):
             vr.raise_for_status()
             caption = vr.json()["choices"][0]["message"]["content"].strip()
         except Exception as e:
-            ap_log.warning(f"Vision caption failed: {e}")
+            ap_log.warning(f"Vision caption failed for {brand_name}: {e}")
     if not caption:
         caption = name.rsplit(".", 1)[0].replace("_", " ").replace("-", " ")
     AP_JOBS[jid]["caption"] = caption[:200]
-    # Upload to Blotato media
+    # Upload to Blotato
+    blotato_key = _ap_env("BLOTATO_API_KEY")
     img_b64_str = base64.b64encode(img_bytes).decode()
     ext = os.path.splitext(name)[1].lower()
     mime = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}.get(ext, "image/jpeg")
     mr = _rq.post("https://backend.blotato.com/v2/media",
-        headers={"Authorization": f"Bearer {cfg['blotato_key']}", "Content-Type": "application/json"},
+        headers={"Authorization": f"Bearer {blotato_key}", "Content-Type": "application/json"},
         json={"base64": f"data:{mime};base64,{img_b64_str}"}, timeout=30)
     mr.raise_for_status()
     media_url = mr.json().get("url", "")
-    # Post to all accounts
+    # Post to brand's Blotato accounts from brand settings
+    bd = BRANDS_DIR / brand_name
+    brand_settings = load_json(bd / "settings.json", {})
+    accounts_raw = brand_settings.get("ap_blotato_accounts") or brand_settings.get("blotato_accounts", "")
     accounts = []
-    if cfg["blotato_accounts"]:
-        try: accounts = json.loads(cfg["blotato_accounts"]) if isinstance(cfg["blotato_accounts"], str) else cfg["blotato_accounts"]
+    if accounts_raw:
+        try: accounts = json.loads(accounts_raw) if isinstance(accounts_raw, str) else accounts_raw
         except: pass
     posted = []
     for acct in accounts:
@@ -399,33 +479,29 @@ def _ap_process_file(jid, path, name):
         if acct.get("pageId"): payload["post"]["target"]["pageId"] = acct["pageId"]
         try:
             pr = _rq.post("https://backend.blotato.com/v2/posts",
-                headers={"Authorization": f"Bearer {cfg['blotato_key']}", "Content-Type": "application/json"}, json=payload, timeout=20)
+                headers={"Authorization": f"Bearer {blotato_key}", "Content-Type": "application/json"}, json=payload, timeout=20)
             posted.append({"platform": platform, "ok": pr.ok, "status": pr.status_code})
         except Exception as e:
             posted.append({"platform": platform, "ok": False, "error": str(e)})
     AP_JOBS[jid]["posted"] = posted
     AP_JOBS[jid]["media_url"] = media_url
     # Move to Posted
-    _ap_move_file(path, cfg["posted_folder"], name)
-    try: _ap_move_file(txt_path, cfg["posted_folder"], os.path.splitext(name)[0] + ".txt")
+    _ap_move_file(path, cfg["posted"], name)
+    try: _ap_move_file(txt_path, cfg["posted"], os.path.splitext(name)[0] + ".txt")
     except: pass
     AP_JOBS[jid]["status"] = "posted"
-    _ap_save_run(jid, "posted", None)
+    _ap_save_run(jid, brand_name, "posted", None)
 
 def _ap_move_file(from_path, to_folder, name):
     token = _ap_get_access_token()
-    try:
-        _rq.post("https://api.dropboxapi.com/2/files/create_folder_v2",
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            json={"path": to_folder}, timeout=10)
-    except: pass
+    _ap_ensure_folder(to_folder)
     _rq.post("https://api.dropboxapi.com/2/files/move_v2",
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
         json={"from_path": from_path, "to_path": f"{to_folder}/{name}", "autorename": True}, timeout=15)
 
-def _ap_save_run(jid, status, error):
+def _ap_save_run(jid, brand_name, status, error):
     job = AP_JOBS.get(jid, {})
-    entry = {"id": jid, "date": datetime.now().strftime("%b %d, %I:%M %p"),
+    entry = {"id": jid, "brand": brand_name, "date": datetime.now().strftime("%b %d, %I:%M %p"),
              "filename": job.get("filename", "?"), "status": status,
              "caption": job.get("caption", "")[:100], "error": error,
              "platforms": [p.get("platform") for p in job.get("posted", []) if p.get("ok")]}
@@ -435,20 +511,26 @@ def _ap_save_run(jid, status, error):
     except: pass
 
 def _ap_bg_poller():
-    time.sleep(15)
+    time.sleep(20)
     while True:
         try:
-            if ap_cfg()["dbx_app_key"]:
-                if not AP_CURSOR["initialized"]: ap_init_cursor()
-                if AP_CURSOR["cursor"]:
-                    n = ap_poll_dropbox()
-                    if n: ap_log.info(f"AutoPost poll: {n} new files")
+            if _ap_env("DBX_APP_KEY"):
+                for bcfg in ap_get_enabled_brands():
+                    bn = bcfg["brand_id"]
+                    if bn not in AP_CURSORS:
+                        ap_init_brand(bn)
+                    n = ap_poll_brand(bn)
+                    if n: ap_log.info(f"AutoPost {bn}: {n} new files")
         except Exception as e:
             ap_log.warning(f"AutoPost poll error: {e}")
         time.sleep(300)
 
 threading.Thread(target=_ap_bg_poller, daemon=True).start()
-try: ap_init_cursor()
+# Init all enabled brands on boot
+try:
+    if _ap_env("DBX_APP_KEY"):
+        for _bcfg in ap_get_enabled_brands():
+            ap_init_brand(_bcfg["brand_id"])
 except: pass
 
 # ─── AUTOPOST API ─────────────────────────────────────────────
@@ -461,47 +543,120 @@ async def ap_webhook_verify(req: Request):
 async def ap_webhook_notify(req: Request, bg: BackgroundTasks):
     body = await req.body()
     sig = req.headers.get("X-Dropbox-Signature", "")
-    cfg = ap_cfg()
-    if cfg["dbx_app_secret"]:
-        expected = hmac.new(cfg["dbx_app_secret"].encode(), body, hashlib.sha256).hexdigest()
+    secret = _ap_env("DBX_APP_SECRET")
+    if secret:
+        expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
         if not hmac.compare_digest(sig, expected):
             return JSONResponse({"error": "Invalid signature"}, 403)
-    bg.add_task(ap_poll_dropbox)
+    for bcfg in ap_get_enabled_brands():
+        bg.add_task(ap_poll_brand, bcfg["brand_id"])
     return {"ok": True}
 
 @app.post("/ap/trigger")
 async def ap_manual_trigger(bg: BackgroundTasks):
-    try:
-        bg.add_task(ap_poll_dropbox)
-        return {"ok": True, "msg": "Poll triggered"}
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)}, 500)
+    brand = get_active_brand()
+    bg.add_task(ap_poll_brand, brand)
+    return {"ok": True, "brand": brand}
+
+@app.post("/ap/enable")
+async def ap_enable_brand(req: Request):
+    """Toggle ap_enabled for active brand and create Dropbox folders."""
+    body = await req.json()
+    brand = get_active_brand()
+    bd = brand_dir(brand)
+    s = load_json(bd / "settings.json", {})
+    enabled = body.get("enabled", True)
+    s["ap_enabled"] = enabled
+    save_json(bd / "settings.json", s)
+    if enabled:
+        try: ap_init_brand(brand)
+        except Exception as e:
+            return {"status": "enabled_no_dbx", "error": str(e), "brand": brand}
+    return {"status": "enabled" if enabled else "disabled", "brand": brand}
 
 @app.get("/ap/status")
 async def ap_status():
-    total, posted, failed = len(AP_RUNS), sum(1 for r in AP_RUNS if r.get("status") == "posted"), sum(1 for r in AP_RUNS if r.get("status") == "failed")
-    active = [j for j in AP_JOBS.values() if j.get("status") not in ("posted", "failed")]
-    return {"total": total, "posted": posted, "failed": failed, "active_count": len(active),
-            "jobs": list(AP_JOBS.values())[-20:], "runs": AP_RUNS[:50], "cursor_ok": AP_CURSOR["initialized"]}
+    brand = get_active_brand()
+    cfg = ap_brand_cfg(brand)
+    brand_runs = [r for r in AP_RUNS if r.get("brand") == brand]
+    total = len(brand_runs)
+    posted = sum(1 for r in brand_runs if r.get("status") == "posted")
+    failed = sum(1 for r in brand_runs if r.get("status") == "failed")
+    active = [j for j in AP_JOBS.values() if j.get("brand") == brand and j.get("status") not in ("posted", "failed")]
+    return {"brand": brand, "enabled": cfg["enabled"], "total": total, "posted": posted, "failed": failed,
+            "active_count": len(active), "jobs": [j for j in AP_JOBS.values() if j.get("brand") == brand][-20:],
+            "runs": brand_runs[:30], "cursor_ok": brand in AP_CURSORS,
+            "folders": {"incoming": cfg["incoming"], "posted": cfg["posted"], "failed": cfg["failed"]}}
+
+@app.get("/ap/board")
+async def ap_board():
+    """Kanban board data — list files in Incoming/Posted/Failed for active brand."""
+    brand = get_active_brand()
+    cfg = ap_brand_cfg(brand)
+    if not cfg["enabled"]:
+        return {"brand": brand, "enabled": False, "incoming": [], "posted": [], "failed": []}
+    try:
+        incoming = ap_list_folder(cfg["incoming"])
+        posted_files = ap_list_folder(cfg["posted"])
+        failed_files = ap_list_folder(cfg["failed"])
+        # Get thumbnail links for incoming (most useful for preview)
+        for f in incoming[:12]:  # limit to avoid rate limits
+            f["thumb"] = ap_get_thumbnail_url(f["path"])
+        for f in posted_files[:12]:
+            f["thumb"] = ap_get_thumbnail_url(f["path"])
+        for f in failed_files[:6]:
+            f["thumb"] = ap_get_thumbnail_url(f["path"])
+        return {"brand": brand, "enabled": True,
+                "incoming": incoming[:20], "posted": posted_files[:20], "failed": failed_files[:10]}
+    except Exception as e:
+        return {"brand": brand, "enabled": True, "error": str(e), "incoming": [], "posted": [], "failed": []}
+
+@app.post("/ap/post-now")
+async def ap_post_now(req: Request, bg: BackgroundTasks):
+    """Manually post a specific file from Incoming."""
+    body = await req.json()
+    path = body.get("path", "")
+    name = body.get("name", "")
+    brand = get_active_brand()
+    if not path or not name:
+        return JSONResponse({"error": "path and name required"}, 400)
+    jid = f"ap_{int(time.time()*1000)}_{brand}_{name}"
+    AP_JOBS[jid] = {"id": jid, "status": "queued", "brand": brand, "filename": name,
+                    "path": path, "started": datetime.now().isoformat(), "error": None}
+    bg.add_task(_ap_process_wrapper, jid, brand, path, name)
+    return {"ok": True, "job_id": jid}
+
+@app.post("/ap/retry")
+async def ap_retry_file(req: Request, bg: BackgroundTasks):
+    """Move a file from Failed back to Incoming and process it."""
+    body = await req.json()
+    path = body.get("path", "")
+    name = body.get("name", "")
+    brand = get_active_brand()
+    cfg = ap_brand_cfg(brand)
+    if not path or not name:
+        return JSONResponse({"error": "path and name required"}, 400)
+    # Move from Failed to Incoming
+    try:
+        _ap_move_file(path, cfg["incoming"], name)
+    except: pass
+    new_path = f"{cfg['incoming']}/{name}"
+    jid = f"ap_{int(time.time()*1000)}_{brand}_{name}"
+    AP_JOBS[jid] = {"id": jid, "status": "queued", "brand": brand, "filename": name,
+                    "path": new_path, "started": datetime.now().isoformat(), "error": None}
+    bg.add_task(_ap_process_wrapper, jid, brand, new_path, name)
+    return {"ok": True, "job_id": jid}
 
 @app.get("/ap/credentials")
 async def ap_get_creds():
-    c = load_json(AP_CREDS_FILE, {})
-    return {k: bool(v and str(v).strip()) for k, v in c.items()}
-
-@app.post("/ap/credentials")
-async def ap_save_creds(req: Request):
-    body = await req.json()
-    existing = load_json(AP_CREDS_FILE, {})
-    for k, v in body.items():
-        if v is not None: existing[k] = v
-    save_json(AP_CREDS_FILE, existing)
-    AP_TOKEN_CACHE["token"] = None
-    return {"status": "saved"}
+    return {"DBX_APP_KEY": bool(_ap_env("DBX_APP_KEY")), "DBX_APP_SECRET": bool(_ap_env("DBX_APP_SECRET")),
+            "DBX_REFRESH_TOKEN": bool(_ap_env("DBX_REFRESH_TOKEN")),
+            "OPENAI_API_KEY": bool(_ap_env("OPENAI_API_KEY")), "BLOTATO_API_KEY": bool(_ap_env("BLOTATO_API_KEY"))}
 
 @app.get("/ap/runs")
 async def ap_get_runs():
-    return AP_RUNS[:50]
+    brand = get_active_brand()
+    return [r for r in AP_RUNS if r.get("brand") == brand][:50]
 
 # ─── API ──────────────────────────────────────────────────────
 

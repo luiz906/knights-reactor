@@ -273,21 +273,18 @@ body{overflow:auto}
 </div>
 
 <div class="dpage" id="dp-autopost">
-<div class="g4" id="d-apst" style="margin-bottom:12px"></div>
-<div class="g2" style="margin-bottom:12px">
-<div class="panel"><div class="ptitle">ACTIVE JOBS</div><div id="d-apjobs" style="max-height:18em;overflow-y:auto"><div style="font-size:.7em;color:var(--txtd)">No active jobs</div></div></div>
-<div class="panel"><div class="ptitle">RECENT POSTS</div><div id="d-apruns" style="max-height:18em;overflow-y:auto"><div style="font-size:.7em;color:var(--txtd)">No posts yet</div></div></div>
+<div class="g4" id="d-apst" style="margin-bottom:10px"></div>
+<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding:8px 10px;background:var(--panel);border:1px solid var(--bd2)">
+<div style="flex:1;min-width:0">
+<div style="font-size:.6em;color:var(--txtd);letter-spacing:.1em">WATCH: <span id="d-apfolders" style="color:var(--amb)"></span></div>
+<div style="font-size:.55em;color:var(--txtdd);margin-top:2px">Webhook: <span id="d-apwh" style="color:var(--txtd);word-break:break-all"></span></div>
+<div id="d-apcur" style="font-size:.55em;color:var(--txtd);margin-top:2px"></div>
 </div>
-<div class="panel" style="margin-bottom:12px"><div class="ptitle">DROPBOX MONITOR</div>
-<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-<div style="flex:1;font-size:.7em;color:var(--txtd)">Webhook: <span id="d-apwh" style="color:var(--amb);word-break:break-all"></span></div>
-<button onclick="apTrigger()" style="padding:.5em 1.2em;border:1px solid var(--amb);background:var(--amblo);color:var(--amb);font-family:var(--f1);font-size:.6em;letter-spacing:.1em">⟳ POLL NOW</button>
+<button onclick="apTrigger()" style="padding:.5em 1.2em;border:1px solid var(--amb);background:var(--amblo);color:var(--amb);font-family:var(--f1);font-size:.6em;letter-spacing:.1em;white-space:nowrap">⟳ POLL NOW</button>
 </div>
-<div id="d-apcur" style="font-size:.6em;color:var(--txtd);margin-top:6px"></div>
-</div>
-<div id="d-apss" class="sm hd">✓ SAVED</div>
-<div id="d-apcfg"></div>
-<button class="sv" onclick="apSaveCfg()">SAVE AUTOPOST CONFIG</button>
+<div id="d-apenv" style="margin-bottom:8px"></div>
+<div id="d-apactive" style="margin-bottom:8px"></div>
+<div id="d-apboard"></div>
 </div>
 
 <div class="dpage" id="dp-manual">
@@ -393,16 +390,15 @@ body{overflow:auto}
 
 <div class="mpage" id="mp-autopost">
 <div class="g4m" id="m-apst"></div>
-<div class="panel" style="margin-bottom:8px"><div class="ptitle">ACTIVE JOBS</div><div id="m-apjobs" style="max-height:14em;overflow-y:auto"><div style="font-size:.7em;color:var(--txtd)">No active jobs</div></div></div>
-<div class="panel" style="margin-bottom:8px"><div class="ptitle">RECENT POSTS</div><div id="m-apruns" style="max-height:14em;overflow-y:auto"><div style="font-size:.7em;color:var(--txtd)">No posts yet</div></div></div>
-<div class="panel" style="margin-bottom:8px"><div class="ptitle">DROPBOX MONITOR</div>
-<div style="font-size:.65em;color:var(--txtd);margin-bottom:6px">Webhook: <span id="m-apwh" style="color:var(--amb);word-break:break-all"></span></div>
-<button onclick="apTrigger()" style="width:100%;padding:.7em;border:1px solid var(--amb);background:var(--amblo);color:var(--amb);font-family:var(--f1);font-size:.6em;letter-spacing:.1em;min-height:2.8em">⟳ POLL NOW</button>
-<div id="m-apcur" style="font-size:.6em;color:var(--txtd);margin-top:6px"></div>
+<div style="padding:8px;background:var(--panel);border:1px solid var(--bd2);margin-bottom:8px">
+<div style="font-size:.6em;color:var(--txtd);letter-spacing:.1em">WATCH: <span id="m-apfolders" style="color:var(--amb)"></span></div>
+<div style="font-size:.5em;color:var(--txtdd);margin-top:2px;word-break:break-all">Webhook: <span id="m-apwh" style="color:var(--txtd)"></span></div>
+<div id="m-apcur" style="font-size:.5em;color:var(--txtd);margin-top:2px"></div>
+<button onclick="apTrigger()" style="width:100%;margin-top:6px;padding:.6em;border:1px solid var(--amb);background:var(--amblo);color:var(--amb);font-family:var(--f1);font-size:.55em;letter-spacing:.1em;min-height:2.5em">⟳ POLL NOW</button>
 </div>
-<div id="m-apss" class="sm hd">✓ SAVED</div>
-<div id="m-apcfg"></div>
-<button class="sv" onclick="apSaveCfg()">SAVE AUTOPOST CONFIG</button>
+<div id="m-apenv" style="margin-bottom:6px"></div>
+<div id="m-apactive" style="margin-bottom:6px"></div>
+<div id="m-apboard"></div>
 </div>
 
 <div class="mpage" id="mp-manual">
@@ -514,8 +510,8 @@ async function go(){const p=$('pw').value;if(!p){$('le').style.display='block';r
 async function autoLogin(){const t=sessionStorage.getItem('kt');if(!t)return;try{const r=await(await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})})).json();if(r.ok){$('L').style.display='none';$('A').classList.remove('hd');init();}}catch(e){}}
 
 /* NAV */
-function dNav(p,btn){document.querySelectorAll('.dpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));$('dp-'+p).classList.add('on');if(btn)btn.classList.add('on');$('d-title').textContent=titles[p]||p;if(p==='topics')loadTopics();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();if(p==='channels')loadChannels();if(p==='autopost'&&typeof apPoll==='function'){apPoll();setApWebhookUrl();rApCfg();}}
-function mNav(p,btn){document.querySelectorAll('.mpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.bnav-i').forEach(b=>b.classList.remove('on'));$('mp-'+p).classList.add('on');if(btn)btn.classList.add('on');if(p==='topics')loadTopics();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();if(p==='autopost'&&typeof apPoll==='function'){apPoll();setApWebhookUrl();rApCfg();}}
+function dNav(p,btn){document.querySelectorAll('.dpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));$('dp-'+p).classList.add('on');if(btn)btn.classList.add('on');$('d-title').textContent=titles[p]||p;if(p==='topics')loadTopics();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();if(p==='channels')loadChannels();if(p==='autopost'&&typeof apRender==='function')apRender();}
+function mNav(p,btn){document.querySelectorAll('.mpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.bnav-i').forEach(b=>b.classList.remove('on'));$('mp-'+p).classList.add('on');if(btn)btn.classList.add('on');if(p==='topics')loadTopics();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();if(p==='autopost'&&typeof apRender==='function')apRender();}
 
 /* ═══ GATE BANNERS ═══ */
 function rGate(){
