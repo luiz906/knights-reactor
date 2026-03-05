@@ -463,26 +463,35 @@ def _ap_process_file(jid, brand_name, path, name):
         json={"base64": f"data:{mime};base64,{img_b64_str}"}, timeout=30)
     mr.raise_for_status()
     media_url = mr.json().get("url", "")
-    # Post to brand's Blotato accounts from brand settings
+    # Post to platforms using pipeline's Blotato accounts + brand's platform toggles
     bd = BRANDS_DIR / brand_name
     brand_settings = load_json(bd / "settings.json", {})
-    accounts_raw = brand_settings.get("ap_blotato_accounts") or brand_settings.get("blotato_accounts", "")
-    accounts = []
-    if accounts_raw:
-        try: accounts = json.loads(accounts_raw) if isinstance(accounts_raw, str) else accounts_raw
-        except: pass
+    # Account IDs from env vars (same as pipeline)
+    acct_map = {
+        "tiktok":    {"id": _ap_env("BLOTATO_TIKTOK_ID"), "platform": "tiktok"},
+        "youtube":   {"id": _ap_env("BLOTATO_YOUTUBE_ID"), "platform": "youtube"},
+        "instagram": {"id": _ap_env("BLOTATO_INSTAGRAM_ID", "31177"), "platform": "instagram"},
+        "facebook":  {"id": _ap_env("BLOTATO_FACEBOOK_ID"), "platform": "facebook", "pageId": _ap_env("BLOTATO_FACEBOOK_PAGE_ID")},
+        "twitter":   {"id": _ap_env("BLOTATO_TWITTER_ID"), "platform": "twitter"},
+        "threads":   {"id": _ap_env("BLOTATO_THREADS_ID"), "platform": "threads"},
+        "pinterest": {"id": _ap_env("BLOTATO_PINTEREST_ID"), "platform": "pinterest"},
+    }
+    # Platform toggles from brand settings (on_ig, on_tt, etc.)
+    toggle_map = {"tiktok": "on_tt", "youtube": "on_yt", "instagram": "on_ig",
+                  "facebook": "on_fb", "twitter": "on_tw", "threads": "on_th", "pinterest": "on_pn"}
     posted = []
-    for acct in accounts:
-        aid, platform = acct.get("id", ""), acct.get("platform", "")
-        if not aid or not platform: continue
-        payload = {"post": {"accountId": str(aid), "content": {"text": caption, "mediaUrls": [media_url], "platform": platform}, "target": {"targetType": platform}}}
-        if acct.get("pageId"): payload["post"]["target"]["pageId"] = acct["pageId"]
-        try:
-            pr = _rq.post("https://backend.blotato.com/v2/posts",
-                headers={"Authorization": f"Bearer {blotato_key}", "Content-Type": "application/json"}, json=payload, timeout=20)
-            posted.append({"platform": platform, "ok": pr.ok, "status": pr.status_code})
-        except Exception as e:
-            posted.append({"platform": platform, "ok": False, "error": str(e)})
+    for platform, toggle_key in toggle_map.items():
+        enabled = brand_settings.get(toggle_key, False)
+        if enabled in (True, "true", "True") and acct_map[platform]["id"]:
+            acct = acct_map[platform]
+            payload = {"post": {"accountId": str(acct["id"]), "content": {"text": caption, "mediaUrls": [media_url], "platform": platform}, "target": {"targetType": platform}}}
+            if acct.get("pageId"): payload["post"]["target"]["pageId"] = acct["pageId"]
+            try:
+                pr = _rq.post("https://backend.blotato.com/v2/posts",
+                    headers={"Authorization": f"Bearer {blotato_key}", "Content-Type": "application/json"}, json=payload, timeout=20)
+                posted.append({"platform": platform, "ok": pr.ok, "status": pr.status_code})
+            except Exception as e:
+                posted.append({"platform": platform, "ok": False, "error": str(e)})
     AP_JOBS[jid]["posted"] = posted
     AP_JOBS[jid]["media_url"] = media_url
     # Move to Posted
