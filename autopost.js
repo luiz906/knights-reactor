@@ -109,9 +109,5 @@ async function apTrigger(){await fetch('/ap/trigger',{method:'POST'});setTimeout
 async function apPostNow(path,name){await fetch('/ap/post-now',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:path,name:name})});setTimeout(apRender,2000);}
 async function apRetry(path,name){await fetch('/ap/retry',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:path,name:name})});setTimeout(apRender,2000);}
 
-/* Nav patch */
-(function(){
-  if(typeof window.dNav==='function'){var _o=window.dNav;window.dNav=function(p,b){_o(p,b);if(p==='autopost')apRender();};}
-  if(typeof window.mNav==='function'){var _o=window.mNav;window.mNav=function(p,b){_o(p,b);if(p==='autopost')apRender();};}
-  if(typeof window.titles==='object')window.titles['autopost']='◈ AUTO-POST';
-})();
+/* Nav — dashboard.html already calls apRender() in dNav/mNav */
+if(typeof window.titles==='object')window.titles['autopost']='◈ AUTO-POST';
