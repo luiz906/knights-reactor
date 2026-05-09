@@ -1243,6 +1243,27 @@ html, body {
   font-size: .7rem;
   color: var(--txtd);
   letter-spacing: .04em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.eq-tag {
+  background: var(--bg2);
+  border: 1px solid var(--bd2);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: .6rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  color: var(--txtd);
+}
+
+.add-exercise-search {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--bd2);
 }
 
 /* ══════════════════════════════════════════════════════════ SCHEDULE ══ */

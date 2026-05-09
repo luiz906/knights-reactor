@@ -28,6 +28,76 @@ const WORKOUT_LABELS = {
   cardio_bag:     'CARDIO — BAG',
 };
 
+// Full exercise database — Crunch Gym equipment
+// isDefault:true = shown automatically; false = available via search
+const EXERCISE_DB = {
+  chest: [
+    { name: "Barbell Bench Press",      sets: 4, reps: "8-10",   rest: 90,  equipment: "Barbell",      isDefault: true,  tip: "Drive through your chest, keep shoulder blades pinched" },
+    { name: "Incline Dumbbell Press",   sets: 3, reps: "10-12",  rest: 75,  equipment: "Dumbbell",     isDefault: true,  tip: "Keep elbows at 45° from torso" },
+    { name: "Cable Chest Fly",          sets: 3, reps: "12-15",  rest: 60,  equipment: "Cable",        isDefault: true,  tip: "Slight bend in elbows, squeeze at center" },
+    { name: "Push-ups",                 sets: 3, reps: "max",    rest: 60,  equipment: "Bodyweight",   isDefault: true,  tip: "Full range of motion, chest to floor" },
+    { name: "Decline Bench Press",      sets: 3, reps: "8-10",   rest: 90,  equipment: "Barbell",      isDefault: false },
+    { name: "Pec Deck Machine",         sets: 3, reps: "12-15",  rest: 60,  equipment: "Machine",      isDefault: false, tip: "Control the negative, don't let it snap back" },
+    { name: "Chest Press Machine",      sets: 3, reps: "10-12",  rest: 75,  equipment: "Machine",      isDefault: false },
+    { name: "Dumbbell Flat Press",      sets: 3, reps: "10-12",  rest: 75,  equipment: "Dumbbell",     isDefault: false },
+    { name: "Incline Cable Fly",        sets: 3, reps: "12-15",  rest: 60,  equipment: "Cable",        isDefault: false },
+    { name: "Low Cable Chest Fly",      sets: 3, reps: "12-15",  rest: 60,  equipment: "Cable",        isDefault: false },
+    { name: "Dumbbell Pullover",        sets: 3, reps: "12",     rest: 60,  equipment: "Dumbbell",     isDefault: false, tip: "Keep slight bend in elbows throughout" },
+    { name: "Smith Machine Bench",      sets: 3, reps: "10-12",  rest: 75,  equipment: "Smith Machine",isDefault: false },
+    { name: "Incline Barbell Press",    sets: 3, reps: "8-10",   rest: 90,  equipment: "Barbell",      isDefault: false },
+    { name: "Close-Grip Push-ups",      sets: 3, reps: "max",    rest: 60,  equipment: "Bodyweight",   isDefault: false },
+    { name: "Hammer Strength Chest Press", sets: 3, reps: "10-12", rest: 75, equipment: "Machine",    isDefault: false },
+  ],
+  back: [
+    { name: "Lat Pulldown",             sets: 4, reps: "8-10",   rest: 90,  equipment: "Cable Machine",isDefault: true,  tip: "Pull to upper chest, squeeze lats at bottom" },
+    { name: "Barbell Rows",             sets: 4, reps: "8-10",   rest: 90,  equipment: "Barbell",      isDefault: true,  tip: "Hinge at hips, pull bar to lower chest" },
+    { name: "Seated Cable Rows",        sets: 3, reps: "12",     rest: 75,  equipment: "Cable Machine",isDefault: true,  tip: "Sit tall, pull elbows past your back" },
+    { name: "Face Pulls",               sets: 3, reps: "15",     rest: 60,  equipment: "Cable",        isDefault: true,  tip: "Pull to eye level, externally rotate at end" },
+    { name: "Pull-ups",                 sets: 3, reps: "max",    rest: 90,  equipment: "Bodyweight",   isDefault: false },
+    { name: "Assisted Pull-ups",        sets: 3, reps: "8-10",   rest: 90,  equipment: "Machine",      isDefault: false },
+    { name: "T-Bar Rows",               sets: 3, reps: "10-12",  rest: 90,  equipment: "T-Bar",        isDefault: false },
+    { name: "Single-Arm DB Row",        sets: 3, reps: "10-12",  rest: 75,  equipment: "Dumbbell",     isDefault: false, tip: "Plant knee on bench, keep back flat" },
+    { name: "Straight-Arm Pulldown",    sets: 3, reps: "12-15",  rest: 60,  equipment: "Cable",        isDefault: false },
+    { name: "Wide-Grip Seated Row",     sets: 3, reps: "12",     rest: 75,  equipment: "Cable Machine",isDefault: false },
+    { name: "Deadlift",                 sets: 3, reps: "6-8",    rest: 120, equipment: "Barbell",      isDefault: false, tip: "Neutral spine, push the floor away" },
+    { name: "Hyperextensions",          sets: 3, reps: "12-15",  rest: 60,  equipment: "Machine",      isDefault: false },
+    { name: "Reverse Fly Machine",      sets: 3, reps: "12-15",  rest: 60,  equipment: "Machine",      isDefault: false },
+    { name: "Hammer Strength Row",      sets: 3, reps: "10-12",  rest: 75,  equipment: "Machine",      isDefault: false },
+    { name: "Close-Grip Pulldown",      sets: 3, reps: "10-12",  rest: 75,  equipment: "Cable Machine",isDefault: false },
+    { name: "Chest-Supported DB Row",   sets: 3, reps: "12",     rest: 75,  equipment: "Dumbbell",     isDefault: false },
+  ],
+  legs: [
+    { name: "Barbell Squat",            sets: 4, reps: "8-10",   rest: 120, equipment: "Barbell",      isDefault: true,  tip: "Chest up, knees track over toes, break parallel" },
+    { name: "Leg Press",                sets: 3, reps: "12-15",  rest: 90,  equipment: "Machine",      isDefault: true,  tip: "Full range, don't lock knees at top" },
+    { name: "Romanian Deadlift",        sets: 3, reps: "10",     rest: 90,  equipment: "Barbell",      isDefault: true,  tip: "Push hips back, feel the hamstring stretch" },
+    { name: "Leg Curls",                sets: 3, reps: "12",     rest: 60,  equipment: "Machine",      isDefault: true,  tip: "Slow and controlled on the way down" },
+    { name: "Calf Raises",              sets: 4, reps: "20",     rest: 45,  equipment: "Machine",      isDefault: true,  tip: "Full range — all the way up and all the way down" },
+    { name: "Hack Squat",               sets: 3, reps: "10-12",  rest: 90,  equipment: "Machine",      isDefault: false },
+    { name: "Bulgarian Split Squat",    sets: 3, reps: "10 each",rest: 90,  equipment: "Dumbbell",     isDefault: false, tip: "Keep front knee over toe, drive through heel" },
+    { name: "Walking Lunges",           sets: 3, reps: "12 each",rest: 75,  equipment: "Dumbbell",     isDefault: false },
+    { name: "Leg Extensions",           sets: 3, reps: "12-15",  rest: 60,  equipment: "Machine",      isDefault: false },
+    { name: "Smith Machine Squat",      sets: 3, reps: "10-12",  rest: 90,  equipment: "Smith Machine",isDefault: false },
+    { name: "Seated Calf Raises",       sets: 4, reps: "15-20",  rest: 45,  equipment: "Machine",      isDefault: false },
+    { name: "Hip Abductor Machine",     sets: 3, reps: "15",     rest: 45,  equipment: "Machine",      isDefault: false },
+    { name: "Hip Adductor Machine",     sets: 3, reps: "15",     rest: 45,  equipment: "Machine",      isDefault: false },
+    { name: "Sumo Deadlift",            sets: 3, reps: "8-10",   rest: 90,  equipment: "Barbell",      isDefault: false },
+    { name: "Glute Kickbacks",          sets: 3, reps: "15 each",rest: 45,  equipment: "Cable",        isDefault: false },
+    { name: "Step-ups",                 sets: 3, reps: "12 each",rest: 60,  equipment: "Dumbbell",     isDefault: false },
+    { name: "Goblet Squat",             sets: 3, reps: "12-15",  rest: 75,  equipment: "Dumbbell",     isDefault: false },
+    { name: "Lying Leg Curls",          sets: 3, reps: "12",     rest: 60,  equipment: "Machine",      isDefault: false },
+  ],
+  cardio_walking: [
+    { name: "Warm-up Walk",  type: "timed", duration: 300,  isDefault: true },
+    { name: "Brisk Walk",    type: "timed", duration: 1500, isDefault: true },
+    { name: "Cool-down Walk",type: "timed", duration: 300,  isDefault: true },
+  ],
+  cardio_bag: [
+    { name: "Warm-up",          type: "timed",  duration: 120, isDefault: true },
+    { name: "Rounds",           type: "rounds", work: 180, rest: 60, total_rounds: 6, isDefault: true },
+    { name: "Cool-down Stretch",type: "timed",  duration: 300, isDefault: true },
+  ],
+};
+
 const RING_CIRCUMFERENCE = 326.7; // 2π × 52
 
 // ══════════════════════════════════════════════════════════════ STATE ══
@@ -123,11 +193,7 @@ async function apiDelete(path) {
 }
 
 async function loadExercises() {
-  try {
-    STATE.exercises = await apiGet('/api/exercises');
-  } catch (e) {
-    console.warn('Could not load exercises', e);
-  }
+  STATE.exercises = EXERCISE_DB;
 }
 
 async function loadWorkoutLogs() {
@@ -277,18 +343,19 @@ function renderSelect() {
 
 function startWorkout(type) {
   STATE.workoutType = type;
-  const allExercises = STATE.exercises[type] || [];
+  const all = EXERCISE_DB[type] || [];
 
-  // For cardio (timed/rounds) skip exercise picker — just go
-  const isCardio = allExercises.every(e => e.type === 'timed' || e.type === 'rounds');
-  if (isCardio) {
-    launchWorkout(type, allExercises);
+  // Cardio — skip picker, go straight in
+  if (all.every(e => e.type === 'timed' || e.type === 'rounds')) {
+    launchWorkout(type, all.map(e => ({ ...e })));
     return;
   }
 
-  // Show exercise selection screen
+  // Seed with defaults only, all pre-selected
   STATE._pendingType = type;
-  STATE._pendingExercises = allExercises.map((ex, i) => ({ ...ex, _idx: i, _selected: true }));
+  STATE._pendingExercises = all
+    .filter(e => e.isDefault)
+    .map(e => ({ ...e, _selected: true }));
   renderExerciseSelect();
   showScreen('exercise-select');
 }
@@ -296,19 +363,66 @@ function startWorkout(type) {
 function renderExerciseSelect() {
   const type = STATE._pendingType;
   $('ex-select-title').textContent = WORKOUT_LABELS[type] || type.toUpperCase();
+  renderExSelectList();
+}
 
-  $('ex-select-list').innerHTML = STATE._pendingExercises.map((ex, i) => {
-    const meta = ex.type === 'timed'
-      ? `${ex.duration / 60} min`
-      : `${ex.sets} sets × ${ex.reps} reps`;
-    return `<div class="ex-select-row selected" id="ex-row-${i}" onclick="toggleExercise(${i})">
-      <div class="ex-check">✓</div>
+function renderExSelectList() {
+  const exs = STATE._pendingExercises;
+  const rows = exs.map((ex, i) => {
+    const meta = `${ex.sets} sets × ${ex.reps} reps`;
+    const eq   = ex.equipment ? `<span class="eq-tag">${ex.equipment}</span>` : '';
+    return `<div class="ex-select-row${ex._selected ? ' selected' : ''}" id="ex-row-${i}" onclick="toggleExercise(${i})">
+      <div class="ex-check">${ex._selected ? '✓' : ''}</div>
       <div class="ex-select-info">
         <div class="ex-select-name">${ex.name}</div>
-        <div class="ex-select-meta">${meta}</div>
+        <div class="ex-select-meta">${meta} ${eq}</div>
       </div>
     </div>`;
   }).join('');
+
+  const search = `
+    <div class="add-exercise-search">
+      <input type="text" id="ex-search-input" class="food-search-input"
+             placeholder="&#128269; Search exercises to add..."
+             oninput="onExSearchInput(this.value)" autocomplete="off">
+      <div id="ex-search-results"></div>
+    </div>`;
+
+  $('ex-select-list').innerHTML = rows + search;
+}
+
+function onExSearchInput(val) {
+  const results = $('ex-search-results');
+  if (!val.trim()) { results.innerHTML = ''; return; }
+
+  const type  = STATE._pendingType;
+  const added = new Set(STATE._pendingExercises.map(e => e.name));
+  const query = val.toLowerCase();
+
+  window._exSearchResults = (EXERCISE_DB[type] || []).filter(e =>
+    !added.has(e.name) && e.name.toLowerCase().includes(query)
+  );
+
+  if (!window._exSearchResults.length) {
+    results.innerHTML = '<div class="searching-label">No exercises found.</div>';
+    return;
+  }
+
+  results.innerHTML = window._exSearchResults.map((ex, i) => `
+    <div class="food-result-item" onclick="addExerciseFromSearch(${i})">
+      <div class="food-result-name">${ex.name}</div>
+      <div class="food-result-kcal">${ex.sets}×${ex.reps} · ${ex.equipment || ''}</div>
+    </div>
+  `).join('');
+}
+
+function addExerciseFromSearch(i) {
+  const ex = window._exSearchResults[i];
+  STATE._pendingExercises.push({ ...ex, _selected: true });
+  renderExSelectList();
+  // Re-focus search
+  const inp = $('ex-search-input');
+  if (inp) { inp.value = ''; inp.focus(); }
 }
 
 function toggleExercise(i) {
