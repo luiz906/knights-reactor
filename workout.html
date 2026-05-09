@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0a0a0a">
+  <title>IRON FORCE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/workout.css">
+</head>
+<body>
+  <div class="app-wrapper">
+
+    <!-- ═══════════════════════════════════════════════════════ HOME ══ -->
+    <div id="screen-home" class="screen active">
+      <div class="screen-header no-back">
+        <div class="app-logo">IRON<span>FORCE</span></div>
+        <div class="home-date" id="home-date"></div>
+      </div>
+      <div class="screen-body">
+        <div class="quote-card" id="home-quote">
+          <div class="quote-marks">"</div>
+          <div class="quote-text" id="home-quote-text">Loading...</div>
+          <div class="quote-attr">— Arnold Schwarzenegger</div>
+        </div>
+
+        <div class="today-stats-row">
+          <div class="stat-card">
+            <div class="stat-value amber" id="home-calories">—</div>
+            <div class="stat-label">CALORIES TODAY</div>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-card">
+            <div class="stat-value" id="home-last-workout">—</div>
+            <div class="stat-label">LAST WORKOUT</div>
+          </div>
+        </div>
+
+        <div class="ignition-wrap">
+          <button class="ignition-btn" id="btn-start" onclick="onStartPress()">
+            <div class="ignition-inner">
+              <div class="ignition-label">START</div>
+            </div>
+          </button>
+          <div class="ignition-hint">PRESS TO BEGIN</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════ WORKOUT SELECT ══ -->
+    <div id="screen-select" class="screen">
+      <div class="screen-header">
+        <button class="btn-back" onclick="showScreen('home')">&#8592;</button>
+        <div class="screen-title">CHOOSE WORKOUT</div>
+        <div class="header-spacer"></div>
+      </div>
+      <div class="screen-body">
+        <div class="quote-small" id="select-quote"></div>
+        <div class="workout-grid">
+          <button class="workout-card chest" onclick="startWorkout('chest')">
+            <div class="workout-icon">&#9889;</div>
+            <div class="workout-name">CHEST</div>
+            <div class="workout-sub">4 exercises</div>
+          </button>
+          <button class="workout-card back" onclick="startWorkout('back')">
+            <div class="workout-icon">&#128170;</div>
+            <div class="workout-name">BACK</div>
+            <div class="workout-sub">4 exercises</div>
+          </button>
+          <button class="workout-card legs" onclick="startWorkout('legs')">
+            <div class="workout-icon">&#9876;</div>
+            <div class="workout-name">LEGS</div>
+            <div class="workout-sub">5 exercises</div>
+          </button>
+          <button class="workout-card cardio" onclick="showScreen('cardio-sub')">
+            <div class="workout-icon">&#128293;</div>
+            <div class="workout-name">CARDIO</div>
+            <div class="workout-sub">Walk or bag</div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════ CARDIO SUB ══ -->
+    <div id="screen-cardio-sub" class="screen">
+      <div class="screen-header">
+        <button class="btn-back" onclick="showScreen('select')">&#8592;</button>
+        <div class="screen-title">CARDIO TYPE</div>
+        <div class="header-spacer"></div>
+      </div>
+      <div class="screen-body">
+        <div class="workout-grid two-col">
+          <button class="workout-card cardio tall" onclick="startWorkout('cardio_walking')">
+            <div class="workout-icon big">&#128694;</div>
+            <div class="workout-name">WALKING</div>
+            <div class="workout-sub">Warm-up · 25 min · Cool-down</div>
+          </button>
+          <button class="workout-card cardio tall" onclick="startWorkout('cardio_bag')">
+            <div class="workout-icon big">&#129354;</div>
+            <div class="workout-name">PUNCHING BAG</div>
+            <div class="workout-sub">6 rounds · 3 min each</div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════ ACTIVE WORKOUT ══ -->
+    <div id="screen-workout" class="screen">
+      <div class="screen-header">
+        <button class="btn-back danger" onclick="confirmQuitWorkout()">&#10005;</button>
+        <div class="screen-title" id="workout-type-label"></div>
+        <div class="workout-progress-pill" id="workout-progress">1/4</div>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" id="workout-progress-bar"></div>
+      </div>
+      <div class="screen-body" id="workout-body">
+        <!-- Dynamically rendered -->
+      </div>
+
+      <!-- Rest timer overlay -->
+      <div class="rest-overlay" id="rest-overlay">
+        <div class="rest-content">
+          <div class="rest-label">REST</div>
+          <div class="rest-ring-wrap">
+            <svg class="rest-ring" viewBox="0 0 120 120">
+              <circle class="ring-bg" cx="60" cy="60" r="52"/>
+              <circle class="ring-fg" id="rest-ring-fg" cx="60" cy="60" r="52"
+                      stroke-dasharray="326.7" stroke-dashoffset="0"/>
+            </svg>
+            <div class="rest-time" id="rest-time">1:30</div>
+          </div>
+          <div class="rest-next" id="rest-next-label"></div>
+          <button class="btn-skip-rest" onclick="skipRest()">SKIP REST</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════ WORKOUT COMPLETE ══ -->
+    <div id="screen-complete" class="screen">
+      <div class="screen-header no-back">
+        <div class="screen-title">CRUSHED IT</div>
+      </div>
+      <div class="screen-body center">
+        <div class="complete-trophy">&#127942;</div>
+        <div class="complete-stats">
+          <div class="stat-row-complete">
+            <span class="stat-row-label">WORKOUT</span>
+            <span class="stat-row-value amber" id="complete-type">—</span>
+          </div>
+          <div class="stat-row-complete">
+            <span class="stat-row-label">DURATION</span>
+            <span class="stat-row-value" id="complete-duration">—</span>
+          </div>
+          <div class="stat-row-complete">
+            <span class="stat-row-label">EXERCISES</span>
+            <span class="stat-row-value" id="complete-exercises">—</span>
+          </div>
+          <div class="stat-row-complete">
+            <span class="stat-row-label">SETS DONE</span>
+            <span class="stat-row-value" id="complete-sets">—</span>
+          </div>
+        </div>
+        <div class="quote-card slim">
+          <div class="quote-marks">"</div>
+          <div class="quote-text" id="complete-quote"></div>
+          <div class="quote-attr">— Arnold Schwarzenegger</div>
+        </div>
+        <button class="btn-primary" onclick="showScreen('home')">DONE</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════ CALENDAR ══ -->
+    <div id="screen-calendar" class="screen">
+      <div class="screen-header no-back">
+        <button class="btn-icon" onclick="calPrevMonth()">&#8249;</button>
+        <div class="screen-title" id="cal-month-label">April 2026</div>
+        <button class="btn-icon" onclick="calNextMonth()">&#8250;</button>
+      </div>
+      <div class="screen-body">
+        <div class="cal-weekdays">
+          <span>SUN</span><span>MON</span><span>TUE</span>
+          <span>WED</span><span>THU</span><span>FRI</span><span>SAT</span>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+        <div class="cal-legend">
+          <span class="legend-dot chest"></span><span class="legend-text">Chest</span>
+          <span class="legend-dot back"></span><span class="legend-text">Back</span>
+          <span class="legend-dot legs"></span><span class="legend-text">Legs</span>
+          <span class="legend-dot cardio"></span><span class="legend-text">Cardio</span>
+        </div>
+        <div class="cal-log-list" id="cal-log-list"></div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════ FOOD LOG ══ -->
+    <div id="screen-food" class="screen">
+      <div class="screen-header no-back">
+        <button class="btn-icon" onclick="foodPrevDay()">&#8249;</button>
+        <div class="screen-title" id="food-date-label">Today</div>
+        <button class="btn-icon" onclick="foodNextDay()">&#8250;</button>
+      </div>
+      <div class="screen-body">
+        <div class="calorie-total-card">
+          <div class="calorie-number" id="food-total-cal">0</div>
+          <div class="calorie-unit">kcal today</div>
+          <div class="macro-bar-wrap">
+            <div class="macro-bar" id="food-macro-bar">
+              <div class="macro-seg protein" id="macro-protein" style="width:0%"></div>
+              <div class="macro-seg carbs" id="macro-carbs" style="width:0%"></div>
+              <div class="macro-seg fat" id="macro-fat" style="width:0%"></div>
+            </div>
+          </div>
+          <div class="macro-labels">
+            <span class="mlabel protein">P <b id="food-total-protein">0</b>g</span>
+            <span class="mlabel carbs">C <b id="food-total-carbs">0</b>g</span>
+            <span class="mlabel fat">F <b id="food-total-fat">0</b>g</span>
+          </div>
+        </div>
+
+        <div class="food-search-section">
+          <div class="food-search-wrap">
+            <input type="text" id="food-search-input"
+                   placeholder="&#128269; Search food to add..."
+                   class="food-search-input"
+                   oninput="onFoodSearchInput(this.value)"
+                   autocomplete="off">
+          </div>
+          <div class="food-results" id="food-results"></div>
+          <div class="food-add-form" id="food-add-form" style="display:none">
+            <div class="add-form-name" id="add-form-name"></div>
+            <div class="add-form-row">
+              <input type="number" id="add-grams-input" class="grams-input" value="100" min="1" max="9999">
+              <span class="add-grams-label">grams</span>
+              <button class="btn-add-food" onclick="confirmAddFood()">ADD</button>
+            </div>
+            <div class="add-form-preview" id="add-form-preview"></div>
+            <button class="btn-cancel-add" onclick="cancelAddFood()">Cancel</button>
+          </div>
+        </div>
+
+        <div class="food-log-section">
+          <div class="section-title">TODAY'S LOG</div>
+          <div class="food-log-list" id="food-log-list">
+            <div class="empty-state">No food logged yet.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════ BOTTOM NAV ══ -->
+    <nav class="bottom-nav">
+      <button class="nav-btn active" id="nav-home" onclick="navTo('home')">
+        <span class="nav-icon">&#9711;</span>
+        <span class="nav-label">HOME</span>
+      </button>
+      <button class="nav-btn" id="nav-calendar" onclick="navTo('calendar')">
+        <span class="nav-icon">&#128197;</span>
+        <span class="nav-label">CALENDAR</span>
+      </button>
+      <button class="nav-btn" id="nav-food" onclick="navTo('food')">
+        <span class="nav-icon">&#127822;</span>
+        <span class="nav-label">FOOD</span>
+      </button>
+    </nav>
+
+  </div><!-- .app-wrapper -->
+
+  <script src="/workout.js" defer></script>
+</body>
+</html>
