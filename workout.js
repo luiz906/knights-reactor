@@ -164,7 +164,24 @@ async function deleteFoodEntry(id, date) {
 }
 
 async function searchFood(q) {
-  return apiGet(`/api/food/search?q=${encodeURIComponent(q)}`);
+  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&json=1&page_size=10&fields=product_name,nutriments`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('Food API error');
+  const data = await r.json();
+  return (data.products || [])
+    .filter(p => p.product_name && p.product_name.trim())
+    .map(p => {
+      const n = p.nutriments || {};
+      let kcal = n['energy-kcal_100g'] || n['energy-kcal'] || 0;
+      if (!kcal && n['energy_100g']) kcal = Math.round(n['energy_100g'] / 4.184);
+      return {
+        name: p.product_name.trim(),
+        kcal_per_100g:     Math.round(parseFloat(kcal) || 0),
+        protein_per_100g:  Math.round((parseFloat(n['proteins_100g'])       || 0) * 10) / 10,
+        carbs_per_100g:    Math.round((parseFloat(n['carbohydrates_100g'])  || 0) * 10) / 10,
+        fat_per_100g:      Math.round((parseFloat(n['fat_100g'])            || 0) * 10) / 10,
+      };
+    });
 }
 
 // ══════════════════════════════════════════════════════ SCREEN ROUTING ══
