@@ -1,4 +1,14 @@
 services:
+  # IRON FORCE workout app - personal workout tracker
+  - type: web
+    name: iron-force
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn workout_server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+
   # Web dashboard - shows UI at your-app.onrender.com
   - type: web
     name: knights-reactor
