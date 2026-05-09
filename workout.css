@@ -1194,6 +1194,95 @@ html, body {
   font-family: 'Space Grotesk', sans-serif;
 }
 
+/* ══════════════════════════════════════════════════════════ SCHEDULE ══ */
+
+.schedule-hint {
+  font-size: .8rem;
+  color: var(--txtd);
+  font-family: 'Space Grotesk', sans-serif;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+.schedule-list { display: flex; flex-direction: column; gap: 8px; }
+
+.schedule-row {
+  display: flex;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--bd2);
+  border-radius: var(--r);
+  padding: 12px 14px;
+  gap: 12px;
+}
+
+.schedule-day {
+  font-size: .8rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  color: var(--txtd);
+  width: 36px;
+  flex-shrink: 0;
+}
+
+.schedule-select {
+  flex: 1;
+  background: var(--bg2);
+  border: 1px solid var(--bd2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: var(--f1);
+  font-size: .9rem;
+  font-weight: 600;
+  color: var(--txt);
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+.schedule-select:focus { outline: none; border-color: var(--amb); }
+
+/* Today's workout banner */
+.today-workout-banner {
+  background: var(--amb);
+  border-radius: var(--r-lg);
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: opacity .12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.today-workout-banner:active { opacity: .88; }
+
+.twb-label {
+  font-size: .6rem;
+  font-weight: 700;
+  letter-spacing: .15em;
+  color: rgba(255,255,255,.75);
+}
+
+.twb-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  color: #fff;
+}
+
+.twb-tap {
+  font-size: .65rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  color: rgba(255,255,255,.7);
+  margin-top: 2px;
+}
+
 /* ── Utility ────────────────────────────────────────────────────────────────── */
 
 .searching-label {

@@ -202,6 +202,7 @@ function showScreen(name) {
   if (name === 'select')   renderSelect();
   if (name === 'calendar') renderCalendar();
   if (name === 'food')     renderFood();
+  if (name === 'schedule') renderSchedule();
 }
 
 function navTo(name) {
@@ -221,6 +222,9 @@ function renderHome() {
 
   // Arnold quote
   $('home-quote-text').textContent = randQuote();
+
+  // Today's scheduled workout banner
+  renderTodayBanner();
 
   // Stats
   loadTodayStats();
@@ -876,6 +880,66 @@ async function deleteFoodItem(id) {
   } catch (e) {
     alert('Could not delete entry.');
   }
+}
+
+// ══════════════════════════════════════════════════════════ SCHEDULE ══
+
+const DAY_NAMES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const SCHEDULE_OPTIONS = [
+  { value: 'rest',           label: '— Rest —' },
+  { value: 'chest',          label: 'Chest' },
+  { value: 'back',           label: 'Back' },
+  { value: 'legs',           label: 'Legs' },
+  { value: 'cardio_walking', label: 'Cardio — Walk' },
+  { value: 'cardio_bag',     label: 'Cardio — Bag' },
+];
+
+function loadSchedule() {
+  try {
+    return JSON.parse(localStorage.getItem('workout_schedule') || '{}');
+  } catch { return {}; }
+}
+
+function renderSchedule() {
+  const schedule = loadSchedule();
+  $('schedule-list').innerHTML = DAY_NAMES.map((day, i) => {
+    const val = schedule[i] || 'rest';
+    const opts = SCHEDULE_OPTIONS.map(o =>
+      `<option value="${o.value}"${o.value === val ? ' selected' : ''}>${o.label}</option>`
+    ).join('');
+    return `<div class="schedule-row">
+      <div class="schedule-day">${day}</div>
+      <select class="schedule-select" id="sched-day-${i}">${opts}</select>
+    </div>`;
+  }).join('');
+}
+
+function saveSchedule() {
+  const schedule = {};
+  DAY_NAMES.forEach((_, i) => {
+    schedule[i] = $(`sched-day-${i}`).value;
+  });
+  localStorage.setItem('workout_schedule', JSON.stringify(schedule));
+  showScreen('home');
+}
+
+function getTodayScheduled() {
+  const schedule = loadSchedule();
+  const dayIdx = new Date().getDay();
+  return schedule[dayIdx] || null;
+}
+
+function renderTodayBanner() {
+  const type = getTodayScheduled();
+  const banner = $('today-workout-banner');
+  if (!type || type === 'rest') {
+    banner.style.display = 'none';
+    return;
+  }
+  $('today-workout-label').textContent = WORKOUT_LABELS[type] || type.toUpperCase();
+  banner.style.display = 'flex';
+  // Pre-select this workout when START is tapped
+  banner.onclick = () => startWorkout(type);
 }
 
 // ══════════════════════════════════════════════════════════════ INIT ══

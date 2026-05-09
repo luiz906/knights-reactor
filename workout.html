@@ -18,8 +18,15 @@
       <div class="screen-header no-back">
         <div class="app-logo">IRON<span>FORCE</span></div>
         <div class="home-date" id="home-date"></div>
+        <button class="btn-icon" onclick="showScreen('schedule')" style="margin-left:4px">&#9881;</button>
       </div>
       <div class="screen-body">
+        <div class="today-workout-banner" id="today-workout-banner" style="display:none" onclick="onStartPress()">
+          <div class="twb-label">TODAY'S WORKOUT</div>
+          <div class="twb-value" id="today-workout-label"></div>
+          <div class="twb-tap">TAP TO START →</div>
+        </div>
+
         <div class="quote-card" id="home-quote">
           <div class="quote-marks">"</div>
           <div class="quote-text" id="home-quote-text">Loading...</div>
@@ -46,6 +53,20 @@
           </button>
           <div class="ignition-hint">PRESS TO BEGIN</div>
         </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════ SCHEDULE ══ -->
+    <div id="screen-schedule" class="screen">
+      <div class="screen-header">
+        <button class="btn-back" onclick="showScreen('home')">&#8592;</button>
+        <div class="screen-title">WEEKLY SCHEDULE</div>
+        <div class="header-spacer"></div>
+      </div>
+      <div class="screen-body">
+        <div class="schedule-hint">Set your workout for each day. Shows on the home screen.</div>
+        <div class="schedule-list" id="schedule-list"></div>
+        <button class="btn-primary" style="margin-top:16px" onclick="saveSchedule()">SAVE SCHEDULE</button>
       </div>
     </div>
 
