@@ -198,11 +198,12 @@ function showScreen(name) {
     if (btn) btn.classList.toggle('active', n === name);
   });
 
-  if (name === 'home')     renderHome();
-  if (name === 'select')   renderSelect();
-  if (name === 'calendar') renderCalendar();
-  if (name === 'food')     renderFood();
-  if (name === 'schedule') renderSchedule();
+  if (name === 'home')            renderHome();
+  if (name === 'select')          renderSelect();
+  if (name === 'exercise-select') renderExerciseSelect();
+  if (name === 'calendar')        renderCalendar();
+  if (name === 'food')            renderFood();
+  if (name === 'schedule')        renderSchedule();
 }
 
 function navTo(name) {
@@ -276,7 +277,55 @@ function renderSelect() {
 
 function startWorkout(type) {
   STATE.workoutType = type;
-  STATE.workoutExercises = STATE.exercises[type] || [];
+  const allExercises = STATE.exercises[type] || [];
+
+  // For cardio (timed/rounds) skip exercise picker — just go
+  const isCardio = allExercises.every(e => e.type === 'timed' || e.type === 'rounds');
+  if (isCardio) {
+    launchWorkout(type, allExercises);
+    return;
+  }
+
+  // Show exercise selection screen
+  STATE._pendingType = type;
+  STATE._pendingExercises = allExercises.map((ex, i) => ({ ...ex, _idx: i, _selected: true }));
+  renderExerciseSelect();
+  showScreen('exercise-select');
+}
+
+function renderExerciseSelect() {
+  const type = STATE._pendingType;
+  $('ex-select-title').textContent = WORKOUT_LABELS[type] || type.toUpperCase();
+
+  $('ex-select-list').innerHTML = STATE._pendingExercises.map((ex, i) => {
+    const meta = ex.type === 'timed'
+      ? `${ex.duration / 60} min`
+      : `${ex.sets} sets × ${ex.reps} reps`;
+    return `<div class="ex-select-row selected" id="ex-row-${i}" onclick="toggleExercise(${i})">
+      <div class="ex-check">✓</div>
+      <div class="ex-select-info">
+        <div class="ex-select-name">${ex.name}</div>
+        <div class="ex-select-meta">${meta}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleExercise(i) {
+  STATE._pendingExercises[i]._selected = !STATE._pendingExercises[i]._selected;
+  const row = $(`ex-row-${i}`);
+  row.classList.toggle('selected', STATE._pendingExercises[i]._selected);
+}
+
+function confirmExerciseSelection() {
+  const selected = STATE._pendingExercises.filter(e => e._selected);
+  if (!selected.length) { alert('Select at least one exercise.'); return; }
+  launchWorkout(STATE._pendingType, selected);
+}
+
+function launchWorkout(type, exercises) {
+  STATE.workoutType = type;
+  STATE.workoutExercises = exercises;
   STATE.exerciseIndex = 0;
   STATE.currentSets = [];
   STATE.session = {

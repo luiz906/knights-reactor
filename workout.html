@@ -70,6 +70,20 @@
       </div>
     </div>
 
+    <!-- ══════════════════════════════════════════════ EXERCISE SELECT ══ -->
+    <div id="screen-exercise-select" class="screen">
+      <div class="screen-header">
+        <button class="btn-back" onclick="showScreen('select')">&#8592;</button>
+        <div class="screen-title" id="ex-select-title">CHEST DAY</div>
+        <div class="header-spacer"></div>
+      </div>
+      <div class="screen-body">
+        <div class="schedule-hint">Uncheck any exercises you want to skip today.</div>
+        <div class="ex-select-list" id="ex-select-list"></div>
+        <button class="btn-primary" style="margin-top:16px" onclick="confirmExerciseSelection()">START WORKOUT</button>
+      </div>
+    </div>
+
     <!-- ══════════════════════════════════════════════════ WORKOUT SELECT ══ -->
     <div id="screen-select" class="screen">
       <div class="screen-header">

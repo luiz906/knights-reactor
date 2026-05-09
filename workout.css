@@ -1194,6 +1194,57 @@ html, body {
   font-family: 'Space Grotesk', sans-serif;
 }
 
+/* ══════════════════════════════════════════════════ EXERCISE SELECT ══ */
+
+.ex-select-list { display: flex; flex-direction: column; gap: 8px; }
+
+.ex-select-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--panel);
+  border: 1px solid var(--bd2);
+  border-radius: var(--r);
+  padding: 14px;
+  cursor: pointer;
+  transition: border-color .12s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ex-select-row.selected { border-color: var(--amb); }
+
+.ex-check {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--bd);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: .8rem;
+  color: transparent;
+  transition: background .12s, border-color .12s;
+}
+
+.ex-select-row.selected .ex-check {
+  background: var(--amb);
+  border-color: var(--amb);
+  color: #fff;
+}
+
+.ex-select-info { flex: 1; }
+
+.ex-select-name {
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--txt);
+  margin-bottom: 2px;
+}
+
+.ex-select-meta {
+  font-size: .7rem;
+  color: var(--txtd);
+  letter-spacing: .04em;
+}
+
 /* ══════════════════════════════════════════════════════════ SCHEDULE ══ */
 
 .schedule-hint {
