@@ -1,16 +1,16 @@
 /* ══════════════════════════════════════════════════════ IRON FORCE CSS ══ */
 
 :root {
-  --bg:    #0a0a0a;
-  --bg2:   #111111;
-  --bg3:   #1a1a1a;
-  --panel: #141414;
-  --amb:   #FFB300;
+  --bg:    #f4f4f4;
+  --bg2:   #ebebeb;
+  --bg3:   #e0e0e0;
+  --panel: #ffffff;
+  --amb:   #E6A000;
   --amb2:  #FF6D00;
-  --txt:   #f0f0f0;
-  --txtd:  #666;
-  --bd:    rgba(255,179,0,.18);
-  --bd2:   rgba(255,255,255,.07);
+  --txt:   #111111;
+  --txtd:  #888888;
+  --bd:    rgba(0,0,0,.12);
+  --bd2:   rgba(0,0,0,.08);
   --r:     10px;
   --r-lg:  16px;
   --f1:    'Oswald', 'Space Grotesk', sans-serif;
@@ -32,6 +32,7 @@ html, body {
   font-family: var(--f1);
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+  color-scheme: light;
 }
 
 /* ── App shell ─────────────────────────────────────────────────────────────── */
@@ -281,14 +282,14 @@ html, body {
   width: 160px; height: 160px;
   border-radius: 50%;
   border: 3px solid var(--amb);
-  background: radial-gradient(circle at 40% 35%, #2a1a00, #0d0d0d);
+  background: radial-gradient(circle at 40% 35%, #fff8e1, #fffde7);
   cursor: pointer;
   position: relative;
   box-shadow:
-    0 0 0 8px rgba(255,179,0,.06),
-    0 0 0 16px rgba(255,179,0,.03),
-    0 0 40px rgba(255,179,0,.25),
-    inset 0 2px 8px rgba(255,255,255,.04);
+    0 0 0 8px rgba(230,160,0,.08),
+    0 0 0 16px rgba(230,160,0,.04),
+    0 0 40px rgba(230,160,0,.2),
+    inset 0 2px 8px rgba(255,255,255,.8);
   animation: ignition-pulse 2.5s ease-in-out infinite;
   transition: transform .12s, box-shadow .12s;
 }
@@ -328,8 +329,8 @@ html, body {
 }
 
 @keyframes ignition-pulse {
-  0%, 100% { box-shadow: 0 0 0 8px rgba(255,179,0,.06), 0 0 0 16px rgba(255,179,0,.03), 0 0 30px rgba(255,179,0,.2), inset 0 2px 8px rgba(255,255,255,.04); }
-  50%       { box-shadow: 0 0 0 8px rgba(255,179,0,.1),  0 0 0 16px rgba(255,179,0,.05), 0 0 50px rgba(255,179,0,.35), inset 0 2px 8px rgba(255,255,255,.06); }
+  0%, 100% { box-shadow: 0 0 0 8px rgba(230,160,0,.08), 0 0 0 16px rgba(230,160,0,.04), 0 0 30px rgba(230,160,0,.15), inset 0 2px 8px rgba(255,255,255,.8); }
+  50%       { box-shadow: 0 0 0 8px rgba(230,160,0,.14), 0 0 0 16px rgba(230,160,0,.07), 0 0 50px rgba(230,160,0,.28), inset 0 2px 8px rgba(255,255,255,.9); }
 }
 
 /* ══════════════════════════════════════════════════ WORKOUT SELECT ══ */
@@ -508,7 +509,7 @@ html, body {
 .btn-log-set {
   width: 100%;
   background: var(--amb);
-  color: #000;
+  color: #fff;
   border: none;
   border-radius: var(--r);
   padding: 14px;
@@ -636,7 +637,7 @@ html, body {
 .btn-cardio-start {
   flex: 2;
   background: var(--amb);
-  color: #000;
+  color: #fff;
   border: none;
   border-radius: var(--r);
   padding: 14px;
@@ -666,7 +667,7 @@ html, body {
 .rest-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(10,10,10,.94);
+  background: rgba(244,244,244,.95);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -790,7 +791,7 @@ html, body {
   width: 100%;
   max-width: 300px;
   background: var(--amb);
-  color: #000;
+  color: #fff;
   border: none;
   border-radius: var(--r);
   padding: 16px;
@@ -1098,7 +1099,7 @@ html, body {
 .btn-add-food {
   margin-left: auto;
   background: var(--amb);
-  color: #000;
+  color: #fff;
   border: none;
   border-radius: var(--r);
   padding: 10px 20px;
