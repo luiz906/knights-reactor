@@ -972,36 +972,44 @@ async def generate_script_only(req: Request):
 
 @app.get("/api/topics")
 async def get_topics():
-    topics = load_topics()
+    brand = get_active_brand()
+    topics = load_topics(brand)
     return {"topics": topics, "total": len(topics), "new": sum(1 for t in topics if t.get("status") == "new")}
 
 @app.post("/api/topics")
 async def create_topic(req: Request):
+    brand = get_active_brand()
     body = await req.json()
-    t = add_topic(body.get("idea",""), body.get("category","Shocking Revelations"), body.get("scripture",""))
+    t = add_topic(body.get("idea",""), body.get("category","Shocking Revelations"), body.get("scripture",""), brand=brand)
     return {"status": "created", "topic": t}
 
 @app.delete("/api/topics/{topic_id}")
 async def remove_topic(topic_id: str):
-    ok = delete_topic(topic_id)
+    brand = get_active_brand()
+    ok = delete_topic(topic_id, brand=brand)
     return {"status": "deleted" if ok else "not_found"}
 
 @app.post("/api/topics/generate")
 async def gen_topics(req: Request, bg: BackgroundTasks):
+    # Pin the brand BEFORE the GPT-4o call (which can take several seconds) so
+    # that switching brands elsewhere while this is in flight can't redirect
+    # the generated topics into the wrong brand's folder.
+    brand = get_active_brand()
     body = {}
     try: body = await req.json()
     except: pass
     count = body.get("count", 10)
     try:
-        new_topics = generate_topics_ai(count)
+        new_topics = generate_topics_ai(count, brand=brand)
         return {"status": "generated", "count": len(new_topics), "topics": new_topics}
     except Exception as e:
         return JSONResponse({"error": str(e)}, 500)
 
 @app.post("/api/topics/seed")
 async def seed_topics():
-    seed_default_topics()
-    return {"status": "seeded", "total": len(load_topics())}
+    brand = get_active_brand()
+    seed_default_topics(brand=brand)
+    return {"status": "seeded", "total": len(load_topics(brand))}
 
 # ─── PROMPT EDITING GATE ─────────────────────────────────────
 

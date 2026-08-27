@@ -11,10 +11,16 @@ from config import Config, DATA_DIR, log
 
 BRANDS_DIR = DATA_DIR / "brands"
 
-def _topics_file():
-    """Get topics file for active brand."""
-    ab_file = DATA_DIR / "active_brand.txt"
-    brand = ab_file.read_text().strip() if ab_file.exists() else "knights"
+def _topics_file(brand=None):
+    """Get topics file for `brand`. If brand isn't given, falls back to reading
+    whatever the CURRENTLY active brand is right now — which is only safe for a
+    quick, synchronous call. Anything that spans a slow network call (AI topic
+    generation, etc.) must resolve the brand ONCE up front and pass it through
+    explicitly, otherwise a brand switch that happens while that call is still
+    in flight silently redirects the result to the wrong brand's folder."""
+    if brand is None:
+        ab_file = DATA_DIR / "active_brand.txt"
+        brand = ab_file.read_text().strip() if ab_file.exists() else "knights"
     bd = BRANDS_DIR / brand
     bd.mkdir(exist_ok=True)
     return bd / "topics.json"
@@ -22,52 +28,57 @@ def _topics_file():
 CATEGORIES = ["Shocking Revelations","Shocking Reveal","Behind-the-Scenes","Myths Debunked","Deep Dive Analysis"]
 
 
-def load_topics():
-    f = _topics_file()
+def load_topics(brand=None):
+    f = _topics_file(brand)
     if f.exists():
         try: return json.loads(f.read_text())
         except: pass
     return []
 
-def save_topics(topics):
-    _topics_file().write_text(json.dumps(topics, indent=2))
+def save_topics(topics, brand=None):
+    _topics_file(brand).write_text(json.dumps(topics, indent=2))
 
-def add_topic(idea, category, scripture=""):
-    topics = load_topics()
+def add_topic(idea, category, scripture="", brand=None):
+    topics = load_topics(brand)
     t = {"id": f"t_{int(time.time()*1000)}_{random.randint(100,999)}", "idea": idea.strip(),
          "category": category.strip(), "scripture": scripture.strip(), "status": "new",
          "created": datetime.now().isoformat()}
-    topics.append(t); save_topics(topics); return t
+    topics.append(t); save_topics(topics, brand); return t
 
-def delete_topic(topic_id):
-    topics = load_topics()
-    topics = [t for t in topics if t.get("id") != topic_id]
-    save_topics(topics)
+def delete_topic(topic_id, brand=None):
+    topics = load_topics(brand)
+    remaining = [t for t in topics if t.get("id") != topic_id]
+    found = len(remaining) != len(topics)
+    save_topics(remaining, brand)
+    return found
 
-def fetch_next_topic(topic_id=None):
+def fetch_next_topic(topic_id=None, brand=None):
     """Get next new topic, or specific one by ID."""
-    topics = load_topics()
+    topics = load_topics(brand)
     if topic_id:
         for t in topics:
             if t.get("id") == topic_id:
-                t["status"] = "processing"; save_topics(topics); return t
+                t["status"] = "processing"; save_topics(topics, brand); return t
         raise RuntimeError(f"Topic {topic_id} not found")
     for t in topics:
         if t.get("status") == "new":
-            t["status"] = "processing"; save_topics(topics); return t
+            t["status"] = "processing"; save_topics(topics, brand); return t
     raise RuntimeError("No new topics - add topics or generate with AI")
 
-def update_topic_status(topic_id, status, extra=None):
-    topics = load_topics()
+def update_topic_status(topic_id, status, extra=None, brand=None):
+    topics = load_topics(brand)
     for t in topics:
         if t.get("id") == topic_id:
             t["status"] = status
             if extra: t.update(extra)
             break
-    save_topics(topics)
+    save_topics(topics, brand)
 
-def generate_topics_ai(count=10):
-    """Generate topics via GPT-4o."""
+def generate_topics_ai(count=10, brand=None):
+    """Generate topics via GPT-4o. `brand` should be captured by the CALLER
+    before this runs (it makes a network call that can take several seconds) —
+    every generated topic is saved to that pinned brand, never re-resolved from
+    the active-brand file after the call returns."""
     log.info(f"Generating {count} topics via GPT-4o...")
     brand_name = getattr(Config, 'BRAND_NAME', 'Content Channel')
     brand_persona = getattr(Config, 'BRAND_PERSONA', '')
@@ -90,14 +101,14 @@ def generate_topics_ai(count=10):
     added = []
     for item in items:
         if isinstance(item, dict) and item.get("idea"):
-            added.append(add_topic(item["idea"], item.get("category", random.choice(CATEGORIES)), item.get("scripture", "")))
+            added.append(add_topic(item["idea"], item.get("category", random.choice(CATEGORIES)), item.get("scripture", ""), brand=brand))
     log.info(f"   Generated {len(added)} topics")
     return added
 
 
-def seed_default_topics():
+def seed_default_topics(brand=None):
     """Seed 100 default topics if DB is empty."""
-    if load_topics(): return
+    if load_topics(brand): return
     log.info("Seeding 100 default topics...")
     defaults = [
         ("The Sword You Never Picked Up","Shocking Revelations","Ephesians 6:17"),
@@ -202,7 +213,7 @@ def seed_default_topics():
         ("Repentance Is Strength Not Shame","Myths Debunked","Acts 3:19"),
     ]
     for idea, cat, scripture in defaults:
-        add_topic(idea, cat, scripture)
+        add_topic(idea, cat, scripture, brand=brand)
     log.info(f"   Seeded {len(defaults)} topics")
 
 
