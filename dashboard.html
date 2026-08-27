@@ -237,6 +237,7 @@ body{overflow:auto}
 <button class="sb-i" onclick="dNav('autopost',this)"><span class="material-symbols-outlined">send</span>AUTO-POST</button>
 <button class="sb-i" onclick="dNav('manual',this)"><span class="material-symbols-outlined">play_circle</span>MANUAL</button>
 <button class="sb-i" onclick="dNav('topics',this)"><span class="material-symbols-outlined">auto_awesome</span>TOPICS</button>
+<button class="sb-i" onclick="dNav('scenes',this)"><span class="material-symbols-outlined">theater_comedy</span>SCENES</button>
 <button class="sb-i" onclick="dNav('runs',this)"><span class="material-symbols-outlined">history</span>RUNS</button>
 <button class="sb-i" onclick="dNav('logs',this)"><span class="material-symbols-outlined">terminal</span>LOGS</button>
 <button class="sb-i" onclick="dNav('preview',this)"><span class="material-symbols-outlined">visibility</span>PREVIEW</button>
@@ -333,6 +334,19 @@ body{overflow:auto}
 <div class="panel" id="d-tl" style="padding:0;max-height:calc(100vh - 16em);overflow-y:auto"></div>
 </div>
 
+<div class="dpage" id="dp-scenes">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7em;flex-wrap:wrap;gap:8px">
+<span class="ptitle" style="margin:0">SCENE ENGINE <span id="d-sc-src" style="margin-left:.6em"></span></span>
+<div style="display:flex;gap:6px">
+<button class="btn-sm" onclick="scSeed()">SEED FROM DEFAULTS</button>
+<button class="btn-sm btn-blu" onclick="editScenePack()">⌘ ADVANCED (RAW JSON)</button>
+<button class="btn-sm btn-grn" onclick="scSave()">💾 SAVE CHANGES</button>
+</div>
+</div>
+<div id="d-sc-status" style="font-size:.65em;margin-bottom:.6em;min-height:1.2em"></div>
+<div id="d-scenes-body"></div>
+</div>
+
 <div class="dpage" id="dp-runs"><div class="g4" id="d-rs" style="margin-bottom:12px"></div><div class="panel" id="d-rl"></div></div>
 
 <div class="dpage" id="dp-logs"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="ptitle" style="margin:0">SYSTEM LOGS</span><span id="d-lc" style="font-size:.65em;color:var(--txtd)"></span></div><div class="logp" id="d-la"></div></div>
@@ -376,6 +390,7 @@ body{overflow:auto}
 <div style="display:flex;gap:4px;margin-bottom:8px;overflow-x:auto">
 <button style="padding:.4em .7em;background:var(--amblo);border:1px solid var(--bd);color:var(--amb);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('pipeline',document.querySelectorAll('.bnav-i')[0])">⚡ PIPELINE</button>
 <button style="padding:.4em .7em;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('topics',document.querySelectorAll('.bnav-i')[0])">✦ TOPICS</button>
+<button style="padding:.4em .7em;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('scenes',document.querySelectorAll('.bnav-i')[0])">◈ SCENES</button>
 <button style="padding:.4em .7em;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('runs',document.querySelectorAll('.bnav-i')[0])">◈ RUNS</button>
 </div>
 <div id="m-gate"></div>
@@ -439,6 +454,20 @@ body{overflow:auto}
 <div class="panel" id="m-tl" style="padding:0;max-height:60vh;overflow-y:auto"></div>
 </div>
 
+<div class="mpage" id="mp-scenes">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6em;flex-wrap:wrap;gap:6px">
+<span class="ptitle" style="margin:0">SCENE ENGINE</span>
+<span id="m-sc-src" style="font-size:.55em"></span>
+</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.6em">
+<button class="btn-sm" onclick="scSeed()">SEED</button>
+<button class="btn-sm btn-blu" onclick="editScenePack()">⌘ JSON</button>
+<button class="btn-sm btn-grn" onclick="scSave()">💾 SAVE</button>
+</div>
+<div id="m-sc-status" style="font-size:.6em;margin-bottom:.5em;min-height:1.2em"></div>
+<div id="m-scenes-body"></div>
+</div>
+
 <div class="mpage" id="mp-runs"><div class="g4m" id="m-rs"></div><div class="panel" id="m-rl"></div></div>
 <div class="mpage" id="mp-logs"><div class="logp" id="m-la"></div></div>
 
@@ -500,7 +529,7 @@ let stOpen={};
 const IMG_MODELS={replicate:[{v:"google/nano-banana-pro",l:"Nano Banana Pro"},{v:"google/nano-banana",l:"Nano Banana"},{v:"xai/grok-imagine-image",l:"Grok Aurora"},{v:"bytedance/seedream-4.5",l:"Seedream 4.5"},{v:"black-forest-labs/flux-1.1-pro",l:"Flux 1.1 Pro"},{v:"black-forest-labs/flux-schnell",l:"Flux Schnell"},{v:"black-forest-labs/flux-dev",l:"Flux Dev"},{v:"ideogram-ai/ideogram-v3-quality",l:"Ideogram v3 Q"},{v:"ideogram-ai/ideogram-v3-turbo",l:"Ideogram v3 T"},{v:"recraft-ai/recraft-v3",l:"Recraft v3"},{v:"stability-ai/stable-diffusion-3.5-large",l:"SD 3.5 L"},{v:"google-deepmind/imagen-4-preview",l:"Imagen 4"}]};
 const VID_MODELS={replicate:[{v:"bytedance/seedance-1-lite",l:"Seedance Lite"},{v:"bytedance/seedance-1",l:"Seedance Pro"},{v:"wavespeedai/wan-2.1-i2v-480p",l:"Wan 480p"},{v:"wavespeedai/wan-2.1-i2v-720p",l:"Wan 720p"},{v:"xai/grok-imagine-video",l:"Grok Video"},{v:"minimax/video-01-live",l:"Minimax Live"},{v:"minimax/video-01",l:"Minimax v01"},{v:"kwaivgi/kling-v2.0-image-to-video",l:"Kling v2.0"},{v:"luma/ray-2-flash",l:"Luma Flash"},{v:"luma/ray-2",l:"Luma Ray 2"},{v:"google-deepmind/veo-3",l:"Veo 3"}]};
 const SVCS=[{n:"OPENAI",d:"GPT-4o + Whisper",k:"openai"},{n:"REPLICATE",d:"Image + Video",k:"replicate"},{n:"ELEVENLABS",d:"Voice Synthesis",k:"elevenlabs"},{n:"SHOTSTACK",d:"Video Render",k:"shotstack"},{n:"R2",d:"Asset Storage",k:"r2"},{n:"BLOTATO",d:"Publishing",k:"blotato"}];
-const titles={pipeline:'⚡ PIPELINE MONITOR',autopost:'◈ AUTO-POST',manual:'◈ MANUAL PIPELINE',topics:'✦ TOPIC DATABASE',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ SETTINGS',health:'◎ SYSTEM STATUS'};
+const titles={pipeline:'⚡ PIPELINE MONITOR',autopost:'◈ AUTO-POST',manual:'◈ MANUAL PIPELINE',topics:'✦ TOPIC DATABASE',scenes:'◈ SCENE ENGINE',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ SETTINGS',health:'◎ SYSTEM STATUS'};
 
 /* THEME */
 function toggleTheme(){const on=document.documentElement.classList.toggle('light');localStorage.setItem('kr-theme',on?'light':'dark');updThemeBtn();}
@@ -512,8 +541,8 @@ async function go(){const p=$('pw').value;if(!p){$('le').style.display='block';r
 async function autoLogin(){const t=sessionStorage.getItem('kt');if(!t)return;try{const r=await(await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})})).json();if(r.ok){$('L').style.display='none';$('A').classList.remove('hd');init();}}catch(e){}}
 
 /* NAV */
-function dNav(p,btn){document.querySelectorAll('.dpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));$('dp-'+p).classList.add('on');if(btn)btn.classList.add('on');$('d-title').textContent=titles[p]||p;if(p==='topics')loadTopics();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();if(p==='channels')loadChannels();if(p==='autopost'&&typeof apRender==='function')apRender();}
-function mNav(p,btn){document.querySelectorAll('.mpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.bnav-i').forEach(b=>b.classList.remove('on'));$('mp-'+p).classList.add('on');if(btn)btn.classList.add('on');if(p==='topics')loadTopics();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();if(p==='autopost'&&typeof apRender==='function')apRender();}
+function dNav(p,btn){document.querySelectorAll('.dpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));$('dp-'+p).classList.add('on');if(btn)btn.classList.add('on');$('d-title').textContent=titles[p]||p;if(p==='topics')loadTopics();if(p==='scenes')loadScenesEditor();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();if(p==='channels')loadChannels();if(p==='autopost'&&typeof apRender==='function')apRender();}
+function mNav(p,btn){document.querySelectorAll('.mpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.bnav-i').forEach(b=>b.classList.remove('on'));$('mp-'+p).classList.add('on');if(btn)btn.classList.add('on');if(p==='topics')loadTopics();if(p==='scenes')loadScenesEditor();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();if(p==='autopost'&&typeof apRender==='function')apRender();}
 
 /* ═══ GATE BANNERS ═══ */
 function rGate(){
@@ -1041,7 +1070,8 @@ ${ctaDur>0?`<div style="flex:1;padding:5px;background:var(--bg);border:1px solid
 <div style="flex:1;padding:4px;background:var(--bg);border:1px solid var(--bd2);text-align:center"><div style="font-family:var(--f1);font-size:.85em;font-weight:800;color:var(--amb)">${nMoods}</div><div style="font-size:.45em;color:var(--txtdd);letter-spacing:.08em">MOODS</div></div>
 </div>
 <div style="display:flex;gap:6px">
-<button style="flex:1;padding:6px;background:var(--bg);border:1px solid var(--bd2);color:var(--amb);font-size:.6em;font-family:var(--f1);letter-spacing:.1em;cursor:pointer" onclick="editScenePack()">✎ EDIT JSON</button>
+<button style="flex:1;padding:6px;background:var(--amblo);border:1px solid var(--bd);color:var(--amb);font-size:.6em;font-family:var(--f1);letter-spacing:.1em;cursor:pointer" onclick="scOpenTab()">◈ OPEN SCENE ENGINE TAB</button>
+<button style="flex:1;padding:6px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.6em;font-family:var(--f1);letter-spacing:.1em;cursor:pointer" onclick="editScenePack()">✎ RAW JSON</button>
 <button style="flex:1;padding:6px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.6em;font-family:var(--f1);letter-spacing:.1em;cursor:pointer" onclick="seedDefaults()">⬇ SEED DEFAULTS</button>
 </div>
 </div>`;
@@ -1136,7 +1166,207 @@ async function saveScenePack(){
     st.style.color='var(--grn)';st.textContent='✓ Saved — '+data.stories.length+' stories, '+data.figures.length+' figures';
     await loadSceneData();
     rSt();
+    if(typeof SC_DATA!=='undefined'){SC_DATA=data;SC_SRC='brand';renderScenesEditor();}
   }catch(e){st.style.color='var(--red)';st.textContent='Save failed: '+e;}
+}
+
+/* ═══ SCENE ENGINE TAB — plain-text editor (no raw JSON) ═══ */
+let SC_DATA=null, SC_SRC='default', scOpen={};
+const SC_CLIP_FIELDS=[['action','ACTION'],['setting','SETTING'],['lighting','LIGHTING'],['atmosphere','ATMOSPHERE'],['composition','COMPOSITION'],['camera','CAMERA MOVE'],['subject','SUBJECT MOTION'],['ambient','AMBIENT'],['pace','PACE']];
+const SC_CAMERA_KEYS=['steady','dynamic','handheld'];
+const SC_INTENSITY_KEYS=['still','measured','dynamic'];
+
+function scJsStr(s){return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+function scT(key){scOpen[key]=!scOpen[key];renderScenesEditor();}
+function scEnsure(kind){SC_DATA=SC_DATA||{};if(!SC_DATA[kind])SC_DATA[kind]=(kind==='figures'||kind==='stories')?[]:{};}
+function scEmptyClip(){return {action:'',setting:'',lighting:'',atmosphere:'',composition:'',camera:'',subject:'',ambient:'',pace:''};}
+
+async function loadScenesEditor(){
+  try{
+    const r=await(await fetch('/api/scenes')).json();
+    SC_DATA=r.data||{figures:[],themes:{},moods:{},intensity:{},cameras:{},stories:[]};
+    SC_SRC=r.source||'default';
+    renderScenesEditor();
+  }catch(e){console.error('loadScenesEditor:',e);}
+}
+
+function scMark(){
+  const brand=SC_SRC==='brand';
+  const html=`<span style="color:${brand?'var(--grn)':'var(--txtd)'}">● ${brand?'BRAND (CUSTOM)':'DEFAULT (KNIGHTS)'}</span>`;
+  ['d-sc-src','m-sc-src'].forEach(id=>{if($(id))$(id).innerHTML=html;});
+}
+
+function scStatus(msg,ok){
+  const html=msg?`<span style="color:${ok?'var(--grn)':'var(--red)'}">${msg}</span>`:'';
+  ['d-sc-status','m-sc-status'].forEach(id=>{if($(id))$(id).innerHTML=html;});
+  if(msg)setTimeout(()=>['d-sc-status','m-sc-status'].forEach(id=>{if($(id))$(id).innerHTML='';}),3500);
+}
+
+function scClipHtml(si,ci,c){
+  c=c||{};
+  return `<div class="clip-mini">
+    <div style="display:flex;justify-content:space-between;align-items:center;font-family:var(--f1);font-size:.6em;letter-spacing:.12em;color:var(--amb);margin-bottom:.3em">
+      <span>CLIP ${ci+1}</span><span onclick="scRemoveClip(${si},${ci})" style="color:var(--red);cursor:pointer">✕ REMOVE</span>
+    </div>
+    <div class="clip-mini-grid">
+    ${SC_CLIP_FIELDS.map(([k,l])=>`<div><div class="fl" style="font-size:.55em">${l}</div><textarea class="fin" rows="2" oninput="SC_DATA.stories[${si}].clips[${ci}]['${k}']=this.value">${escHtml(c[k]||'')}</textarea></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderScenesEditor(){
+  scMark();
+  const d=SC_DATA||{};
+  const figures=d.figures||[], moods=d.moods||{}, cameras=d.cameras||{}, intensity=d.intensity||{}, themes=d.themes||{}, stories=d.stories||[];
+  const moodKeys=Object.keys(moods);
+  let h='';
+
+  h+=`<div class="sec"><div class="sec-h" onclick="scT('fig')"><span class="sec-t">FIGURES (${figures.length})</span><span class="sec-a">${scOpen.fig?'▾':'▸'}</span></div><div class="sec-b${scOpen.fig?'':' shut'}">`;
+  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">Who appears in every scene — swap these to reskin the whole brand's look.</div>`;
+  figures.forEach((f,i)=>{
+    h+=`<div style="display:flex;gap:6px;margin-bottom:6px;align-items:flex-start"><textarea class="fin" rows="2" style="flex:1" oninput="SC_DATA.figures[${i}]=this.value">${escHtml(f)}</textarea><button class="btn-sm btn-red" onclick="scRemoveFigure(${i})">✕</button></div>`;
+  });
+  h+=`<button class="btn-sm btn-grn" onclick="scAddFigure()">+ ADD FIGURE</button></div></div>`;
+
+  h+=`<div class="sec"><div class="sec-h" onclick="scT('mood')"><span class="sec-t">MOODS / LIGHTING (${moodKeys.length})</span><span class="sec-a">${scOpen.mood?'▾':'▸'}</span></div><div class="sec-b${scOpen.mood?'':' shut'}">`;
+  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">Each mood is a lighting/atmosphere suffix appended to every image prompt. Stories below reference these by name.</div>`;
+  moodKeys.forEach(k=>{
+    h+=`<div style="display:flex;gap:6px;margin-bottom:6px;align-items:flex-start">
+      <textarea class="fin" rows="1" style="width:8em;flex-shrink:0" onchange="scRenameKey('moods','${scJsStr(k)}',this.value)">${escHtml(k)}</textarea>
+      <textarea class="fin" rows="2" style="flex:1" oninput="SC_DATA.moods['${scJsStr(k)}']=this.value">${escHtml(moods[k]||'')}</textarea>
+      <button class="btn-sm btn-red" onclick="scRemoveKey('moods','${scJsStr(k)}')">✕</button>
+    </div>`;
+  });
+  h+=`<button class="btn-sm btn-grn" onclick="scAddKey('moods')">+ ADD MOOD</button></div></div>`;
+
+  h+=`<div class="sec"><div class="sec-h" onclick="scT('theme')"><span class="sec-t">THEMES / KEYWORDS (${Object.keys(themes).length})</span><span class="sec-a">${scOpen.theme?'▾':'▸'}</span></div><div class="sec-b${scOpen.theme?'':' shut'}">`;
+  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">When a script's wording matches these keywords, it leans toward stories tagged with this theme. Comma-separated.</div>`;
+  Object.keys(themes).forEach(k=>{
+    const kws=(themes[k]||[]).join(', ');
+    h+=`<div style="display:flex;gap:6px;margin-bottom:6px;align-items:flex-start">
+      <textarea class="fin" rows="1" style="width:8em;flex-shrink:0" onchange="scRenameKey('themes','${scJsStr(k)}',this.value)">${escHtml(k)}</textarea>
+      <textarea class="fin" rows="1" style="flex:1" oninput="SC_DATA.themes['${scJsStr(k)}']=this.value.split(',').map(x=>x.trim()).filter(Boolean)">${escHtml(kws)}</textarea>
+      <button class="btn-sm btn-red" onclick="scRemoveKey('themes','${scJsStr(k)}')">✕</button>
+    </div>`;
+  });
+  h+=`<button class="btn-sm btn-grn" onclick="scAddKey('themes')">+ ADD THEME</button></div></div>`;
+
+  h+=`<div class="sec"><div class="sec-h" onclick="scT('cam')"><span class="sec-t">CAMERA STYLES</span><span class="sec-a">${scOpen.cam?'▾':'▸'}</span></div><div class="sec-b${scOpen.cam?'':' shut'}">`;
+  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">Matched to the Camera Style dropdown in Settings — these 3 stay fixed, edit the wording freely.</div>`;
+  SC_CAMERA_KEYS.forEach(k=>{
+    h+=`<div style="margin-bottom:6px"><div class="fl">${k.toUpperCase()}</div><textarea class="fin" rows="1" oninput="SC_DATA.cameras=SC_DATA.cameras||{};SC_DATA.cameras['${k}']=this.value">${escHtml(cameras[k]||'')}</textarea></div>`;
+  });
+  h+='</div></div>';
+
+  h+=`<div class="sec"><div class="sec-h" onclick="scT('int')"><span class="sec-t">INTENSITY</span><span class="sec-a">${scOpen.int?'▾':'▸'}</span></div><div class="sec-b${scOpen.int?'':' shut'}">`;
+  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">Matched to the Intensity dropdown in Settings — these 3 stay fixed, edit the wording freely.</div>`;
+  SC_INTENSITY_KEYS.forEach(k=>{
+    h+=`<div style="margin-bottom:6px"><div class="fl">${k.toUpperCase()}</div><textarea class="fin" rows="1" oninput="SC_DATA.intensity=SC_DATA.intensity||{};SC_DATA.intensity['${k}']=this.value">${escHtml(intensity[k]||'')}</textarea></div>`;
+  });
+  h+='</div></div>';
+
+  h+=`<div class="sec-t" style="margin:1em 0 .5em;color:var(--amb)">STORY SEEDS (${stories.length})</div>`;
+  stories.forEach((s,si)=>{
+    const open=!!scOpen['story'+si];
+    h+=`<div class="story-card">
+      <div class="story-hd" onclick="scT('story${si}')">
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--f2);font-weight:600;font-size:.85em;color:var(--wht);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(s.name||'(unnamed)')}</div>
+          <div style="font-size:.55em;color:var(--txtd);margin-top:2px">${escHtml(s.mood||'')} · ${(s.themes||[]).join(', ')} · ${(s.clips||[]).length} clips</div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0" onclick="event.stopPropagation()">
+          <button class="btn-sm" onclick="scDupStory(${si})" title="Duplicate">⧉</button>
+          <button class="btn-sm btn-red" onclick="scRemoveStory(${si})" title="Delete">✕</button>
+        </div>
+        <span class="sec-a" style="margin-left:6px">${open?'▾':'▸'}</span>
+      </div>
+      <div class="story-bd${open?'':' shut'}">
+        <div class="fl">NAME</div>
+        <textarea class="fin" rows="1" oninput="SC_DATA.stories[${si}].name=this.value">${escHtml(s.name||'')}</textarea>
+        <div style="display:flex;gap:10px;margin-top:.5em;flex-wrap:wrap">
+          <div style="flex:1;min-width:8em">
+            <div class="fl">MOOD</div>
+            <select class="fin" onchange="SC_DATA.stories[${si}].mood=this.value">
+              ${moodKeys.map(mk=>`<option value="${escHtml(mk)}"${s.mood===mk?' selected':''}>${escHtml(mk)}</option>`).join('')}
+            </select>
+          </div>
+          <div style="flex:2;min-width:12em">
+            <div class="fl">THEMES (comma-separated)</div>
+            <textarea class="fin" rows="1" oninput="SC_DATA.stories[${si}].themes=this.value.split(',').map(x=>x.trim()).filter(Boolean)">${escHtml((s.themes||[]).join(', '))}</textarea>
+          </div>
+        </div>
+        <div class="fl" style="margin-top:.7em">CLIPS</div>
+        ${(s.clips||[]).map((c,ci)=>scClipHtml(si,ci,c)).join('')}
+        <button class="btn-sm btn-grn" onclick="scAddClip(${si})" style="margin-top:4px">+ ADD CLIP</button>
+      </div>
+    </div>`;
+  });
+  h+=`<button class="btn-sm btn-grn" onclick="scAddStory()" style="width:100%;margin-top:8px">+ ADD STORY</button>`;
+
+  ['d-scenes-body','m-scenes-body'].forEach(id=>{if($(id))$(id).innerHTML=h;});
+}
+
+function scAddFigure(){scEnsure('figures');SC_DATA.figures.push('a new figure description');renderScenesEditor();}
+function scRemoveFigure(i){SC_DATA.figures.splice(i,1);renderScenesEditor();}
+
+function scAddKey(kind){
+  scEnsure(kind);
+  let base=kind==='moods'?'new_mood':'new_theme', k=base, n=1;
+  while(SC_DATA[kind][k]!==undefined){n++;k=base+'_'+n;}
+  SC_DATA[kind][k]=kind==='moods'?'Cinematic atmosphere, 9:16 vertical.':[];
+  scOpen[kind==='moods'?'mood':'theme']=true;
+  renderScenesEditor();
+}
+function scRemoveKey(kind,key){if(!confirm('Remove "'+key+'"?'))return;delete SC_DATA[kind][key];renderScenesEditor();}
+function scRenameKey(kind,oldKey,newKey){
+  newKey=(newKey||'').trim();
+  if(!newKey||newKey===oldKey||SC_DATA[kind][newKey]!==undefined){renderScenesEditor();return;}
+  SC_DATA[kind][newKey]=SC_DATA[kind][oldKey];
+  delete SC_DATA[kind][oldKey];
+  if(kind==='moods'&&SC_DATA.stories)SC_DATA.stories.forEach(s=>{if(s.mood===oldKey)s.mood=newKey;});
+  renderScenesEditor();
+}
+
+function scAddStory(){
+  scEnsure('stories');scEnsure('moods');
+  SC_DATA.stories.push({name:'new_story',themes:[],mood:Object.keys(SC_DATA.moods)[0]||'dawn',clips:[scEmptyClip()]});
+  scOpen['story'+(SC_DATA.stories.length-1)]=true;
+  renderScenesEditor();
+}
+function scDupStory(si){
+  const copy=JSON.parse(JSON.stringify(SC_DATA.stories[si]));
+  copy.name=(copy.name||'story')+'_copy';
+  SC_DATA.stories.splice(si+1,0,copy);
+  renderScenesEditor();
+}
+function scRemoveStory(si){
+  if(!confirm('Delete story "'+(SC_DATA.stories[si].name||'')+'"? This cannot be undone until you reload without saving.'))return;
+  SC_DATA.stories.splice(si,1);
+  renderScenesEditor();
+}
+function scAddClip(si){SC_DATA.stories[si].clips.push(scEmptyClip());renderScenesEditor();}
+function scRemoveClip(si,ci){SC_DATA.stories[si].clips.splice(ci,1);renderScenesEditor();}
+
+function scOpenTab(){
+  if(window.innerWidth>768){dNav('scenes',document.querySelector(".sb-i[onclick*=\"dNav('scenes'\"]"));}
+  else{mNav('scenes',null);}
+}
+
+async function scSeed(){
+  if(!confirm('Copy the default Knights scene pack into this brand? This overwrites any existing brand scenes.'))return;
+  await fetch('/api/scenes/seed-defaults',{method:'POST'});
+  await loadScenesEditor();
+  scStatus('Seeded from defaults ✓',true);
+}
+
+async function scSave(){
+  try{
+    await fetch('/api/scenes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(SC_DATA)});
+    SC_SRC='brand';
+    scMark();
+    scStatus('✓ Saved — '+(SC_DATA.stories||[]).length+' stories, '+(SC_DATA.figures||[]).length+' figures',true);
+    if(typeof loadSceneData==='function')loadSceneData();
+  }catch(e){scStatus('Save failed: '+e,false);}
 }
 
 /* ═══ INIT ═══ */
