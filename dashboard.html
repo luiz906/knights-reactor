@@ -1202,15 +1202,53 @@ function scStatus(msg,ok){
   if(msg)setTimeout(()=>['d-sc-status','m-sc-status'].forEach(id=>{if($(id))$(id).innerHTML='';}),3500);
 }
 
+function scGrow(el){el.style.height='auto';el.style.height=Math.max(el.scrollHeight,el.scrollHeight)+2+'px';}
+function scGrowAll(){document.querySelectorAll('.sc-ta').forEach(scGrow);}
+
+function scClipPreviewText(c){
+  c=c||{};
+  return {
+    img:`{FIGURE} ${c.action||'…'}. ${c.setting||'…'}. ${c.composition||'…'}. ${c.lighting||'…'}. ${c.atmosphere||'…'}. {MOOD}`,
+    mot:`${c.camera||'…'}. ${c.subject||'…'}. ${c.ambient||'…'}. ${c.pace||'…'} {CAMERA STYLE}`,
+  };
+}
+function scUpdatePreview(si,ci,el){
+  const card=el.closest('.clip-mini');
+  if(!card)return;
+  const p=scClipPreviewText(SC_DATA.stories[si].clips[ci]);
+  const pi=card.querySelector('.sc-prev-img'), pm=card.querySelector('.sc-prev-mot');
+  if(pi)pi.textContent=p.img;
+  if(pm)pm.textContent=p.mot;
+}
+function scRenderAllPreviews(){
+  document.querySelectorAll('.clip-mini[data-si]').forEach(card=>{
+    const si=+card.dataset.si, ci=+card.dataset.ci;
+    const p=scClipPreviewText(SC_DATA.stories[si].clips[ci]);
+    const pi=card.querySelector('.sc-prev-img'), pm=card.querySelector('.sc-prev-mot');
+    if(pi)pi.textContent=p.img;
+    if(pm)pm.textContent=p.mot;
+  });
+}
+
+const SC_IMG_FIELDS=[['action','ACTION — what the figure is doing'],['setting','SETTING — where this happens'],['composition','COMPOSITION — shot framing'],['lighting','LIGHTING'],['atmosphere','ATMOSPHERE — weather, particles, mood detail']];
+const SC_MOT_FIELDS=[['camera','CAMERA MOVE'],['subject','SUBJECT MOTION — what moves in frame'],['ambient','AMBIENT MOTION — background movement'],['pace','PACE']];
+
+function scFieldRow(si,ci,k,l){
+  return `<div class="fl">${l}</div><textarea class="fin sc-ta" rows="2" oninput="scGrow(this);SC_DATA.stories[${si}].clips[${ci}]['${k}']=this.value;scUpdatePreview(${si},${ci},this)">${escHtml((SC_DATA.stories[si].clips[ci]||{})[k]||'')}</textarea>`;
+}
+
 function scClipHtml(si,ci,c){
   c=c||{};
-  return `<div class="clip-mini">
-    <div style="display:flex;justify-content:space-between;align-items:center;font-family:var(--f1);font-size:.6em;letter-spacing:.12em;color:var(--amb);margin-bottom:.3em">
-      <span>CLIP ${ci+1}</span><span onclick="scRemoveClip(${si},${ci})" style="color:var(--red);cursor:pointer">✕ REMOVE</span>
+  return `<div class="clip-mini" data-si="${si}" data-ci="${ci}">
+    <div class="clip-mini-hd">
+      <span>CLIP ${ci+1}</span><span class="rm" onclick="scRemoveClip(${si},${ci})">✕ REMOVE CLIP</span>
     </div>
-    <div class="clip-mini-grid">
-    ${SC_CLIP_FIELDS.map(([k,l])=>`<div><div class="fl" style="font-size:.55em">${l}</div><textarea class="fin" rows="2" oninput="SC_DATA.stories[${si}].clips[${ci}]['${k}']=this.value">${escHtml(c[k]||'')}</textarea></div>`).join('')}
-    </div>
+    <div class="clip-grp-lbl">🖼 IMAGE PROMPT</div>
+    ${SC_IMG_FIELDS.map(([k,l])=>scFieldRow(si,ci,k,l)).join('')}
+    <div class="sc-preview"><div class="sc-preview-lbl">PREVIEW</div><div class="sc-prev-img"></div></div>
+    <div class="clip-grp-lbl" style="margin-top:.9em">🎥 MOTION PROMPT</div>
+    ${SC_MOT_FIELDS.map(([k,l])=>scFieldRow(si,ci,k,l)).join('')}
+    <div class="sc-preview"><div class="sc-preview-lbl">PREVIEW</div><div class="sc-prev-mot"></div></div>
   </div>`;
 }
 
@@ -1224,16 +1262,16 @@ function renderScenesEditor(){
   h+=`<div class="sec"><div class="sec-h" onclick="scT('fig')"><span class="sec-t">FIGURES (${figures.length})</span><span class="sec-a">${scOpen.fig?'▾':'▸'}</span></div><div class="sec-b${scOpen.fig?'':' shut'}">`;
   h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">Who appears in every scene — swap these to reskin the whole brand's look.</div>`;
   figures.forEach((f,i)=>{
-    h+=`<div style="display:flex;gap:6px;margin-bottom:6px;align-items:flex-start"><textarea class="fin" rows="2" style="flex:1" oninput="SC_DATA.figures[${i}]=this.value">${escHtml(f)}</textarea><button class="btn-sm btn-red" onclick="scRemoveFigure(${i})">✕</button></div>`;
+    h+=`<div style="display:flex;gap:6px;margin-bottom:10px;align-items:flex-start"><textarea class="fin sc-ta" rows="3" style="flex:1" oninput="scGrow(this);SC_DATA.figures[${i}]=this.value">${escHtml(f)}</textarea><button class="btn-sm btn-red" onclick="scRemoveFigure(${i})">✕</button></div>`;
   });
   h+=`<button class="btn-sm btn-grn" onclick="scAddFigure()">+ ADD FIGURE</button></div></div>`;
 
   h+=`<div class="sec"><div class="sec-h" onclick="scT('mood')"><span class="sec-t">MOODS / LIGHTING (${moodKeys.length})</span><span class="sec-a">${scOpen.mood?'▾':'▸'}</span></div><div class="sec-b${scOpen.mood?'':' shut'}">`;
   h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">Each mood is a lighting/atmosphere suffix appended to every image prompt. Stories below reference these by name.</div>`;
   moodKeys.forEach(k=>{
-    h+=`<div style="display:flex;gap:6px;margin-bottom:6px;align-items:flex-start">
-      <textarea class="fin" rows="1" style="width:8em;flex-shrink:0" onchange="scRenameKey('moods','${scJsStr(k)}',this.value)">${escHtml(k)}</textarea>
-      <textarea class="fin" rows="2" style="flex:1" oninput="SC_DATA.moods['${scJsStr(k)}']=this.value">${escHtml(moods[k]||'')}</textarea>
+    h+=`<div style="display:flex;gap:6px;margin-bottom:10px;align-items:flex-start">
+      <textarea class="fin sc-ta" rows="1" style="width:9em;flex-shrink:0" onchange="scRenameKey('moods','${scJsStr(k)}',this.value)">${escHtml(k)}</textarea>
+      <textarea class="fin sc-ta" rows="2" style="flex:1" oninput="scGrow(this);SC_DATA.moods['${scJsStr(k)}']=this.value">${escHtml(moods[k]||'')}</textarea>
       <button class="btn-sm btn-red" onclick="scRemoveKey('moods','${scJsStr(k)}')">✕</button>
     </div>`;
   });
@@ -1243,9 +1281,9 @@ function renderScenesEditor(){
   h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">When a script's wording matches these keywords, it leans toward stories tagged with this theme. Comma-separated.</div>`;
   Object.keys(themes).forEach(k=>{
     const kws=(themes[k]||[]).join(', ');
-    h+=`<div style="display:flex;gap:6px;margin-bottom:6px;align-items:flex-start">
-      <textarea class="fin" rows="1" style="width:8em;flex-shrink:0" onchange="scRenameKey('themes','${scJsStr(k)}',this.value)">${escHtml(k)}</textarea>
-      <textarea class="fin" rows="1" style="flex:1" oninput="SC_DATA.themes['${scJsStr(k)}']=this.value.split(',').map(x=>x.trim()).filter(Boolean)">${escHtml(kws)}</textarea>
+    h+=`<div style="display:flex;gap:6px;margin-bottom:10px;align-items:flex-start">
+      <textarea class="fin sc-ta" rows="1" style="width:9em;flex-shrink:0" onchange="scRenameKey('themes','${scJsStr(k)}',this.value)">${escHtml(k)}</textarea>
+      <textarea class="fin sc-ta" rows="2" style="flex:1" oninput="scGrow(this);SC_DATA.themes['${scJsStr(k)}']=this.value.split(',').map(x=>x.trim()).filter(Boolean)">${escHtml(kws)}</textarea>
       <button class="btn-sm btn-red" onclick="scRemoveKey('themes','${scJsStr(k)}')">✕</button>
     </div>`;
   });
@@ -1254,14 +1292,14 @@ function renderScenesEditor(){
   h+=`<div class="sec"><div class="sec-h" onclick="scT('cam')"><span class="sec-t">CAMERA STYLES</span><span class="sec-a">${scOpen.cam?'▾':'▸'}</span></div><div class="sec-b${scOpen.cam?'':' shut'}">`;
   h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">Matched to the Camera Style dropdown in Settings — these 3 stay fixed, edit the wording freely.</div>`;
   SC_CAMERA_KEYS.forEach(k=>{
-    h+=`<div style="margin-bottom:6px"><div class="fl">${k.toUpperCase()}</div><textarea class="fin" rows="1" oninput="SC_DATA.cameras=SC_DATA.cameras||{};SC_DATA.cameras['${k}']=this.value">${escHtml(cameras[k]||'')}</textarea></div>`;
+    h+=`<div style="margin-bottom:10px"><div class="fl">${k.toUpperCase()}</div><textarea class="fin sc-ta" rows="2" oninput="scGrow(this);SC_DATA.cameras=SC_DATA.cameras||{};SC_DATA.cameras['${k}']=this.value">${escHtml(cameras[k]||'')}</textarea></div>`;
   });
   h+='</div></div>';
 
   h+=`<div class="sec"><div class="sec-h" onclick="scT('int')"><span class="sec-t">INTENSITY</span><span class="sec-a">${scOpen.int?'▾':'▸'}</span></div><div class="sec-b${scOpen.int?'':' shut'}">`;
   h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">Matched to the Intensity dropdown in Settings — these 3 stay fixed, edit the wording freely.</div>`;
   SC_INTENSITY_KEYS.forEach(k=>{
-    h+=`<div style="margin-bottom:6px"><div class="fl">${k.toUpperCase()}</div><textarea class="fin" rows="1" oninput="SC_DATA.intensity=SC_DATA.intensity||{};SC_DATA.intensity['${k}']=this.value">${escHtml(intensity[k]||'')}</textarea></div>`;
+    h+=`<div style="margin-bottom:10px"><div class="fl">${k.toUpperCase()}</div><textarea class="fin sc-ta" rows="2" oninput="scGrow(this);SC_DATA.intensity=SC_DATA.intensity||{};SC_DATA.intensity['${k}']=this.value">${escHtml(intensity[k]||'')}</textarea></div>`;
   });
   h+='</div></div>';
 
@@ -1282,17 +1320,17 @@ function renderScenesEditor(){
       </div>
       <div class="story-bd${open?'':' shut'}">
         <div class="fl">NAME</div>
-        <textarea class="fin" rows="1" oninput="SC_DATA.stories[${si}].name=this.value">${escHtml(s.name||'')}</textarea>
-        <div style="display:flex;gap:10px;margin-top:.5em;flex-wrap:wrap">
-          <div style="flex:1;min-width:8em">
+        <textarea class="fin sc-ta" rows="1" oninput="scGrow(this);SC_DATA.stories[${si}].name=this.value">${escHtml(s.name||'')}</textarea>
+        <div style="display:flex;gap:10px;margin-top:.7em;flex-wrap:wrap">
+          <div style="flex:1;min-width:10em">
             <div class="fl">MOOD</div>
             <select class="fin" onchange="SC_DATA.stories[${si}].mood=this.value">
               ${moodKeys.map(mk=>`<option value="${escHtml(mk)}"${s.mood===mk?' selected':''}>${escHtml(mk)}</option>`).join('')}
             </select>
           </div>
-          <div style="flex:2;min-width:12em">
+          <div style="flex:2;min-width:14em">
             <div class="fl">THEMES (comma-separated)</div>
-            <textarea class="fin" rows="1" oninput="SC_DATA.stories[${si}].themes=this.value.split(',').map(x=>x.trim()).filter(Boolean)">${escHtml((s.themes||[]).join(', '))}</textarea>
+            <textarea class="fin sc-ta" rows="1" oninput="scGrow(this);SC_DATA.stories[${si}].themes=this.value.split(',').map(x=>x.trim()).filter(Boolean)">${escHtml((s.themes||[]).join(', '))}</textarea>
           </div>
         </div>
         <div class="fl" style="margin-top:.7em">CLIPS</div>
@@ -1304,6 +1342,8 @@ function renderScenesEditor(){
   h+=`<button class="btn-sm btn-grn" onclick="scAddStory()" style="width:100%;margin-top:8px">+ ADD STORY</button>`;
 
   ['d-scenes-body','m-scenes-body'].forEach(id=>{if($(id))$(id).innerHTML=h;});
+  scGrowAll();
+  scRenderAllPreviews();
 }
 
 function scAddFigure(){scEnsure('figures');SC_DATA.figures.push('a new figure description');renderScenesEditor();}
