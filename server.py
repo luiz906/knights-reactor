@@ -8,7 +8,7 @@ import json, os, threading, time, hashlib, hmac, base64, logging
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, BackgroundTasks, Request, UploadFile, File
+from fastapi import FastAPI, BackgroundTasks, Request, UploadFile, File, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from pipeline import (
@@ -761,12 +761,17 @@ async def delete_brand(req: Request):
 
 @app.get("/api/scenes")
 async def get_scenes():
-    """Get scene pack for the active brand. Returns JSON structure or empty if using defaults."""
-    from phases.scenes import load_brand_scenes, export_default_scenes
+    """Get scene pack for the active brand. The hardcoded knight defaults are
+    only ever shown for the 'knights' brand — every other brand gets an empty
+    pack when it hasn't built its own yet, so brands never inherit Knights
+    content."""
+    from phases.scenes import load_brand_scenes, export_default_scenes, empty_scenes
     data = load_brand_scenes()
     if data:
         return {"source": "brand", "data": data}
-    return {"source": "default", "data": export_default_scenes()}
+    if get_active_brand() == "knights":
+        return {"source": "default", "data": export_default_scenes()}
+    return {"source": "empty", "data": empty_scenes()}
 
 @app.post("/api/scenes")
 async def save_scenes(req: Request):
@@ -778,7 +783,11 @@ async def save_scenes(req: Request):
 
 @app.post("/api/scenes/seed-defaults")
 async def seed_default_scenes():
-    """Copy the hardcoded knight defaults into the active brand's scenes.json (for editing)."""
+    """Copy the hardcoded knight defaults into the active brand's scenes.json.
+    Knights-only — seeding another brand with Knights content is exactly the
+    cross-brand leakage this was built to prevent."""
+    if get_active_brand() != "knights":
+        raise HTTPException(status_code=400, detail="Seeding the Knights defaults is only available for the 'knights' brand. Build this brand's scene pack from scratch in the Scene Engine tab instead.")
     from phases.scenes import export_default_scenes, save_brand_scenes
     data = export_default_scenes()
     save_brand_scenes(data)
@@ -787,7 +796,7 @@ async def seed_default_scenes():
 @app.get("/api/scenes/summary")
 async def scenes_summary():
     """Quick summary of the active brand's scene pack."""
-    from phases.scenes import load_brand_scenes, STORY_SEEDS, FIGURES
+    from phases.scenes import load_brand_scenes, STORY_SEEDS, FIGURES, empty_scenes
     data = load_brand_scenes()
     if data:
         stories = data.get("stories", [])
@@ -799,13 +808,23 @@ async def scenes_summary():
             "themes": list(data.get("themes", {}).keys()),
             "story_names": [s["name"] for s in stories],
         }
+    if get_active_brand() == "knights":
+        return {
+            "source": "default (knights)",
+            "stories": len(STORY_SEEDS),
+            "figures": len(FIGURES),
+            "moods": ["storm", "fire", "dawn", "night", "grey", "battle"],
+            "themes": ["temptation", "endurance", "doubt", "discipline", "courage", "duty", "loss", "patience", "anger", "identity"],
+            "story_names": [s["name"] for s in STORY_SEEDS],
+        }
+    e = empty_scenes()
     return {
-        "source": "default (knights)",
-        "stories": len(STORY_SEEDS),
-        "figures": len(FIGURES),
-        "moods": ["storm", "fire", "dawn", "night", "grey", "battle"],
-        "themes": ["temptation", "endurance", "doubt", "discipline", "courage", "duty", "loss", "patience", "anger", "identity"],
-        "story_names": [s["name"] for s in STORY_SEEDS],
+        "source": "empty",
+        "stories": 0,
+        "figures": 0,
+        "moods": [],
+        "themes": [],
+        "story_names": [],
     }
 
 @app.post("/api/deploy")

@@ -1,7 +1,9 @@
 """
 Content Reactor — Scene Engine v8
 Per-brand scene packs: each brand has its own figures, stories, moods, themes.
-Falls back to hardcoded knight defaults if no brand scenes.json exists.
+The hardcoded knight defaults are ONLY used for the "knights" brand when it has
+no scenes.json yet. Every other brand gets a fully empty pack instead — no
+brand silently inherits Knights content.
 """
 import json, random
 from pathlib import Path
@@ -50,22 +52,56 @@ def export_default_scenes() -> dict:
     }
 
 
+def _active_brand_name() -> str:
+    """Get the active brand id — used to scope the hardcoded knight defaults
+    to the 'knights' brand only."""
+    try:
+        from server import get_active_brand
+        return get_active_brand()
+    except Exception:
+        return "knights"
+
+
+def empty_scenes() -> dict:
+    """A fully empty scene pack. Used for any brand other than 'knights' that
+    doesn't have its own scenes.json yet — deliberately has NO figures, moods,
+    themes, cameras, intensity, or stories, so no brand inherits Knights content."""
+    return {
+        "figures": [],
+        "themes": {},
+        "moods": {},
+        "intensity": {},
+        "cameras": {},
+        "stories": [],
+    }
+
+
 def get_scene_data() -> tuple:
     """Get scene data for the active brand.
     Returns (figures, themes, moods, intensity, cameras, stories).
-    Tries brand scenes.json first, falls back to hardcoded knights.
+    Tries the brand's own scenes.json first. If a brand pack exists but is
+    missing a key, that piece is empty (never silently backfilled from the
+    Knights defaults). If no scenes.json exists at all, the hardcoded knight
+    defaults are used ONLY for the "knights" brand — every other brand gets
+    a fully empty pack until it builds/generates its own.
     """
     brand = load_brand_scenes()
     if brand:
-        figures   = brand.get("figures", FIGURES)
-        themes    = brand.get("themes", THEME_KEYWORDS)
-        moods     = brand.get("moods", IMAGE_SUFFIXES)
-        intensity = brand.get("intensity", INTENSITY_MODIFIERS)
-        cameras   = brand.get("cameras", CAMERA_STYLES)
-        stories   = brand.get("stories", STORY_SEEDS)
+        figures   = brand.get("figures", [])
+        themes    = brand.get("themes", {})
+        moods     = brand.get("moods", {})
+        intensity = brand.get("intensity", {})
+        cameras   = brand.get("cameras", {})
+        stories   = brand.get("stories", [])
         return figures, themes, moods, intensity, cameras, stories
-    # Fallback: hardcoded knight defaults
-    return FIGURES, THEME_KEYWORDS, IMAGE_SUFFIXES, INTENSITY_MODIFIERS, CAMERA_STYLES, STORY_SEEDS
+
+    if _active_brand_name() == "knights":
+        # Fallback: hardcoded knight defaults — knights brand only
+        return FIGURES, THEME_KEYWORDS, IMAGE_SUFFIXES, INTENSITY_MODIFIERS, CAMERA_STYLES, STORY_SEEDS
+
+    # Any other brand with no scenes.json yet: empty, never Knights content
+    e = empty_scenes()
+    return e["figures"], e["themes"], e["moods"], e["intensity"], e["cameras"], e["stories"]
 
 THEME_KEYWORDS = {
     "temptation": ["tempt","lust","desire","flesh","crave","hunger","pull","urge","resist","want","pleasure","indulge","forbidden"],
@@ -237,6 +273,15 @@ def scene_engine(script: dict, topic: dict) -> list:
 
     # ── LOAD BRAND SCENES ───────────────────────────────────
     figures, theme_keywords, moods, intensity_mods, cameras, stories = get_scene_data()
+
+    if not figures or not stories:
+        brand_name = _active_brand_name()
+        raise RuntimeError(
+            f"Scene Engine: brand '{brand_name}' has no scene pack configured "
+            f"(no figures/stories). Open the Scene Engine tab and build one for "
+            f"this brand, or switch to a brand that already has one — no brand "
+            f"falls back to Knights content anymore."
+        )
 
     log.info(f"🎬 Phase 3: Scene Engine v8 | Clips: {Config.CLIP_COUNT} | Intensity: {getattr(Config, 'SCENE_INTENSITY', 'measured')} | Camera: {Config.SCENE_CAMERA}")
     log.info(f"   Overrides — Story: {story_override} | Theme: {theme_override} | Figure: {figure_override}")

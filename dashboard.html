@@ -338,12 +338,13 @@ body{overflow:auto}
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7em;flex-wrap:wrap;gap:8px">
 <span class="ptitle" style="margin:0">SCENE ENGINE <span id="d-sc-src" style="margin-left:.6em"></span></span>
 <div style="display:flex;gap:6px">
-<button class="btn-sm" onclick="scSeed()">SEED FROM DEFAULTS</button>
+<button class="btn-sm" id="d-sc-seedbtn" onclick="scSeed()">SEED FROM DEFAULTS</button>
 <button class="btn-sm btn-blu" onclick="editScenePack()">⌘ ADVANCED (RAW JSON)</button>
 <button class="btn-sm btn-grn" onclick="scSave()">💾 SAVE CHANGES</button>
 </div>
 </div>
 <div id="d-sc-status" style="font-size:.65em;margin-bottom:.6em;min-height:1.2em"></div>
+<div id="d-sc-empty" style="display:none;font-size:.65em;color:var(--txtd);border:1px dashed var(--bd2);padding:1em;margin-bottom:.8em;text-align:center">No scene pack yet for this brand — build one below (figures + at least one story) and save.</div>
 <div id="d-scenes-body"></div>
 </div>
 
@@ -460,10 +461,11 @@ body{overflow:auto}
 <span id="m-sc-src" style="font-size:.55em"></span>
 </div>
 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.6em">
-<button class="btn-sm" onclick="scSeed()">SEED</button>
+<button class="btn-sm" id="m-sc-seedbtn" onclick="scSeed()">SEED</button>
 <button class="btn-sm btn-blu" onclick="editScenePack()">⌘ JSON</button>
 <button class="btn-sm btn-grn" onclick="scSave()">💾 SAVE</button>
 </div>
+<div id="m-sc-empty" style="display:none;font-size:.6em;color:var(--txtd);border:1px dashed var(--bd2);padding:.8em;margin-bottom:.6em;text-align:center">No scene pack yet for this brand — build one below and save.</div>
 <div id="m-sc-status" style="font-size:.6em;margin-bottom:.5em;min-height:1.2em"></div>
 <div id="m-scenes-body"></div>
 </div>
@@ -1054,11 +1056,13 @@ ${ctaDur>0?`<div style="flex:1;padding:5px;background:var(--bg);border:1px solid
         const mn=f.min||30,mx=f.max||180,stp=f.step||5,cv=parseInt(v)||f.d,secs=Math.round(cv/3),pct=((cv-mn)/(mx-mn))*100;
         ff+=`<div class="fi w"><div class="fl">${f.l}</div><div style="display:flex;align-items:center;gap:.55em"><input type="range" min="${mn}" max="${mx}" step="${stp}" value="${cv}" class="fin-slider" style="flex:1" oninput="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'" onchange="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'" ontouchmove="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'"><div id="sl_${f.k}" style="min-width:6em;font-family:var(--f1);font-size:.65em;letter-spacing:1px;color:var(--amb);text-align:right">${cv} words ≈ ${secs}s</div></div></div>`;
       }else if(f.tp==='scene_pack'){
-        const src=SCENE_DATA?'Brand':'Default (Knights)';
-        const sc=SCENE_DATA&&SCENE_DATA._source==='brand'?'var(--grn)':'var(--txtd)';
-        const nStories=SCENE_DATA?SCENE_DATA.stories.length:0;
-        const nFigs=SCENE_DATA?SCENE_DATA.figures.length:0;
-        const nMoods=SCENE_DATA?Object.keys(SCENE_DATA.moods).length:0;
+        const srcv=SCENE_DATA&&SCENE_DATA._source;
+        const src=srcv==='brand'?'Brand':srcv==='default'?'Default (Knights)':'Empty — Not Configured';
+        const sc=srcv==='brand'?'var(--grn)':srcv==='default'?'var(--txtd)':'var(--red)';
+        const nStories=SCENE_DATA&&SCENE_DATA.stories?SCENE_DATA.stories.length:0;
+        const nFigs=SCENE_DATA&&SCENE_DATA.figures?SCENE_DATA.figures.length:0;
+        const nMoods=SCENE_DATA&&SCENE_DATA.moods?Object.keys(SCENE_DATA.moods).length:0;
+        const showSeed=typeof ACTIVE_BRAND==='undefined'||ACTIVE_BRAND==='knights';
         ff+=`<div class="fi w" style="border:1px solid var(--bd2);padding:10px;background:rgba(227,160,40,.03)">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
 <div style="font-family:var(--f1);font-size:.6em;letter-spacing:.15em;color:var(--txtd)">SCENE PACK</div>
@@ -1069,10 +1073,11 @@ ${ctaDur>0?`<div style="flex:1;padding:5px;background:var(--bg);border:1px solid
 <div style="flex:1;padding:4px;background:var(--bg);border:1px solid var(--bd2);text-align:center"><div style="font-family:var(--f1);font-size:.85em;font-weight:800;color:var(--amb)">${nFigs}</div><div style="font-size:.45em;color:var(--txtdd);letter-spacing:.08em">FIGURES</div></div>
 <div style="flex:1;padding:4px;background:var(--bg);border:1px solid var(--bd2);text-align:center"><div style="font-family:var(--f1);font-size:.85em;font-weight:800;color:var(--amb)">${nMoods}</div><div style="font-size:.45em;color:var(--txtdd);letter-spacing:.08em">MOODS</div></div>
 </div>
+${srcv==='empty'?'<div style="font-size:.55em;color:var(--red);margin-bottom:8px">This brand has no scene pack yet — the pipeline will error at Scene Engine until one is built.</div>':''}
 <div style="display:flex;gap:6px">
 <button style="flex:1;padding:6px;background:var(--amblo);border:1px solid var(--bd);color:var(--amb);font-size:.6em;font-family:var(--f1);letter-spacing:.1em;cursor:pointer" onclick="scOpenTab()">◈ OPEN SCENE ENGINE TAB</button>
 <button style="flex:1;padding:6px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.6em;font-family:var(--f1);letter-spacing:.1em;cursor:pointer" onclick="editScenePack()">✎ RAW JSON</button>
-<button style="flex:1;padding:6px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.6em;font-family:var(--f1);letter-spacing:.1em;cursor:pointer" onclick="seedDefaults()">⬇ SEED DEFAULTS</button>
+${showSeed?`<button style="flex:1;padding:6px;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-size:.6em;font-family:var(--f1);letter-spacing:.1em;cursor:pointer" onclick="seedDefaults()">⬇ SEED DEFAULTS</button>`:''}
 </div>
 </div>`;
       }else if(f.tp==='textarea'){
@@ -1117,9 +1122,14 @@ async function loadSceneData(){
 }
 
 async function seedDefaults(){
+  if(typeof ACTIVE_BRAND!=='undefined'&&ACTIVE_BRAND!=='knights'){
+    alert('Seeding Knights defaults is only available for the Knights brand. Open the Scene Engine tab to build this brand\'s pack from scratch instead.');
+    return;
+  }
   if(!confirm('Copy knight default scenes into this brand? This will overwrite any existing brand scenes.'))return;
   try{
-    await fetch('/api/scenes/seed-defaults',{method:'POST'});
+    const r=await fetch('/api/scenes/seed-defaults',{method:'POST'});
+    if(!r.ok){const e=await r.json().catch(()=>({}));alert('Failed: '+(e.detail||r.status));return;}
     await loadSceneData();
     rSt();
     alert('Knight defaults seeded into this brand. You can now edit them.');
@@ -1191,9 +1201,16 @@ async function loadScenesEditor(){
 }
 
 function scMark(){
-  const brand=SC_SRC==='brand';
-  const html=`<span style="color:${brand?'var(--grn)':'var(--txtd)'}">● ${brand?'BRAND (CUSTOM)':'DEFAULT (KNIGHTS)'}</span>`;
+  // 3 real states: 'brand' (this brand has its own saved pack), 'default' (knights-only
+  // hardcoded fallback, never shown for other brands), 'empty' (no pack yet, not knights).
+  const label=SC_SRC==='brand'?'BRAND (CUSTOM)':SC_SRC==='default'?'DEFAULT (KNIGHTS)':'EMPTY — NOT CONFIGURED';
+  const color=SC_SRC==='brand'?'var(--grn)':SC_SRC==='default'?'var(--txtd)':'var(--red)';
+  const html=`<span style="color:${color}">● ${label}</span>`;
   ['d-sc-src','m-sc-src'].forEach(id=>{if($(id))$(id).innerHTML=html;});
+  // Seeding Knights defaults only makes sense for the knights brand itself
+  const showSeed=typeof ACTIVE_BRAND==='undefined'||ACTIVE_BRAND==='knights';
+  ['d-sc-seedbtn','m-sc-seedbtn'].forEach(id=>{if($(id))$(id).style.display=showSeed?'':'none';});
+  ['d-sc-empty','m-sc-empty'].forEach(id=>{if($(id))$(id).style.display=SC_SRC==='empty'?'':'none';});
 }
 
 function scStatus(msg,ok){
@@ -1393,8 +1410,13 @@ function scOpenTab(){
 }
 
 async function scSeed(){
+  if(typeof ACTIVE_BRAND!=='undefined'&&ACTIVE_BRAND!=='knights'){
+    alert('Seeding Knights defaults is only available for the Knights brand. Build this brand\'s scene pack from scratch below instead.');
+    return;
+  }
   if(!confirm('Copy the default Knights scene pack into this brand? This overwrites any existing brand scenes.'))return;
-  await fetch('/api/scenes/seed-defaults',{method:'POST'});
+  const r=await fetch('/api/scenes/seed-defaults',{method:'POST'});
+  if(!r.ok){const e=await r.json().catch(()=>({}));scStatus('✗ '+(e.detail||'Failed to seed'),false);return;}
   await loadScenesEditor();
   scStatus('Seeded from defaults ✓',true);
 }
