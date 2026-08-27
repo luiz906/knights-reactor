@@ -764,10 +764,14 @@ async def get_scenes():
     """Get scene pack for the active brand. The hardcoded knight defaults are
     only ever shown for the 'knights' brand — every other brand gets an empty
     pack when it hasn't built its own yet, so brands never inherit Knights
-    content."""
-    from phases.scenes import load_brand_scenes, export_default_scenes, empty_scenes
+    content. "themes" is the one exception (see phases/scenes.py) — it's a
+    shared, generic tagging vocabulary (courage/doubt/loss/etc.), not creative
+    brand content, so it's always filled in even for an otherwise-empty pack."""
+    from phases.scenes import load_brand_scenes, export_default_scenes, empty_scenes, THEME_KEYWORDS
     data = load_brand_scenes()
     if data:
+        if not data.get("themes"):
+            data["themes"] = dict(THEME_KEYWORDS)
         return {"source": "brand", "data": data}
     if get_active_brand() == "knights":
         return {"source": "default", "data": export_default_scenes()}
@@ -793,10 +797,25 @@ async def seed_default_scenes():
     save_brand_scenes(data)
     return {"status": "seeded", "stories": len(data["stories"]), "figures": len(data["figures"])}
 
+@app.post("/api/scenes/seed-motion-defaults")
+async def seed_motion_defaults():
+    """Fill in generic, brand-neutral Camera + Intensity text (no Knights-specific
+    wording — no armor, capes, combat). Available to ANY brand, unlike
+    seed-defaults: these are just standard cinematography terms for the 3 fixed
+    keys the Settings dropdowns depend on, not creative brand content, so using
+    them doesn't reintroduce the cross-brand leakage problem."""
+    from phases.scenes import load_brand_scenes, save_brand_scenes, standard_motion_defaults, empty_scenes
+    data = load_brand_scenes() or empty_scenes()
+    defaults = standard_motion_defaults()
+    data["cameras"] = defaults["cameras"]
+    data["intensity"] = defaults["intensity"]
+    save_brand_scenes(data)
+    return {"status": "seeded", "cameras": list(data["cameras"].keys()), "intensity": list(data["intensity"].keys())}
+
 @app.get("/api/scenes/summary")
 async def scenes_summary():
     """Quick summary of the active brand's scene pack."""
-    from phases.scenes import load_brand_scenes, STORY_SEEDS, FIGURES, empty_scenes
+    from phases.scenes import load_brand_scenes, STORY_SEEDS, FIGURES, THEME_KEYWORDS
     data = load_brand_scenes()
     if data:
         stories = data.get("stories", [])
@@ -805,7 +824,7 @@ async def scenes_summary():
             "stories": len(stories),
             "figures": len(data.get("figures", [])),
             "moods": list(data.get("moods", {}).keys()),
-            "themes": list(data.get("themes", {}).keys()),
+            "themes": list(data.get("themes") or THEME_KEYWORDS.keys()),
             "story_names": [s["name"] for s in stories],
         }
     if get_active_brand() == "knights":
@@ -817,13 +836,12 @@ async def scenes_summary():
             "themes": ["temptation", "endurance", "doubt", "discipline", "courage", "duty", "loss", "patience", "anger", "identity"],
             "story_names": [s["name"] for s in STORY_SEEDS],
         }
-    e = empty_scenes()
     return {
         "source": "empty",
         "stories": 0,
         "figures": 0,
         "moods": [],
-        "themes": [],
+        "themes": list(THEME_KEYWORDS.keys()),
         "story_names": [],
     }
 

@@ -1070,8 +1070,8 @@ ${ctaDur>0?`<div style="flex:1;padding:5px;background:var(--bg);border:1px solid
 </div>
 <div style="display:flex;gap:6px;margin-bottom:8px">
 <div style="flex:1;padding:4px;background:var(--bg);border:1px solid var(--bd2);text-align:center"><div style="font-family:var(--f1);font-size:.85em;font-weight:800;color:var(--amb)">${nStories}</div><div style="font-size:.45em;color:var(--txtdd);letter-spacing:.08em">STORIES</div></div>
-<div style="flex:1;padding:4px;background:var(--bg);border:1px solid var(--bd2);text-align:center"><div style="font-family:var(--f1);font-size:.85em;font-weight:800;color:var(--amb)">${nFigs}</div><div style="font-size:.45em;color:var(--txtdd);letter-spacing:.08em">FIGURES</div></div>
-<div style="flex:1;padding:4px;background:var(--bg);border:1px solid var(--bd2);text-align:center"><div style="font-family:var(--f1);font-size:.85em;font-weight:800;color:var(--amb)">${nMoods}</div><div style="font-size:.45em;color:var(--txtdd);letter-spacing:.08em">MOODS</div></div>
+<div style="flex:1;padding:4px;background:var(--bg);border:1px solid var(--bd2);text-align:center"><div style="font-family:var(--f1);font-size:.85em;font-weight:800;color:var(--amb)">${nFigs}</div><div style="font-size:.45em;color:var(--txtdd);letter-spacing:.08em">CAST</div></div>
+<div style="flex:1;padding:4px;background:var(--bg);border:1px solid var(--bd2);text-align:center"><div style="font-family:var(--f1);font-size:.85em;font-weight:800;color:var(--amb)">${nMoods}</div><div style="font-size:.45em;color:var(--txtdd);letter-spacing:.08em">LOOKS</div></div>
 </div>
 ${srcv==='empty'?'<div style="font-size:.55em;color:var(--red);margin-bottom:8px">This brand has no scene pack yet — the pipeline will error at Scene Engine until one is built.</div>':''}
 <div style="display:flex;gap:6px">
@@ -1185,6 +1185,8 @@ let SC_DATA=null, SC_SRC='default', scOpen={};
 const SC_CLIP_FIELDS=[['action','ACTION'],['setting','SETTING'],['lighting','LIGHTING'],['atmosphere','ATMOSPHERE'],['composition','COMPOSITION'],['camera','CAMERA MOVE'],['subject','SUBJECT MOTION'],['ambient','AMBIENT'],['pace','PACE']];
 const SC_CAMERA_KEYS=['steady','dynamic','handheld'];
 const SC_INTENSITY_KEYS=['still','measured','dynamic'];
+const SC_CAMERA_LABELS={steady:'STEADY / CALM',dynamic:'ENERGETIC / DYNAMIC',handheld:'RAW / HANDHELD'};
+const SC_INTENSITY_LABELS={still:'MINIMAL MOVEMENT',measured:'BALANCED MOVEMENT',dynamic:'HIGH-ENERGY MOVEMENT'};
 
 function scJsStr(s){return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;');}
 function scT(key){scOpen[key]=!scOpen[key];renderScenesEditor();}
@@ -1274,17 +1276,30 @@ function renderScenesEditor(){
   const d=SC_DATA||{};
   const figures=d.figures||[], moods=d.moods||{}, cameras=d.cameras||{}, intensity=d.intensity||{}, themes=d.themes||{}, stories=d.stories||[];
   const moodKeys=Object.keys(moods);
+  const themeKeys=Object.keys(themes);
   let h='';
 
-  h+=`<div class="sec"><div class="sec-h" onclick="scT('fig')"><span class="sec-t">FIGURES (${figures.length})</span><span class="sec-a">${scOpen.fig?'▾':'▸'}</span></div><div class="sec-b${scOpen.fig?'':' shut'}">`;
+  if(figures.length===0&&stories.length===0){
+    h+=`<div style="border:1px solid var(--amb);background:rgba(227,160,40,.06);padding:1em;margin-bottom:1em">
+      <div style="font-family:var(--f1);font-size:.65em;letter-spacing:.15em;color:var(--amb);margin-bottom:.6em">GETTING STARTED WITH THIS BRAND'S SCENE PACK</div>
+      <div style="font-size:.6em;color:var(--txtd);line-height:1.6;margin-bottom:.8em">A scene pack has 3 parts: who appears (Cast), what it looks and moves like (Looks + Motion), and what happens (Stories). Do these in order:</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:.6em;color:var(--txtd)">
+        <div>1. Add at least one <b style="color:var(--wht)">Cast</b> member below</div>
+        <div>2. <button class="btn-sm" onclick="scSeedMotion()">USE STANDARD MOTION DEFAULTS</button> so Camera/Intensity aren't blank</div>
+        <div>3. <button class="btn-sm btn-grn" onclick="scAddStory()">+ ADD A STORY</button> to write your first scene</div>
+      </div>
+    </div>`;
+  }
+
+  h+=`<div class="sec"><div class="sec-h" onclick="scT('fig')"><span class="sec-t">CAST (${figures.length})</span><span class="sec-a">${scOpen.fig?'▾':'▸'}</span></div><div class="sec-b${scOpen.fig?'':' shut'}">`;
   h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">Who appears in every scene — swap these to reskin the whole brand's look.</div>`;
   figures.forEach((f,i)=>{
     h+=`<div style="display:flex;gap:6px;margin-bottom:10px;align-items:flex-start"><textarea class="fin sc-ta" rows="3" style="flex:1" oninput="scGrow(this);SC_DATA.figures[${i}]=this.value">${escHtml(f)}</textarea><button class="btn-sm btn-red" onclick="scRemoveFigure(${i})">✕</button></div>`;
   });
-  h+=`<button class="btn-sm btn-grn" onclick="scAddFigure()">+ ADD FIGURE</button></div></div>`;
+  h+=`<button class="btn-sm btn-grn" onclick="scAddFigure()">+ ADD CAST MEMBER</button></div></div>`;
 
-  h+=`<div class="sec"><div class="sec-h" onclick="scT('mood')"><span class="sec-t">MOODS / LIGHTING (${moodKeys.length})</span><span class="sec-a">${scOpen.mood?'▾':'▸'}</span></div><div class="sec-b${scOpen.mood?'':' shut'}">`;
-  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">Each mood is a lighting/atmosphere suffix appended to every image prompt. Stories below reference these by name.</div>`;
+  h+=`<div class="sec"><div class="sec-h" onclick="scT('mood')"><span class="sec-t">LOOKS (${moodKeys.length})</span><span class="sec-a">${scOpen.mood?'▾':'▸'}</span></div><div class="sec-b${scOpen.mood?'':' shut'}">`;
+  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">A Look is a lighting/atmosphere style (e.g. "Golden Hour", "Night Storm") appended to every image prompt. Each Story below picks one Look.</div>`;
   moodKeys.forEach(k=>{
     h+=`<div style="display:flex;gap:6px;margin-bottom:10px;align-items:flex-start">
       <textarea class="fin sc-ta" rows="1" style="width:9em;flex-shrink:0" onchange="scRenameKey('moods','${scJsStr(k)}',this.value)">${escHtml(k)}</textarea>
@@ -1292,42 +1307,29 @@ function renderScenesEditor(){
       <button class="btn-sm btn-red" onclick="scRemoveKey('moods','${scJsStr(k)}')">✕</button>
     </div>`;
   });
-  h+=`<button class="btn-sm btn-grn" onclick="scAddKey('moods')">+ ADD MOOD</button></div></div>`;
+  h+=`<button class="btn-sm btn-grn" onclick="scAddKey('moods')">+ ADD LOOK</button></div></div>`;
 
-  h+=`<div class="sec"><div class="sec-h" onclick="scT('theme')"><span class="sec-t">THEMES / KEYWORDS (${Object.keys(themes).length})</span><span class="sec-a">${scOpen.theme?'▾':'▸'}</span></div><div class="sec-b${scOpen.theme?'':' shut'}">`;
-  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">When a script's wording matches these keywords, it leans toward stories tagged with this theme. Comma-separated.</div>`;
-  Object.keys(themes).forEach(k=>{
-    const kws=(themes[k]||[]).join(', ');
-    h+=`<div style="display:flex;gap:6px;margin-bottom:10px;align-items:flex-start">
-      <textarea class="fin sc-ta" rows="1" style="width:9em;flex-shrink:0" onchange="scRenameKey('themes','${scJsStr(k)}',this.value)">${escHtml(k)}</textarea>
-      <textarea class="fin sc-ta" rows="2" style="flex:1" oninput="scGrow(this);SC_DATA.themes['${scJsStr(k)}']=this.value.split(',').map(x=>x.trim()).filter(Boolean)">${escHtml(kws)}</textarea>
-      <button class="btn-sm btn-red" onclick="scRemoveKey('themes','${scJsStr(k)}')">✕</button>
-    </div>`;
-  });
-  h+=`<button class="btn-sm btn-grn" onclick="scAddKey('themes')">+ ADD THEME</button></div></div>`;
-
-  h+=`<div class="sec"><div class="sec-h" onclick="scT('cam')"><span class="sec-t">CAMERA STYLES</span><span class="sec-a">${scOpen.cam?'▾':'▸'}</span></div><div class="sec-b${scOpen.cam?'':' shut'}">`;
-  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">Matched to the Camera Style dropdown in Settings — these 3 stay fixed, edit the wording freely.</div>`;
+  h+=`<div class="sec"><div class="sec-h" onclick="scT('motion')"><span class="sec-t">MOTION &amp; PACING</span><span class="sec-a">${scOpen.motion?'▾':'▸'}</span></div><div class="sec-b${scOpen.motion?'':' shut'}">`;
+  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">Controls how much the camera and subject move. Matched to the Camera Style / Intensity dropdowns in Settings — these 6 slots stay fixed, edit the wording freely.</div>`;
+  h+=`<button class="btn-sm" onclick="scSeedMotion()" style="margin-bottom:.9em">⬇ USE STANDARD DEFAULTS</button>`;
+  h+=`<div class="clip-grp-lbl">CAMERA STYLE</div>`;
   SC_CAMERA_KEYS.forEach(k=>{
-    h+=`<div style="margin-bottom:10px"><div class="fl">${k.toUpperCase()}</div><textarea class="fin sc-ta" rows="2" oninput="scGrow(this);SC_DATA.cameras=SC_DATA.cameras||{};SC_DATA.cameras['${k}']=this.value">${escHtml(cameras[k]||'')}</textarea></div>`;
+    h+=`<div style="margin-bottom:10px"><div class="fl">${SC_CAMERA_LABELS[k]}</div><textarea class="fin sc-ta" rows="2" oninput="scGrow(this);SC_DATA.cameras=SC_DATA.cameras||{};SC_DATA.cameras['${k}']=this.value">${escHtml(cameras[k]||'')}</textarea></div>`;
   });
-  h+='</div></div>';
-
-  h+=`<div class="sec"><div class="sec-h" onclick="scT('int')"><span class="sec-t">INTENSITY</span><span class="sec-a">${scOpen.int?'▾':'▸'}</span></div><div class="sec-b${scOpen.int?'':' shut'}">`;
-  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">Matched to the Intensity dropdown in Settings — these 3 stay fixed, edit the wording freely.</div>`;
+  h+=`<div class="clip-grp-lbl" style="margin-top:.9em">MOVEMENT INTENSITY</div>`;
   SC_INTENSITY_KEYS.forEach(k=>{
-    h+=`<div style="margin-bottom:10px"><div class="fl">${k.toUpperCase()}</div><textarea class="fin sc-ta" rows="2" oninput="scGrow(this);SC_DATA.intensity=SC_DATA.intensity||{};SC_DATA.intensity['${k}']=this.value">${escHtml(intensity[k]||'')}</textarea></div>`;
+    h+=`<div style="margin-bottom:10px"><div class="fl">${SC_INTENSITY_LABELS[k]}</div><textarea class="fin sc-ta" rows="2" oninput="scGrow(this);SC_DATA.intensity=SC_DATA.intensity||{};SC_DATA.intensity['${k}']=this.value">${escHtml(intensity[k]||'')}</textarea></div>`;
   });
   h+='</div></div>';
 
-  h+=`<div class="sec-t" style="margin:1em 0 .5em;color:var(--amb)">STORY SEEDS (${stories.length})</div>`;
+  h+=`<div class="sec-t" style="margin:1em 0 .5em;color:var(--amb)">STORIES (${stories.length})</div>`;
   stories.forEach((s,si)=>{
     const open=!!scOpen['story'+si];
     h+=`<div class="story-card">
       <div class="story-hd" onclick="scT('story${si}')">
         <div style="flex:1;min-width:0">
           <div style="font-family:var(--f2);font-weight:600;font-size:.85em;color:var(--wht);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(s.name||'(unnamed)')}</div>
-          <div style="font-size:.55em;color:var(--txtd);margin-top:2px">${escHtml(s.mood||'')} · ${(s.themes||[]).join(', ')} · ${(s.clips||[]).length} clips</div>
+          <div style="font-size:.55em;color:var(--txtd);margin-top:2px">${escHtml(s.mood||'(no look)')} · ${(s.themes||[]).join(', ')||'no theme tags'} · ${(s.clips||[]).length} clips</div>
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0" onclick="event.stopPropagation()">
           <button class="btn-sm" onclick="scDupStory(${si})" title="Duplicate">⧉</button>
@@ -1338,16 +1340,21 @@ function renderScenesEditor(){
       <div class="story-bd${open?'':' shut'}">
         <div class="fl">NAME</div>
         <textarea class="fin sc-ta" rows="1" oninput="scGrow(this);SC_DATA.stories[${si}].name=this.value">${escHtml(s.name||'')}</textarea>
-        <div style="display:flex;gap:10px;margin-top:.7em;flex-wrap:wrap">
-          <div style="flex:1;min-width:10em">
-            <div class="fl">MOOD</div>
-            <select class="fin" onchange="SC_DATA.stories[${si}].mood=this.value">
-              ${moodKeys.map(mk=>`<option value="${escHtml(mk)}"${s.mood===mk?' selected':''}>${escHtml(mk)}</option>`).join('')}
-            </select>
-          </div>
-          <div style="flex:2;min-width:14em">
-            <div class="fl">THEMES (comma-separated)</div>
-            <textarea class="fin sc-ta" rows="1" oninput="scGrow(this);SC_DATA.stories[${si}].themes=this.value.split(',').map(x=>x.trim()).filter(Boolean)">${escHtml((s.themes||[]).join(', '))}</textarea>
+        <div style="margin-top:.7em;min-width:10em">
+          <div class="fl">LOOK</div>
+          <select class="fin" onchange="SC_DATA.stories[${si}].mood=this.value">
+            ${moodKeys.length?moodKeys.map(mk=>`<option value="${escHtml(mk)}"${s.mood===mk?' selected':''}>${escHtml(mk)}</option>`).join(''):'<option value="">(add a Look above first)</option>'}
+          </select>
+        </div>
+        <div style="margin-top:.7em">
+          <div class="fl">THEME TAGS — helps the pipeline auto-pick this story to match a script's tone (optional)</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
+            ${themeKeys.map(tk=>{
+              const checked=(s.themes||[]).includes(tk);
+              return `<label style="display:flex;align-items:center;gap:4px;font-size:.6em;padding:4px 8px;border:1px solid ${checked?'var(--amb)':'var(--bd2)'};background:${checked?'var(--amblo)':'var(--bg)'};color:${checked?'var(--amb)':'var(--txtd)'};cursor:pointer">
+                <input type="checkbox" style="margin:0" ${checked?'checked':''} onchange="scToggleStoryTheme(${si},'${scJsStr(tk)}',this.checked)">${escHtml(tk)}
+              </label>`;
+            }).join('')}
           </div>
         </div>
         <div class="fl" style="margin-top:.7em">CLIPS</div>
@@ -1368,10 +1375,10 @@ function scRemoveFigure(i){SC_DATA.figures.splice(i,1);renderScenesEditor();}
 
 function scAddKey(kind){
   scEnsure(kind);
-  let base=kind==='moods'?'new_mood':'new_theme', k=base, n=1;
+  let base='new_look', k=base, n=1;
   while(SC_DATA[kind][k]!==undefined){n++;k=base+'_'+n;}
-  SC_DATA[kind][k]=kind==='moods'?'Cinematic atmosphere, 9:16 vertical.':[];
-  scOpen[kind==='moods'?'mood':'theme']=true;
+  SC_DATA[kind][k]='Cinematic atmosphere, 9:16 vertical.';
+  scOpen.mood=true;
   renderScenesEditor();
 }
 function scRemoveKey(kind,key){if(!confirm('Remove "'+key+'"?'))return;delete SC_DATA[kind][key];renderScenesEditor();}
@@ -1384,9 +1391,25 @@ function scRenameKey(kind,oldKey,newKey){
   renderScenesEditor();
 }
 
+function scToggleStoryTheme(si,tag,checked){
+  const s=SC_DATA.stories[si];
+  s.themes=s.themes||[];
+  if(checked){if(!s.themes.includes(tag))s.themes.push(tag);}
+  else{s.themes=s.themes.filter(t=>t!==tag);}
+  renderScenesEditor();
+}
+
+async function scSeedMotion(){
+  if(!confirm('Fill Camera Style and Movement Intensity with standard starting text? This only touches those two sections — Cast, Looks, and Stories are untouched.'))return;
+  const r=await fetch('/api/scenes/seed-motion-defaults',{method:'POST'});
+  if(!r.ok){scStatus('✗ Failed to seed motion defaults',false);return;}
+  await loadScenesEditor();
+  scStatus('Motion defaults filled in ✓',true);
+}
+
 function scAddStory(){
   scEnsure('stories');scEnsure('moods');
-  SC_DATA.stories.push({name:'new_story',themes:[],mood:Object.keys(SC_DATA.moods)[0]||'dawn',clips:[scEmptyClip()]});
+  SC_DATA.stories.push({name:'new_story',themes:[],mood:Object.keys(SC_DATA.moods)[0]||'',clips:[scEmptyClip()]});
   scOpen['story'+(SC_DATA.stories.length-1)]=true;
   renderScenesEditor();
 }
