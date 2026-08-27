@@ -904,10 +904,13 @@ function lockStep(n){
 
 // ─── PHASE 1: TOPIC ─────────────────────────────────────────
 let TOPICS_CACHE=[];
+let TOPICS_REQ_ID=0; // guards against a slow response from a previous brand landing after you've switched
 async function loadTopics(){
   const brand=$('s-brand').value;if(!brand)return;
+  const reqId=++TOPICS_REQ_ID;
   try{
     const r=await(await fetch(API+'/topics/'+brand)).json();
+    if(reqId!==TOPICS_REQ_ID||$('s-brand').value!==brand)return; // brand changed while this was in flight — discard
     TOPICS_CACHE=r.topics||[];
     const sel=$('f-topic-list');
     sel.innerHTML='<option value="">— '+r.new+' new / '+r.total+' total —</option>';
@@ -917,7 +920,7 @@ async function loadTopics(){
       sel.appendChild(o);
     });
     $('st1-status').innerHTML='<span style="color:var(--grn)">✓ '+r.new+' new topics loaded</span>';
-  }catch(e){$('st1-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
+  }catch(e){if($('s-brand').value===brand)$('st1-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
 }
 function pickTopic(val){if(val)$('f-topic').value=val;}
 async function randomTopic(){
@@ -925,18 +928,20 @@ async function randomTopic(){
   $('st1-status').innerHTML='<span class="spin">⏳</span> Picking random...';
   try{
     const r=await(await fetch(API+'/phase/topic-random/'+brand)).json();
+    if($('s-brand').value!==brand)return; // brand changed while this was in flight — discard
     $('f-topic').value=r.topic||'';
     $('st1-status').innerHTML='<span style="color:var(--grn)">✓ Random topic selected</span>';
-  }catch(e){$('st1-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
+  }catch(e){if($('s-brand').value===brand)$('st1-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
 }
 async function genTopicAI(){
   const brand=$('s-brand').value;if(!brand)return;
   $('st1-status').innerHTML='<span class="spin">⏳</span> AI generating topic...';
   try{
     const r=await(await fetch(API+'/phase/topic-ai/'+brand)).json();
+    if($('s-brand').value!==brand)return; // brand changed while this was in flight — discard
     $('f-topic').value=r.topic||'';
     $('st1-status').innerHTML='<span style="color:var(--grn)">✓ AI topic generated</span>';
-  }catch(e){$('st1-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
+  }catch(e){if($('s-brand').value===brand)$('st1-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
 }
 
 // ─── PHASE 2: QUOTE ─────────────────────────────────────────
