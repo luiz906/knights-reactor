@@ -65,14 +65,42 @@ def _active_brand_name() -> str:
 def empty_scenes() -> dict:
     """A fully empty scene pack. Used for any brand other than 'knights' that
     doesn't have its own scenes.json yet — deliberately has NO figures, moods,
-    themes, cameras, intensity, or stories, so no brand inherits Knights content."""
+    cameras, intensity, or stories, so no brand inherits Knights content.
+    "themes" is the one exception: it's a shared tagging vocabulary (courage,
+    doubt, loss, etc.) rather than creative brand content, so it's always
+    available — see the note on THEME_KEYWORDS below."""
     return {
         "figures": [],
-        "themes": {},
+        "themes": dict(THEME_KEYWORDS),
         "moods": {},
         "intensity": {},
         "cameras": {},
         "stories": [],
+    }
+
+
+# Generic, brand-neutral camera/motion descriptions — no Knights-specific
+# wording (no armor, capes, combat). Any brand can seed these to get sensible
+# starting text for the 3 fixed Camera/Intensity keys the Settings dropdowns
+# depend on, without pulling in any Knights creative content.
+STANDARD_CAMERA_STYLES = {
+    "steady": "Steady, locked-off camera.",
+    "dynamic": "Dynamic, energetic camera movement.",
+    "handheld": "Handheld camera, raw documentary feel.",
+}
+
+STANDARD_INTENSITY_MODIFIERS = {
+    "still": "Minimal movement. Near-static frame. Subtle ambient motion only. Contemplative stillness.",
+    "measured": "Slow, deliberate motion. Controlled pacing. Purposeful movement.",
+    "dynamic": "Fast, energetic motion. High energy. Rapid movement. Urgent momentum.",
+}
+
+
+def standard_motion_defaults() -> dict:
+    """Brand-neutral camera + intensity starting text, usable by any brand."""
+    return {
+        "cameras": dict(STANDARD_CAMERA_STYLES),
+        "intensity": dict(STANDARD_INTENSITY_MODIFIERS),
     }
 
 
@@ -88,7 +116,7 @@ def get_scene_data() -> tuple:
     brand = load_brand_scenes()
     if brand:
         figures   = brand.get("figures", [])
-        themes    = brand.get("themes", {})
+        themes    = brand.get("themes") or dict(THEME_KEYWORDS)
         moods     = brand.get("moods", {})
         intensity = brand.get("intensity", {})
         cameras   = brand.get("cameras", {})
@@ -99,7 +127,8 @@ def get_scene_data() -> tuple:
         # Fallback: hardcoded knight defaults — knights brand only
         return FIGURES, THEME_KEYWORDS, IMAGE_SUFFIXES, INTENSITY_MODIFIERS, CAMERA_STYLES, STORY_SEEDS
 
-    # Any other brand with no scenes.json yet: empty, never Knights content
+    # Any other brand with no scenes.json yet: empty, never Knights content.
+    # Themes are the one shared piece (see empty_scenes() note above).
     e = empty_scenes()
     return e["figures"], e["themes"], e["moods"], e["intensity"], e["cameras"], e["stories"]
 
