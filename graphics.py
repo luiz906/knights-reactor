@@ -360,6 +360,15 @@ async def api_get_topics(brand_id: str):
         topics = []
     return {"topics": topics, "total": len(topics), "new": sum(1 for t in topics if t.get("status") == "new")}
 
+@router.delete("/api/topics/{brand_id}/{topic_id}")
+async def api_delete_topic(brand_id: str, topic_id: str):
+    """Delete one topic for a brand. Uses the same topics.json the main
+    Pipeline dashboard's Topics tab reads/writes, so a delete here removes it
+    there too (and vice versa) — there's only one topic list per brand."""
+    from phases.topics import delete_topic
+    found = delete_topic(topic_id, brand=brand_id)
+    return {"status": "deleted" if found else "not_found"}
+
 @router.post("/api/phase/topic")
 async def api_phase_topic(req: Request):
     body = await req.json()
@@ -689,6 +698,10 @@ GFX_HTML = r"""<!DOCTYPE html><html lang="en"><head>
       <select class="fin" id="f-topic-list" onchange="pickTopic(this.value)" style="margin-bottom:.5em">
         <option value="">— Select a topic —</option>
       </select>
+      <div style="display:flex;justify-content:flex-end;margin:-.3em 0 .5em">
+        <span style="font-size:.6em;color:var(--txtd,#888);cursor:pointer;text-decoration:underline" onclick="toggleTopicMgr()" id="topic-mgr-toggle">Manage topics ▾</span>
+      </div>
+      <div id="topic-mgr" style="display:none;max-height:12em;overflow-y:auto;border:1px solid var(--bd2,#ddd);border-radius:var(--r,4px);margin-bottom:.6em"></div>
       <textarea class="fin" id="f-topic" rows="2" placeholder="Select above, use Random, or type freely..."></textarea>
     </div>
     <div class="btn-row">
@@ -920,9 +933,36 @@ async function loadTopics(){
       sel.appendChild(o);
     });
     $('st1-status').innerHTML='<span style="color:var(--grn)">✓ '+r.new+' new topics loaded</span>';
+    renderTopicMgr();
   }catch(e){if($('s-brand').value===brand)$('st1-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
 }
 function pickTopic(val){if(val)$('f-topic').value=val;}
+
+// ─── MANAGE / DELETE TOPICS (same shared topics.json the main dashboard uses) ───
+let TOPIC_MGR_OPEN=false;
+function toggleTopicMgr(){
+  TOPIC_MGR_OPEN=!TOPIC_MGR_OPEN;
+  const el=$('topic-mgr'), tg=$('topic-mgr-toggle');
+  if(el)el.style.display=TOPIC_MGR_OPEN?'block':'none';
+  if(tg)tg.textContent=TOPIC_MGR_OPEN?'Manage topics ▴':'Manage topics ▾';
+  if(TOPIC_MGR_OPEN)renderTopicMgr();
+}
+function renderTopicMgr(){
+  const el=$('topic-mgr');if(!el||!TOPIC_MGR_OPEN)return;
+  if(!TOPICS_CACHE.length){el.innerHTML='<div style="padding:8px;font-size:.6em;color:var(--txtd,#888)">No topics for this brand yet.</div>';return;}
+  el.innerHTML=TOPICS_CACHE.map(t=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--bd2,#eee)">
+    <div style="flex:1;min-width:0;font-size:.65em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(t.idea||'').replace(/"/g,'&quot;')}">${t.idea}${t.category?' ['+t.category+']':''}</div>
+    <button class="btn-sm btn-red" onclick="deleteGfxTopic('${t.id}')" title="Delete">✕</button>
+  </div>`).join('');
+}
+async function deleteGfxTopic(id){
+  const brand=$('s-brand').value;if(!brand)return;
+  if(!confirm('Delete this topic? This removes it everywhere, including the main Pipeline dashboard.'))return;
+  try{
+    await fetch(API+'/topics/'+brand+'/'+id,{method:'DELETE'});
+    await loadTopics();
+  }catch(e){alert('Delete failed: '+e);}
+}
 async function randomTopic(){
   const brand=$('s-brand').value;if(!brand)return;
   $('st1-status').innerHTML='<span class="spin">⏳</span> Picking random...';
