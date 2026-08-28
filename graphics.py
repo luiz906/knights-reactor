@@ -9,7 +9,7 @@ Flow: Brand → Topic (edit) → Quote (edit) → Prompt (edit) → Image (previ
 Mounted at /graphics as a FastAPI sub-application.
 """
 
-import json, os, time, uuid, threading, re, logging
+import json, os, time, uuid, threading, re, logging, shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -25,7 +25,13 @@ glog = logging.getLogger("graphics")
 router = APIRouter(prefix="/graphics", tags=["graphics"])
 
 # ─── STORAGE ──────────────────────────────────────────────────
-BRANDS_DIR = DATA_DIR / "brands"
+# Graphics Engine keeps its own, completely separate brand directory — NOT the
+# Pipeline's `brands/` folder. Pipeline and Graphics Engine are two independent
+# halves of one deployment: each brand belongs to exactly one of them, and
+# nothing (brand list, active selection, topics, settings) is shared between
+# the two anymore. This is what stops the kind of cross-tool bugs (wrong
+# brand's topics/state showing up) seen when they shared state before.
+BRANDS_DIR = DATA_DIR / "graphics_brands"
 BRANDS_DIR.mkdir(exist_ok=True)
 GFX_GALLERY_FILE = DATA_DIR / "graphics_gallery.json"
 
@@ -361,6 +367,39 @@ def build_graphics_prompt(quote_text: str, brand: dict = None) -> str:
 async def api_brands():
     return get_brands()
 
+@router.post("/api/brands")
+async def api_create_brand(req: Request):
+    """Create a new Graphics Engine brand. This is Graphics Engine's own
+    registry (graphics_brands/) — entirely separate from the Pipeline's
+    brand list. Each brand lives in exactly one tool, never both."""
+    body = await req.json()
+    name = (body.get("name") or "").strip()
+    if not name:
+        return JSONResponse({"error": "Brand name required"}, 400)
+    slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") or "brand"
+    brand_id = slug
+    n = 2
+    while (BRANDS_DIR / brand_id).exists():
+        brand_id = f"{slug}_{n}"
+        n += 1
+    bd = BRANDS_DIR / brand_id
+    bd.mkdir(parents=True, exist_ok=True)
+    save_json(bd / "settings.json", {"brand_name": name})
+    save_json(bd / "topics.json", [])
+    return {"status": "created", "id": brand_id, "name": name}
+
+@router.delete("/api/brands/{brand_id}")
+async def api_delete_brand(brand_id: str):
+    """Permanently delete a Graphics Engine brand — settings, topics, and any
+    custom prompt template. Only touches graphics_brands/; the Pipeline's own
+    brands are untouched. No undo — the client requires typing the brand's
+    exact name before calling this."""
+    bd = BRANDS_DIR / brand_id
+    if not bd.exists() or not bd.is_dir():
+        return JSONResponse({"error": "Brand not found"}, 404)
+    shutil.rmtree(bd)
+    return {"status": "deleted"}
+
 @router.post("/api/brand-prompt-template/{brand_id}")
 async def api_save_prompt_template(brand_id: str, req: Request):
     """Save this brand's custom Image Prompt template. When set (non-empty),
@@ -392,12 +431,43 @@ async def api_get_topics(brand_id: str):
 
 @router.delete("/api/topics/{brand_id}/{topic_id}")
 async def api_delete_topic(brand_id: str, topic_id: str):
-    """Delete one topic for a brand. Uses the same topics.json the main
-    Pipeline dashboard's Topics tab reads/writes, so a delete here removes it
-    there too (and vice versa) — there's only one topic list per brand."""
-    from phases.topics import delete_topic
-    found = delete_topic(topic_id, brand=brand_id)
+    """Delete one topic for a Graphics Engine brand. This is Graphics Engine's
+    own topics.json (under graphics_brands/), entirely separate from the
+    Pipeline's topics — deleting here has no effect on any Pipeline brand."""
+    bd = BRANDS_DIR / brand_id
+    tf = bd / "topics.json"
+    topics = []
+    if tf.exists():
+        try: topics = json.loads(tf.read_text())
+        except: pass
+    remaining = [t for t in topics if t.get("id") != topic_id]
+    found = len(remaining) != len(topics)
+    tf.write_text(json.dumps(remaining, indent=2))
     return {"status": "deleted" if found else "not_found"}
+
+@router.post("/api/topics/{brand_id}")
+async def api_add_topic(brand_id: str, req: Request):
+    """Save a topic into this Graphics Engine brand's OWN topics.json (under
+    graphics_brands/). Needed since the directory split — Graphics Engine no
+    longer inherits topics from the Pipeline's shared file, so this is the
+    only way new topics land in a brand's Topics DB now (manual entry, or
+    Random/AI Generate + this Save button)."""
+    body = await req.json()
+    idea = (body.get("idea") or "").strip()
+    if not idea:
+        return JSONResponse({"error": "Topic text required"}, 400)
+    category = (body.get("category") or "").strip()
+    bd = BRANDS_DIR / brand_id
+    bd.mkdir(parents=True, exist_ok=True)
+    tf = bd / "topics.json"
+    topics = []
+    if tf.exists():
+        try: topics = json.loads(tf.read_text())
+        except: pass
+    new_topic = {"id": uuid.uuid4().hex[:12], "idea": idea, "category": category, "status": "new"}
+    topics.append(new_topic)
+    tf.write_text(json.dumps(topics, indent=2))
+    return {"status": "saved", "topic": new_topic}
 
 @router.post("/api/phase/topic")
 async def api_phase_topic(req: Request):
@@ -701,7 +771,13 @@ GFX_HTML = r"""<!DOCTYPE html><html lang="en"><head>
   <div class="sec-head"><div class="sec-num">01</div><div class="sec-title">Setup</div></div>
   <div class="panel">
     <div class="fg-3">
-      <div class="fi"><div class="fl">Brand</div><select class="fin" id="s-brand"></select></div>
+      <div class="fi"><div class="fl">Brand <span style="font-weight:400;text-transform:none;letter-spacing:0">(Graphics Engine only — separate from Pipeline)</span></div>
+        <select class="fin" id="s-brand" style="margin-bottom:.4em"></select>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-out" style="flex:1" onclick="createGfxBrand()">+ New Brand</button>
+          <button class="btn btn-out" style="flex:1;color:var(--red,#e04)" onclick="deleteGfxBrand()">Delete Brand</button>
+        </div>
+      </div>
       <div class="fi"><div class="fl">Aspect Ratio</div><select class="fin" id="s-aspect">
         <option value="1:1">1:1 Square</option><option value="9:16">9:16 Vertical</option>
         <option value="4:5">4:5 Portrait</option><option value="16:9">16:9 Landscape</option>
@@ -738,6 +814,7 @@ GFX_HTML = r"""<!DOCTYPE html><html lang="en"><head>
       <button class="btn btn-out" onclick="loadTopics()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">refresh</span> Refresh</button>
       <button class="btn btn-out" onclick="randomTopic()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">casino</span> Random</button>
       <button class="btn btn-amb" onclick="genTopicAI()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">auto_awesome</span> AI Generate</button>
+      <button class="btn btn-out" onclick="saveCurrentTopic()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">bookmark_add</span> Save to Topics DB</button>
     </div>
     <div class="btn-row-end">
       <button class="btn btn-grn" onclick="lockStep(1)" id="btn-lock1">Apply &amp; Next →</button>
@@ -900,23 +977,48 @@ function gN(p,b){
 (function(){if(localStorage.getItem('kr-theme')==='light')document.documentElement.classList.add('light');})();
 
 // ─── BRANDS ──────────────────────────────────────────────────
-function onBrandChange(){loadTopics();loadBrandInfo();}
+// Graphics Engine owns its own brand list (graphics_brands/) — it never reads
+// the Pipeline's shared /api/brands or its "active brand" pointer. The last
+// brand picked here is remembered locally (per-browser) just for convenience.
+function onBrandChange(){
+  const b=$('s-brand').value;
+  if(b)localStorage.setItem('gfx-last-brand',b);
+  loadTopics();loadBrandInfo();
+}
 async function lB(){
   try{
-    const r=await(await fetch('/api/brands')).json();
-    if(r.brands && r.brands.length){
-      $('s-brand').innerHTML=r.brands.map(b=>`<option value="${b.id}"${b.id===r.active?' selected':''}>${b.display_name||b.id}</option>`).join('');
-      $('s-brand').onchange=onBrandChange;
-      loadTopics();loadBrandInfo();
-      return;
-    }
-  }catch(e){}
-  try{
     const brands=await(await fetch(API+'/brands')).json();
-    $('s-brand').innerHTML=brands.map(b=>`<option value="${b.id}">${b.name}</option>`).join('')||'<option>No brands</option>';
+    const list=Array.isArray(brands)?brands:[];
+    const last=localStorage.getItem('gfx-last-brand');
+    $('s-brand').innerHTML=list.length
+      ? list.map(b=>`<option value="${b.id}"${b.id===last?' selected':''}>${b.name}</option>`).join('')
+      : '<option value="">No brands yet — click + New Brand</option>';
     $('s-brand').onchange=onBrandChange;
-    if(brands.length){loadTopics();loadBrandInfo();}
+    if(list.length)onBrandChange();
   }catch(e){}
+}
+async function createGfxBrand(){
+  const name=prompt('New brand name:');
+  if(!name||!name.trim())return;
+  try{
+    const r=await(await fetch(API+'/brands',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim()})})).json();
+    if(r.error){alert('Error: '+r.error);return;}
+    localStorage.setItem('gfx-last-brand',r.id);
+    await lB();
+  }catch(e){alert('Create failed: '+e);}
+}
+async function deleteGfxBrand(){
+  const brand=$('s-brand').value;if(!brand)return;
+  const opt=$('s-brand').selectedOptions[0];
+  const name=opt?opt.textContent:brand;
+  const typed=prompt(`Type the brand name "${name}" exactly to permanently delete it — settings, all topics, and its prompt template. This cannot be undone.`);
+  if(typed===null)return;
+  if(typed!==name){alert('Name did not match — nothing was deleted.');return;}
+  try{
+    await fetch(API+'/brands/'+brand,{method:'DELETE'});
+    localStorage.removeItem('gfx-last-brand');
+    await lB();
+  }catch(e){alert('Delete failed: '+e);}
 }
 
 // ─── PER-BRAND IMAGE PROMPT TEMPLATE ────────────────────────────
@@ -1015,7 +1117,7 @@ async function loadTopics(){
 }
 function pickTopic(val){if(val)$('f-topic').value=val;}
 
-// ─── MANAGE / DELETE TOPICS (same shared topics.json the main dashboard uses) ───
+// ─── MANAGE / DELETE TOPICS (Graphics Engine's own topics.json — not shared with the Pipeline) ───
 let TOPIC_MGR_OPEN=false;
 function toggleTopicMgr(){
   TOPIC_MGR_OPEN=!TOPIC_MGR_OPEN;
@@ -1034,7 +1136,7 @@ function renderTopicMgr(){
 }
 async function deleteGfxTopic(id){
   const brand=$('s-brand').value;if(!brand)return;
-  if(!confirm('Delete this topic? This removes it everywhere, including the main Pipeline dashboard.'))return;
+  if(!confirm('Delete this topic from this brand?'))return;
   try{
     await fetch(API+'/topics/'+brand+'/'+id,{method:'DELETE'});
     await loadTopics();
@@ -1044,8 +1146,9 @@ async function randomTopic(){
   const brand=$('s-brand').value;if(!brand)return;
   $('st1-status').innerHTML='<span class="spin">⏳</span> Picking random...';
   try{
-    const r=await(await fetch(API+'/phase/topic-random/'+brand)).json();
+    const r=await(await fetch(API+'/phase/topic',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand_id:brand,mode:'random'})})).json();
     if($('s-brand').value!==brand)return; // brand changed while this was in flight — discard
+    if(r.error){$('st1-status').innerHTML=`<span style="color:var(--red)">${r.error}</span>`;return;}
     $('f-topic').value=r.topic||'';
     $('st1-status').innerHTML='<span style="color:var(--grn)">✓ Random topic selected</span>';
   }catch(e){if($('s-brand').value===brand)$('st1-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
@@ -1054,11 +1157,24 @@ async function genTopicAI(){
   const brand=$('s-brand').value;if(!brand)return;
   $('st1-status').innerHTML='<span class="spin">⏳</span> AI generating topic...';
   try{
-    const r=await(await fetch(API+'/phase/topic-ai/'+brand)).json();
+    const r=await(await fetch(API+'/phase/topic',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand_id:brand,mode:'ai'})})).json();
     if($('s-brand').value!==brand)return; // brand changed while this was in flight — discard
+    if(r.error){$('st1-status').innerHTML=`<span style="color:var(--red)">${r.error}</span>`;return;}
     $('f-topic').value=r.topic||'';
-    $('st1-status').innerHTML='<span style="color:var(--grn)">✓ AI topic generated</span>';
+    $('st1-status').innerHTML='<span style="color:var(--grn)">✓ AI topic generated — click "Save to Topics DB" to keep it</span>';
   }catch(e){if($('s-brand').value===brand)$('st1-status').innerHTML=`<span style="color:var(--red)">Error: ${e}</span>`;}
+}
+async function saveCurrentTopic(){
+  const brand=$('s-brand').value;if(!brand){alert('Pick a brand first');return;}
+  const idea=$('f-topic').value.trim();
+  if(!idea){alert('Type or generate a topic first');return;}
+  $('st1-status').innerHTML='<span class="spin">⏳</span> Saving...';
+  try{
+    const r=await(await fetch(API+'/topics/'+brand,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea})})).json();
+    if(r.error){$('st1-status').innerHTML=`<span style="color:var(--red)">${r.error}</span>`;return;}
+    $('st1-status').innerHTML='<span style="color:var(--grn)">✓ Saved to Topics DB</span>';
+    await loadTopics();
+  }catch(e){$('st1-status').innerHTML=`<span style="color:var(--red)">Save failed: ${e}</span>`;}
 }
 
 // ─── PHASE 2: QUOTE ─────────────────────────────────────────
