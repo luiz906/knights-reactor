@@ -100,6 +100,45 @@ select.fin option{background:var(--bg2);color:var(--amb);padding:6px}
 .btn-sm.btn-grn{color:var(--grn);border-color:rgba(0,230,118,.2)}.btn-sm.btn-grn:hover{background:rgba(0,230,118,.05)}
 .btn-sm.btn-red{color:var(--red);border-color:rgba(255,0,60,.2)}.btn-sm.btn-red:hover{background:rgba(255,0,60,.05)}
 
+/* ══ SCENE ENGINE ══ */
+/* CAST/LOOKS/MOTION reuse .sec/.sec-b from Settings, but .sec-b becomes a
+   2-column grid on desktop (built for short label+input pairs) — wrong for
+   full-width rows like these. .sc-sec opts back out to a plain block flow. */
+.sec-b.sc-sec{display:block}
+.sc-row{display:flex;gap:10px;align-items:flex-start;padding:.7em 0;border-bottom:1px solid rgba(var(--fg),.04)}
+.sc-row:last-of-type{border-bottom:none}
+.sc-key{width:9em;flex-shrink:0}
+.sc-col-hd{display:flex;gap:10px;padding:0 0 .5em;font-size:.52em;color:var(--txtdd);letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+.sc-col-hd .sc-key{width:9em;flex-shrink:0}
+.sc-col-hd .sc-desc{flex:1}
+.sc-col-hd .sc-sp{width:1.9em;flex-shrink:0}
+
+.story-card{background:var(--panel);border:1px solid var(--bd2);border-radius:var(--r-lg);overflow:hidden}
+.story-hd{display:flex;align-items:center;gap:10px;padding:.9em 1.1em;border-bottom:1px solid var(--bd2)}
+.story-bd{padding:1.2em}
+.story-bd.shut{display:none}
+
+.clip-mini{background:var(--bg);border:1px solid var(--bd2);border-radius:var(--r);padding:1.1em 1.2em;margin-bottom:1em}
+.clip-mini:last-of-type{margin-bottom:0}
+.clip-mini-hd{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--f1);font-size:.68em;font-weight:700;letter-spacing:.14em;color:var(--amb);margin-bottom:.9em;padding-bottom:.6em;border-bottom:1px solid var(--bd2);text-transform:uppercase}
+.clip-mini-hd .rm{color:var(--red);cursor:pointer;font-size:.85em;letter-spacing:.02em;font-weight:500;opacity:.7;transition:opacity .15s;text-transform:none;font-family:var(--f3)}
+.clip-mini-hd .rm:hover{opacity:1;text-decoration:underline}
+
+.clip-grp-lbl{font-family:var(--f1);font-size:.6em;font-weight:700;letter-spacing:.14em;color:var(--txtd);margin-bottom:.75em;text-transform:uppercase}
+.clip-grp-lbl.mt{margin-top:1.2em;padding-top:1.1em;border-top:1px dashed var(--bd2)}
+
+.clip-fields{display:grid;grid-template-columns:1fr 1fr;gap:.9em 1em}
+.cf{min-width:0}
+.cf.cf-full{grid-column:1/-1}
+.cf .fl{font-size:.56em;letter-spacing:.1em;margin-bottom:.35em;opacity:.85}
+
+.sc-ta{resize:none;overflow:hidden;line-height:1.55;font-size:.82em;color:var(--wht)}
+.sc-ta:focus{color:var(--amb)}
+
+.sc-preview{background:var(--bg2);border:1px dashed var(--bd2);border-radius:var(--r);padding:.7em .9em;margin-top:.95em}
+.sc-preview-lbl{font-family:var(--f1);font-size:.52em;font-weight:700;letter-spacing:.14em;color:var(--txtdd);margin-bottom:.4em;text-transform:uppercase}
+.sc-prev-img,.sc-prev-mot{font-family:var(--f2);font-size:.68em;color:var(--txtd);line-height:1.6;word-break:break-word}
+
 /* LOGS */
 .logp{background:var(--panel);border:1px solid var(--bd2);padding:0;max-height:calc(100vh - 10em);overflow-y:auto;font-size:.7em;line-height:1;border-radius:var(--r-lg)}
 .log-row{display:flex;gap:0;padding:.55em .8em;border-left:2px solid transparent;transition:background .12s;align-items:baseline}
@@ -204,6 +243,11 @@ body{overflow:auto}
 .man-card-preview{max-height:none}
 .man-card-rm{opacity:1}
 .man-card-bar .fin{font-size:.85em;min-height:2.5em}
+.clip-fields{grid-template-columns:1fr}
+.clip-mini{padding:1em}
+.sc-col-hd{display:none}
+.sc-row{flex-direction:column;gap:6px}
+.sc-key{width:100%}
 
 /* Bottom Nav */
 .bnav{position:fixed;bottom:0;left:0;right:0;z-index:100;background:var(--bg2);border-top:1px solid var(--bd2);display:flex;justify-content:space-around;padding:4px 0 calc(4px + env(safe-area-inset-bottom,0px));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
@@ -1250,25 +1294,28 @@ function scRenderAllPreviews(){
   });
 }
 
-const SC_IMG_FIELDS=[['action','ACTION — what the figure is doing'],['setting','SETTING — where this happens'],['composition','COMPOSITION — shot framing'],['lighting','LIGHTING'],['atmosphere','ATMOSPHERE — weather, particles, mood detail']];
-const SC_MOT_FIELDS=[['camera','CAMERA MOVE'],['subject','SUBJECT MOTION — what moves in frame'],['ambient','AMBIENT MOTION — background movement'],['pace','PACE']];
+// Third element marks a field as full-width in the 2-col grid — the primary,
+// usually-longest field in each group (a full sentence) gets its own row;
+// the shorter descriptive fields pair up beside each other.
+const SC_IMG_FIELDS=[['action','Action — what the figure is doing',1],['setting','Setting — where this happens',0],['composition','Composition — shot framing',0],['lighting','Lighting',0],['atmosphere','Atmosphere — weather, particles, mood detail',1]];
+const SC_MOT_FIELDS=[['camera','Camera move',0],['subject','Subject motion — what moves in frame',0],['ambient','Ambient motion — background movement',0],['pace','Pace',0]];
 
-function scFieldRow(si,ci,k,l){
-  return `<div class="fl">${l}</div><textarea class="fin sc-ta" rows="2" oninput="scGrow(this);SC_DATA.stories[${si}].clips[${ci}]['${k}']=this.value;scUpdatePreview(${si},${ci},this)">${escHtml((SC_DATA.stories[si].clips[ci]||{})[k]||'')}</textarea>`;
+function scFieldRow(si,ci,k,l,full){
+  return `<div class="cf${full?' cf-full':''}"><div class="fl">${l}</div><textarea class="fin sc-ta" rows="2" oninput="scGrow(this);SC_DATA.stories[${si}].clips[${ci}]['${k}']=this.value;scUpdatePreview(${si},${ci},this)">${escHtml((SC_DATA.stories[si].clips[ci]||{})[k]||'')}</textarea></div>`;
 }
 
 function scClipHtml(si,ci,c){
   c=c||{};
   return `<div class="clip-mini" data-si="${si}" data-ci="${ci}">
     <div class="clip-mini-hd">
-      <span>CLIP ${ci+1}</span><span class="rm" onclick="scRemoveClip(${si},${ci})">✕ REMOVE CLIP</span>
+      <span>Clip ${ci+1}</span><span class="rm" onclick="scRemoveClip(${si},${ci})">✕ Remove clip</span>
     </div>
-    <div class="clip-grp-lbl">🖼 IMAGE PROMPT</div>
-    ${SC_IMG_FIELDS.map(([k,l])=>scFieldRow(si,ci,k,l)).join('')}
-    <div class="sc-preview"><div class="sc-preview-lbl">PREVIEW</div><div class="sc-prev-img"></div></div>
-    <div class="clip-grp-lbl" style="margin-top:.9em">🎥 MOTION PROMPT</div>
-    ${SC_MOT_FIELDS.map(([k,l])=>scFieldRow(si,ci,k,l)).join('')}
-    <div class="sc-preview"><div class="sc-preview-lbl">PREVIEW</div><div class="sc-prev-mot"></div></div>
+    <div class="clip-grp-lbl">🖼 Image Prompt</div>
+    <div class="clip-fields">${SC_IMG_FIELDS.map(([k,l,full])=>scFieldRow(si,ci,k,l,full)).join('')}</div>
+    <div class="sc-preview"><div class="sc-preview-lbl">Combined preview</div><div class="sc-prev-img"></div></div>
+    <div class="clip-grp-lbl mt">🎥 Motion Prompt</div>
+    <div class="clip-fields">${SC_MOT_FIELDS.map(([k,l,full])=>scFieldRow(si,ci,k,l,full)).join('')}</div>
+    <div class="sc-preview"><div class="sc-preview-lbl">Combined preview</div><div class="sc-prev-mot"></div></div>
   </div>`;
 }
 
@@ -1292,35 +1339,40 @@ function renderScenesEditor(){
     </div>`;
   }
 
-  h+=`<div class="sec"><div class="sec-h" onclick="scT('fig')"><span class="sec-t">CAST (${figures.length})</span><span class="sec-a">${scOpen.fig?'▾':'▸'}</span></div><div class="sec-b${scOpen.fig?'':' shut'}">`;
-  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">Who appears in every scene — swap these to reskin the whole brand's look.</div>`;
+  h+=`<div class="sec"><div class="sec-h" onclick="scT('fig')"><span class="sec-t">CAST (${figures.length})</span><span class="sec-a">${scOpen.fig?'▾':'▸'}</span></div><div class="sec-b sc-sec${scOpen.fig?'':' shut'}">`;
+  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.7em;line-height:1.5">Who appears in every scene — swap these to reskin the whole brand's look.</div>`;
   figures.forEach((f,i)=>{
-    h+=`<div style="display:flex;gap:6px;margin-bottom:10px;align-items:flex-start"><textarea class="fin sc-ta" rows="3" style="flex:1" oninput="scGrow(this);SC_DATA.figures[${i}]=this.value">${escHtml(f)}</textarea><button class="btn-sm btn-red" onclick="scRemoveFigure(${i})">✕</button></div>`;
+    h+=`<div class="sc-row"><textarea class="fin sc-ta" rows="3" style="flex:1" oninput="scGrow(this);SC_DATA.figures[${i}]=this.value">${escHtml(f)}</textarea><button class="btn-sm btn-red" onclick="scRemoveFigure(${i})">✕</button></div>`;
   });
-  h+=`<button class="btn-sm btn-grn" onclick="scAddFigure()">+ ADD CAST MEMBER</button></div></div>`;
+  h+=`<button class="btn-sm btn-grn" onclick="scAddFigure()" style="margin-top:${figures.length?'.9em':'0'}">+ ADD CAST MEMBER</button></div></div>`;
 
-  h+=`<div class="sec"><div class="sec-h" onclick="scT('mood')"><span class="sec-t">LOOKS (${moodKeys.length})</span><span class="sec-a">${scOpen.mood?'▾':'▸'}</span></div><div class="sec-b${scOpen.mood?'':' shut'}">`;
-  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">A Look is a lighting/atmosphere style (e.g. "Golden Hour", "Night Storm") appended to every image prompt. Each Story below picks one Look.</div>`;
+  h+=`<div class="sec"><div class="sec-h" onclick="scT('mood')"><span class="sec-t">LOOKS (${moodKeys.length})</span><span class="sec-a">${scOpen.mood?'▾':'▸'}</span></div><div class="sec-b sc-sec${scOpen.mood?'':' shut'}">`;
+  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.7em;line-height:1.5">A Look is a lighting/atmosphere style (e.g. "Golden Hour", "Night Storm") appended to every image prompt. Each Story below picks one Look.</div>`;
+  if(moodKeys.length){
+    h+=`<div class="sc-col-hd"><div class="sc-key">Name</div><div class="sc-desc">Description</div><div class="sc-sp"></div></div>`;
+  }
   moodKeys.forEach(k=>{
-    h+=`<div style="display:flex;gap:6px;margin-bottom:10px;align-items:flex-start">
-      <textarea class="fin sc-ta" rows="1" style="width:9em;flex-shrink:0" onchange="scRenameKey('moods','${scJsStr(k)}',this.value)">${escHtml(k)}</textarea>
+    h+=`<div class="sc-row">
+      <textarea class="fin sc-ta sc-key" rows="1" onchange="scRenameKey('moods','${scJsStr(k)}',this.value)">${escHtml(k)}</textarea>
       <textarea class="fin sc-ta" rows="2" style="flex:1" oninput="scGrow(this);SC_DATA.moods['${scJsStr(k)}']=this.value">${escHtml(moods[k]||'')}</textarea>
       <button class="btn-sm btn-red" onclick="scRemoveKey('moods','${scJsStr(k)}')">✕</button>
     </div>`;
   });
-  h+=`<button class="btn-sm btn-grn" onclick="scAddKey('moods')">+ ADD LOOK</button></div></div>`;
+  h+=`<button class="btn-sm btn-grn" onclick="scAddKey('moods')" style="margin-top:${moodKeys.length?'.9em':'0'}">+ ADD LOOK</button></div></div>`;
 
-  h+=`<div class="sec"><div class="sec-h" onclick="scT('motion')"><span class="sec-t">MOTION &amp; PACING</span><span class="sec-a">${scOpen.motion?'▾':'▸'}</span></div><div class="sec-b${scOpen.motion?'':' shut'}">`;
-  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.6em">Controls how much the camera and subject move. Matched to the Camera Style / Intensity dropdowns in Settings — these 6 slots stay fixed, edit the wording freely.</div>`;
-  h+=`<button class="btn-sm" onclick="scSeedMotion()" style="margin-bottom:.9em">⬇ USE STANDARD DEFAULTS</button>`;
-  h+=`<div class="clip-grp-lbl">CAMERA STYLE</div>`;
+  h+=`<div class="sec"><div class="sec-h" onclick="scT('motion')"><span class="sec-t">MOTION &amp; PACING</span><span class="sec-a">${scOpen.motion?'▾':'▸'}</span></div><div class="sec-b sc-sec${scOpen.motion?'':' shut'}">`;
+  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.7em;line-height:1.5">Controls how much the camera and subject move. Matched to the Camera Style / Intensity dropdowns in Settings — these 6 slots stay fixed, edit the wording freely.</div>`;
+  h+=`<button class="btn-sm" onclick="scSeedMotion()" style="margin-bottom:1.1em">⬇ Use Standard Defaults</button>`;
+  h+=`<div class="clip-grp-lbl">Camera Style</div><div class="clip-fields">`;
   SC_CAMERA_KEYS.forEach(k=>{
-    h+=`<div style="margin-bottom:10px"><div class="fl">${SC_CAMERA_LABELS[k]}</div><textarea class="fin sc-ta" rows="2" oninput="scGrow(this);SC_DATA.cameras=SC_DATA.cameras||{};SC_DATA.cameras['${k}']=this.value">${escHtml(cameras[k]||'')}</textarea></div>`;
+    h+=`<div class="cf"><div class="fl">${SC_CAMERA_LABELS[k]}</div><textarea class="fin sc-ta" rows="2" oninput="scGrow(this);SC_DATA.cameras=SC_DATA.cameras||{};SC_DATA.cameras['${k}']=this.value">${escHtml(cameras[k]||'')}</textarea></div>`;
   });
-  h+=`<div class="clip-grp-lbl" style="margin-top:.9em">MOVEMENT INTENSITY</div>`;
+  h+='</div>';
+  h+=`<div class="clip-grp-lbl mt">Movement Intensity</div><div class="clip-fields">`;
   SC_INTENSITY_KEYS.forEach(k=>{
-    h+=`<div style="margin-bottom:10px"><div class="fl">${SC_INTENSITY_LABELS[k]}</div><textarea class="fin sc-ta" rows="2" oninput="scGrow(this);SC_DATA.intensity=SC_DATA.intensity||{};SC_DATA.intensity['${k}']=this.value">${escHtml(intensity[k]||'')}</textarea></div>`;
+    h+=`<div class="cf"><div class="fl">${SC_INTENSITY_LABELS[k]}</div><textarea class="fin sc-ta" rows="2" oninput="scGrow(this);SC_DATA.intensity=SC_DATA.intensity||{};SC_DATA.intensity['${k}']=this.value">${escHtml(intensity[k]||'')}</textarea></div>`;
   });
+  h+='</div>';
   h+='</div></div>';
 
   h+=`<div class="sec-t" style="margin:1em 0 .5em;color:var(--amb)">STORIES (${stories.length})</div>`;
