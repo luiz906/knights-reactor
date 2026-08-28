@@ -15,7 +15,7 @@ from pipeline import (
     run_pipeline, Config, DATA_DIR as PIPELINE_DATA_DIR,
     load_topics, save_topics, add_topic, delete_topic,
     fetch_next_topic, generate_topics_ai, seed_default_topics,
-    generate_video_single,
+    generate_video_single, generate_image_single,
 )
 import secrets
 import requests as _rq
@@ -170,6 +170,21 @@ def apply_model_settings():
     if s.get("brand_voice"):   Config.BRAND_VOICE = s["brand_voice"]
     if s.get("brand_themes"):  Config.BRAND_THEMES = s["brand_themes"]
     if s.get("brand_avoid"):   Config.BRAND_AVOID = s["brand_avoid"]
+    # Social channel IDs (Blotato) — Settings > Channels was saving these to
+    # settings.json but publish_everywhere() only ever read Config.BLOTATO_ACCOUNTS,
+    # which is built once from env vars at import time. Wire the saved IDs in here
+    # (same field names AutoPost already reads) so a channel set in the dashboard
+    # actually gets used at publish time instead of silently being skipped.
+    acct = Config.BLOTATO_ACCOUNTS
+    if s.get("ch_tiktok"):          acct["tiktok"] = s["ch_tiktok"]
+    if s.get("ch_youtube"):         acct["youtube"] = s["ch_youtube"]
+    if s.get("ch_instagram"):       acct["instagram"] = s["ch_instagram"]
+    if s.get("ch_facebook"):        acct["facebook"] = s["ch_facebook"]
+    if s.get("ch_facebook_page"):   acct["facebook_page"] = s["ch_facebook_page"]
+    if s.get("ch_twitter"):         acct["twitter"] = s["ch_twitter"]
+    if s.get("ch_threads"):         acct["threads"] = s["ch_threads"]
+    if s.get("ch_pinterest"):       acct["pinterest"] = s["ch_pinterest"]
+    if s.get("ch_pinterest_board"): acct["pinterest_board"] = s["ch_pinterest_board"]
 
 apply_credentials()
 apply_model_settings()
@@ -1057,6 +1072,78 @@ async def save_prompts(req: Request):
     ckpt["clips_edited"] = edited_clips
     ckpt_path.write_text(json.dumps(ckpt))
     return {"status": "saved", "clips": len(edited_clips)}
+
+# ─── IMAGE APPROVAL GATE ─────────────────────────────────────
+# These images are the base frame every video clip animates from. Pausing
+# here — instead of running straight into slower/costlier video generation —
+# lets a bad image be regenerated (optionally after tweaking its prompt)
+# before that happens, mirroring the Video Approval Gate below.
+
+@app.get("/api/images/review")
+async def get_images_for_review():
+    """Return current clips with images from checkpoint for approval."""
+    ckpt_path = brand_dir() / "pipeline_checkpoint.json"
+    if not ckpt_path.exists():
+        return {"clips": [], "error": "No checkpoint"}
+    ckpt = json.loads(ckpt_path.read_text())
+    clips = ckpt.get("clips_with_images", [])
+    return {"clips": clips}
+
+@app.post("/api/images/approve")
+async def approve_images(req: Request):
+    """Mark images as approved and save to checkpoint. Video generation
+    picks these up (not the original clips_with_images) once resumed."""
+    body = await req.json()
+    approved_clips = body.get("clips", [])
+    ckpt_path = brand_dir() / "pipeline_checkpoint.json"
+    if not ckpt_path.exists():
+        return JSONResponse({"error": "No checkpoint"}, 400)
+    ckpt = json.loads(ckpt_path.read_text())
+    ckpt["clips_images_approved"] = approved_clips
+    ckpt_path.write_text(json.dumps(ckpt))
+    return {"status": "approved", "clips": len(approved_clips)}
+
+@app.post("/api/images/regen")
+async def regen_image(req: Request):
+    """Regenerate a single image by index. Optionally update its prompt
+    first (edit the image_prompt, then reroll from the new wording)."""
+    body = await req.json()
+    clip_index = body.get("index")
+    new_prompt = body.get("image_prompt")
+    ckpt_path = brand_dir() / "pipeline_checkpoint.json"
+    if not ckpt_path.exists():
+        return JSONResponse({"error": "No checkpoint"}, 400)
+    ckpt = json.loads(ckpt_path.read_text())
+    clips = ckpt.get("clips_with_images", [])
+    target = None
+    for c in clips:
+        if c.get("index") == clip_index:
+            target = c
+            break
+    if not target:
+        return JSONResponse({"error": f"Clip {clip_index} not found"}, 404)
+    if new_prompt and new_prompt.strip():
+        target["image_prompt"] = new_prompt.strip()
+    try:
+        target = generate_image_single(target)
+        for i, c in enumerate(clips):
+            if c.get("index") == clip_index:
+                clips[i] = target
+                break
+        ckpt["clips_with_images"] = clips
+        # A regen after images were already approved should un-stick the
+        # approved copy too, so the new image is what actually gets used.
+        if ckpt.get("clips_images_approved"):
+            approved = ckpt["clips_images_approved"]
+            for i, c in enumerate(approved):
+                if c.get("index") == clip_index:
+                    approved[i] = target
+                    break
+            ckpt["clips_images_approved"] = approved
+        ckpt_path.write_text(json.dumps(ckpt))
+        return {"status": "regenerated", "clip": target}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
 
 # ─── VIDEO APPROVAL GATE ─────────────────────────────────────
 
