@@ -151,13 +151,35 @@ def apply_model_settings():
     if s.get("render_res"):     Config.RENDER_RES = s["render_res"]
     if s.get("render_aspect"):  Config.RENDER_ASPECT = s["render_aspect"]
     if s.get("render_bg"):      Config.RENDER_BG = s["render_bg"]
-    # Logo/Watermark
-    if s.get("logo_url"):       Config.LOGO_URL = s["logo_url"]
-    if "logo_enabled" in s:    Config.LOGO_ENABLED = s["logo_enabled"] in (True, "true", "True")
+    # Logo/Watermark — the class-level defaults (Config.LOGO_URL, LOGO_ENABLED)
+    # are Knights' own shield logo, always on. Any brand that hasn't set its
+    # own logo_url gets NO watermark instead of silently inheriting Knights'
+    # logo on every video — only "knights" itself keeps the built-in default.
+    if s.get("logo_url"):
+        Config.LOGO_URL = s["logo_url"]
+    elif get_active_brand() != "knights":
+        Config.LOGO_URL = ""
+    if "logo_enabled" in s:
+        Config.LOGO_ENABLED = s["logo_enabled"] in (True, "true", "True")
+    elif get_active_brand() != "knights":
+        Config.LOGO_ENABLED = False
     if "captions_enabled" in s: Config.CAPTIONS_ENABLED = s["captions_enabled"] in (True, "true", "True")
     if s.get("logo_position"):  Config.LOGO_POSITION = s["logo_position"]
     if s.get("logo_scale"):     Config.LOGO_SCALE = float(s["logo_scale"])
     if s.get("logo_opacity"):   Config.LOGO_OPACITY = float(s["logo_opacity"])
+    # CTA end-card — same issue as the logo: the class-level default
+    # (Config.CTA_URL/CTA_ENABLED) is Knights' own "Christ is King" clip,
+    # always on. "cta_enabled"/"cta_url" were never even read from settings
+    # before this, so toggling the Settings checkbox did nothing at all.
+    if s.get("cta_url"):
+        Config.CTA_URL = s["cta_url"]
+    elif get_active_brand() != "knights":
+        Config.CTA_URL = ""
+    if "cta_enabled" in s:
+        Config.CTA_ENABLED = s["cta_enabled"] in (True, "true", "True")
+    elif get_active_brand() != "knights":
+        Config.CTA_ENABLED = False
+    if s.get("cta_duration"):   Config.CTA_DURATION = float(s["cta_duration"])
     # Video timeout
     if s.get("video_timeout"):  Config.VIDEO_TIMEOUT = int(s["video_timeout"])
     if s.get("shotstack_env"):  Config.SHOTSTACK_ENV = s["shotstack_env"]

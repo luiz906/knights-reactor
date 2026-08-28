@@ -96,12 +96,34 @@ def upload_assets(folder: str, clips: list, audio: bytes, srt: str) -> dict:
 # PHASE 9: FINAL RENDER (Shotstack)
 # ══════════════════════════════════════════════════════════════
 
+def _active_brand_name() -> str:
+    """Get the active brand id — used to scope the all-lowercase-with-
+    Bible-proper-nouns caption style to the 'knights' brand only."""
+    try:
+        from server import get_active_brand
+        return get_active_brand()
+    except Exception:
+        return "knights"
+
+
 def caption_case(text: str, is_first_chunk: bool = False) -> str:
-    """Lowercase captions. Only the very first letter of the entire text
-    and proper nouns are capitalized. Sentence starts are NOT capitalized.
-    Example: 'the battle rages within. you fight not against flesh but spirit.'
-    Only the first chunk gets a capital first letter.
+    """Style burnt-in captions. For every brand except 'knights', this just
+    strips periods and fixes capitalization after ?/! — it does NOT force
+    the text to lowercase. For 'knights' specifically, it applies that
+    brand's original stylistic choice: lowercase everything except a fixed
+    list of biblical/military proper nouns (God, Jesus, Ephesians, King,
+    Knight, ...). That list is Knights' own vocabulary — applying it to
+    another brand would both lowercase that brand's own proper nouns (a
+    city name, a product name) AND capitalize Bible words that have nothing
+    to do with it, so it's gated to 'knights' only.
     """
+    if _active_brand_name() != "knights":
+        result = text.replace(".", "")
+        if is_first_chunk and result:
+            result = result[0].upper() + result[1:]
+        result = re.sub(r'([?!])\s+([a-z])', lambda m: m.group(1) + ' ' + m.group(2).upper(), result)
+        return result
+
     PROPER = {
         "god", "jesus", "christ", "lord", "holy", "spirit", "bible", "scripture",
         "father", "son", "ephesians", "psalms", "proverbs", "romans", "matthew",
