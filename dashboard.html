@@ -109,6 +109,10 @@ select.fin option{background:var(--bg2);color:var(--amb);padding:6px}
 .pcard .dl{position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,.85);border:1px solid var(--bd2);color:var(--amb);font-size:.5em;padding:.2em .5em;cursor:pointer;border-radius:var(--r)}
 .plbl{font-size:.5em;color:var(--txtd);padding:.3em .5em;letter-spacing:.1em;text-transform:uppercase;font-weight:600}
 .fvid{border:1px solid var(--bd2);padding:2px;background:var(--bg);margin:8px 0;border-radius:var(--r-lg)}.fvid video{width:100%;display:block;border-radius:var(--r)}
+.ph-extra{margin:6px 0 0;padding:0 .2em}
+.ph-chip{display:inline-block;font-size:.55em;color:var(--txtd);background:rgba(var(--fg),.03);border:1px solid var(--bd2);padding:.25em .6em;border-radius:99px;margin-right:6px}
+.ph-chip-2{color:var(--amb)}
+.ph-script{font-size:.6em;color:var(--txtd);line-height:1.5;background:var(--bg);border:1px solid var(--bd2);border-radius:var(--r);padding:.6em .8em}
 .gate-banner{display:flex;align-items:center;gap:1em;padding:1em 1.2em;border:1px solid var(--bd2);background:rgba(244,171,37,.03);margin-bottom:10px;border-radius:var(--r-lg)}
 .g-icon{font-size:1.2em;color:var(--amb)}.g-text{flex:1}.g-title{font-family:var(--f3);font-size:.7em;font-weight:700;color:var(--amb);letter-spacing:.1em}.g-sub{font-size:.65em;color:var(--txtd);margin-top:.15em}
 .btn-sm{padding:.5em .9em;font-family:var(--f3);font-size:.6em;font-weight:600;letter-spacing:.05em;border:1px solid var(--bd2);background:none;cursor:pointer;transition:all .15s;color:var(--txtd);border-radius:var(--r);text-transform:uppercase}
@@ -614,11 +618,14 @@ function rGate(){
   let h='';
   if(GATE==='prompts'){
     h=`<div class="gate-banner"><div class="g-icon">✎</div><div class="g-text"><div class="g-title">PROMPT EDITING GATE</div><div class="g-sub">Scene Engine complete — review and edit image/motion prompts before generating</div></div><div style="display:flex;gap:6px"><button class="btn-sm btn-blu" onclick="openPromptEditor()">EDIT PROMPTS</button><button class="btn-sm btn-grn" onclick="resumeNow()">APPROVE & CONTINUE ▶</button></div></div>`;
+  }else if(GATE==='images'){
+    h=`<div class="gate-banner"><div class="g-icon">🖼</div><div class="g-text"><div class="g-title">IMAGE APPROVAL GATE</div><div class="g-sub">Images generated — these are the base frame for each video clip. Review, regenerate if needed, then approve</div></div><div style="display:flex;gap:6px"><button class="btn-sm btn-blu" onclick="openImageReview()">REVIEW IMAGES</button><button class="btn-sm btn-grn" onclick="approveAllImages()">APPROVE ALL ▶</button></div></div>`;
   }else if(GATE==='videos'){
     h=`<div class="gate-banner"><div class="g-icon">▶</div><div class="g-text"><div class="g-title">VIDEO APPROVAL GATE</div><div class="g-sub">Videos generated — review clips, regenerate if needed, then approve</div></div><div style="display:flex;gap:6px"><button class="btn-sm btn-blu" onclick="openVideoReview()">REVIEW CLIPS</button><button class="btn-sm btn-grn" onclick="approveAllVideos()">APPROVE ALL ▶</button></div></div>`;
   }
   ['d-gate','m-gate'].forEach(id=>{if($(id))$(id).innerHTML=h;});
   if(GATE==='prompts')setTimeout(openPromptEditor,100);
+  if(GATE==='images')setTimeout(openImageReview,100);
   if(GATE==='videos')setTimeout(openVideoReview,100);
 }
 
@@ -650,6 +657,58 @@ async function savePrompts(count){
     GATE=null;rGate();
     resumeNow();
   }catch(e){alert('Save failed: '+e);}
+}
+
+/* ═══ IMAGE REVIEW ═══ */
+async function openImageReview(){
+  try{
+    const r=await(await fetch('/api/images/review')).json();
+    if(!r.clips||!r.clips.length){alert('No images found');return;}
+    let h='<div style="font-family:var(--f1);font-size:.7em;letter-spacing:.15em;color:var(--amb);margin-bottom:.5em">REVIEW IMAGES — BASE FRAME FOR EACH VIDEO CLIP</div>';
+    r.clips.forEach(c=>{
+      h+=`<div class="clip-review" id="ir-${c.index}">
+        <img src="${c.image_url}" style="width:100%;border-radius:var(--r);margin-bottom:.5em;display:block">
+        <div style="font-size:.65em;color:var(--txtd);margin-bottom:.3em">Clip ${c.index}</div>
+        <div class="fl">IMAGE PROMPT</div>
+        <textarea id="ipe-${c.index}" rows="3" style="width:100%">${escHtml(c.image_prompt||'')}</textarea>
+        <div class="cr-acts" style="margin-top:.4em"><button class="btn-sm btn-red" onclick="regenImage(${c.index})">♻ REGENERATE</button><span id="irs-${c.index}" style="font-size:.6em;color:var(--txtd)"></span></div>
+      </div>`;
+    });
+    h+=`<div style="display:flex;gap:8px;margin-top:.7em"><button class="btn-sm btn-grn" onclick="approveAllImages()">APPROVE ALL & CONTINUE ▶</button><button class="btn-sm" onclick="rP()">CANCEL</button></div>`;
+    ['d-pl','m-pl'].forEach(id=>{if($(id))$(id).innerHTML=h;});
+    ['d-stats'].forEach(id=>{if($(id))$(id).innerHTML='';});
+  }catch(e){alert('Error loading images: '+e);}
+}
+
+async function regenImage(idx){
+  const st=$('irs-'+idx);
+  if(st)st.textContent='Regenerating...';
+  const promptEl=$('ipe-'+idx);
+  const image_prompt=promptEl?promptEl.value:undefined;
+  try{
+    const r=await(await fetch('/api/images/regen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({index:idx,image_prompt})})).json();
+    if(r.clip){
+      const ir=$('ir-'+idx);
+      if(ir){const img=ir.querySelector('img');if(img)img.src=r.clip.image_url;}
+      if(st)st.textContent='Regenerated ✓';
+    }else{if(st)st.textContent='Failed: '+(r.error||'unknown');}
+  }catch(e){if(st)st.textContent='Error: '+e;}
+}
+
+async function approveAllImages(){
+  try{
+    // Pick up any prompt edits made in the review panel before approving,
+    // same as the regen path — so an edited-but-not-rerolled prompt still
+    // carries forward into whatever reads clips_images_approved later.
+    const r=await(await fetch('/api/images/review')).json();
+    const clips=(r.clips||[]).map(c=>{
+      const el=$('ipe-'+c.index);
+      return el?{...c,image_prompt:el.value}:c;
+    });
+    await fetch('/api/images/approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clips})});
+    GATE=null;rGate();
+    resumeNow();
+  }catch(e){alert('Approval failed: '+e);}
 }
 
 /* ═══ VIDEO REVIEW ═══ */
@@ -689,7 +748,31 @@ async function approveAllVideos(){
   }catch(e){alert('Approval failed: '+e);}
 }
 
-/* ═══ PIPELINE RENDER ═══ */
+/* ═══ PIPELINE RENDER: inline content per phase ═══ */
+function phaseExtra(i){
+  const r=LAST_RESULT;
+  if(!r)return '';
+  if(i===0&&r.topic){
+    return `<div class="ph-extra"><span class="ph-chip">${escHtml(r.topic.idea||'')}</span>${r.topic.category?`<span class="ph-chip ph-chip-2">${escHtml(r.topic.category)}</span>`:''}</div>`;
+  }
+  if(i===1&&r.script){
+    const full=typeof r.script==='string'?r.script:(r.script.script_full||'');
+    if(!full)return '';
+    const short=full.length>160?full.slice(0,160)+'…':full;
+    return `<div class="ph-extra"><div class="ph-script">${escHtml(short)}</div></div>`;
+  }
+  if(i===3&&r.images&&r.images.length){
+    return `<div class="pgrid ph-extra" style="grid-template-columns:repeat(${Math.min(r.images.length,4)},1fr)">${r.images.map(img=>`<div class="pcard"><img src="${img.url}" alt="Scene ${img.index}" loading="lazy"><div class="plbl">SCENE ${img.index}</div></div>`).join('')}</div>`;
+  }
+  if(i===4&&r.videos&&r.videos.length){
+    return `<div class="pgrid ph-extra" style="grid-template-columns:repeat(${Math.min(r.videos.length,4)},1fr)">${r.videos.map(v=>`<div class="pcard"><video src="${v.url}" muted loop playsinline onmouseenter="this.play()" onmouseleave="this.pause();this.currentTime=0"></video><div class="plbl">CLIP ${v.index}</div></div>`).join('')}</div>`;
+  }
+  if(i===8&&r.final_video){
+    return `<div class="ph-extra"><div class="fvid" style="max-width:12em"><video src="${r.final_video}" controls muted playsinline></video></div></div>`;
+  }
+  return '';
+}
+
 function rP(){
   let h='';
   PHS.forEach((p,i)=>{
@@ -700,10 +783,11 @@ function rP(){
     else if(RN){c='dm';}
     // Gate markers
     if(!RN&&GATE==='prompts'&&i===2){s='gated';c='gt';sl='GATE';}
+    if(!RN&&GATE==='images'&&i===3){s='gated';c='gt';sl='GATE';}
     if(!RN&&GATE==='videos'&&i===4){s='gated';c='gt';sl='GATE';}
     const nc=s==='done'?'var(--grn)':s==='running'?'var(--blu)':s==='gated'?'var(--amb)':'var(--txtdd)';
     const nt=s==='done'?'var(--grn)':s==='running'?'var(--amb)':s==='gated'?'var(--amb)':'var(--txtd)';
-    h+=`<div class="ph ${c}"><div style="display:flex;align-items:center;gap:.55em"><span style="font-size:.8em;width:1.15em;text-align:center;color:${nc}">${p.i}</span><div style="flex:1"><div style="font-family:var(--f1);font-size:.6em;font-weight:600;letter-spacing:.15em;color:${nt}">${p.n}</div><div style="font-size:.5em;color:var(--txtdd);margin-top:.05em;letter-spacing:.08em">${p.a} · ${p.d}</div></div>${sl?`<span style="font-family:var(--f1);font-size:.5em;color:${nc};letter-spacing:1px">${sl}</span>`:''} ${B(s)}</div></div>`;
+    h+=`<div class="ph ${c}"><div style="display:flex;align-items:center;gap:.55em"><span style="font-size:.8em;width:1.15em;text-align:center;color:${nc}">${p.i}</span><div style="flex:1"><div style="font-family:var(--f1);font-size:.6em;font-weight:600;letter-spacing:.15em;color:${nt}">${p.n}</div><div style="font-size:.5em;color:var(--txtdd);margin-top:.05em;letter-spacing:.08em">${p.a} · ${p.d}</div></div>${sl?`<span style="font-family:var(--f1);font-size:.5em;color:${nc};letter-spacing:1px">${sl}</span>`:''} ${B(s)}</div>${phaseExtra(i)}</div>`;
   });
   ['d-pl','m-pl'].forEach(id=>{if($(id))$(id).innerHTML=h;});
   const pct=(PD.length/PHS.length*100);
@@ -1475,18 +1559,16 @@ function renderScenesEditor(){
         </div>
         <div style="margin-top:.7em">
           <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap">
-            <div class="fl" style="margin-bottom:0">THEME TAGS — helps the pipeline auto-pick this story to match a script's tone (up to 3, optional)</div>
+            <div class="fl" style="margin-bottom:0">THEME TAGS — helps the pipeline auto-pick this story to match a script's tone (optional)</div>
             <span style="font-size:.55em;color:var(--txtd);cursor:pointer;text-decoration:underline;white-space:nowrap" onclick="scResetThemeDefaults()">Reset tag list ↺</span>
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
             ${(()=>{
               const selected=s.themes||[];
-              const atCap=selected.length>=3;
               return themeKeys.map(tk=>{
                 const checked=selected.includes(tk);
-                const disabled=atCap&&!checked;
-                return `<label style="display:flex;align-items:center;gap:4px;font-size:.6em;padding:4px 8px;border:1px solid ${checked?'var(--amb)':'var(--bd2)'};background:${checked?'var(--amblo)':'var(--bg)'};color:${checked?'var(--amb)':disabled?'var(--txtdd)':'var(--txtd)'};cursor:${disabled?'not-allowed':'pointer'};opacity:${disabled?.5:1}">
-                  <input type="checkbox" style="margin:0" ${checked?'checked':''} ${disabled?'disabled':''} onchange="scToggleStoryTheme(${si},'${scJsStr(tk)}',this.checked)">${escHtml(tk)}
+                return `<label style="display:flex;align-items:center;gap:4px;font-size:.6em;padding:4px 8px;border:1px solid ${checked?'var(--amb)':'var(--bd2)'};background:${checked?'var(--amblo)':'var(--bg)'};color:${checked?'var(--amb)':'var(--txtd)'};cursor:pointer">
+                  <input type="checkbox" style="margin:0" ${checked?'checked':''} onchange="scToggleStoryTheme(${si},'${scJsStr(tk)}',this.checked)">${escHtml(tk)}
                 </label>`;
               }).join('');
             })()}
@@ -1529,7 +1611,6 @@ function scToggleStoryTheme(si,tag,checked){
   const s=SC_DATA.stories[si];
   s.themes=s.themes||[];
   if(checked){
-    if(s.themes.length>=3){renderScenesEditor();return;} // cap enforced — checkbox shouldn't even fire this, but guard anyway
     if(!s.themes.includes(tag))s.themes.push(tag);
   }else{
     s.themes=s.themes.filter(t=>t!==tag);
