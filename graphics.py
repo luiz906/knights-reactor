@@ -59,6 +59,7 @@ def get_brands() -> list:
                 "guidelines": s.get("brand_persona", ""),
                 "themes": s.get("brand_themes", ""),
                 "image_prompt_template": s.get("image_prompt_template", ""),
+                "prompt_sections": s.get("prompt_sections", {}),
                 "blotato": {
                     "instagram": s.get("blotato_instagram_id", os.environ.get("BLOTATO_INSTAGRAM_ID", "")),
                     "facebook": s.get("blotato_facebook_id", os.environ.get("BLOTATO_FACEBOOK_ID", "")),
@@ -330,19 +331,47 @@ def build_graphics_prompt(quote_text: str, brand: dict = None) -> str:
     else:
         brand_visual = "Overall mood: intentional, editorial, human. Not trendy. Not mockup."
 
+    # Per-section overrides: a brand can pin any one piece of the prompt (the
+    # environment, the mood/lighting, the surface the text sits on, the
+    # typography, the camera feel, or the small real-life detail) while
+    # leaving the rest randomized for variety. Ignored if a full raw template
+    # is set above (that already returned before reaching here).
+    sections = (brand or {}).get("prompt_sections") or {}
+    custom_scene = (sections.get("scene") or "").strip()
+    custom_mood = (sections.get("mood") or "").strip()
+    custom_carrier = (sections.get("carrier") or "").strip()
+    custom_typography = (sections.get("typography") or "").strip()
+    custom_camera = (sections.get("camera") or "").strip()
+    custom_moment = (sections.get("life_moment") or "").strip()
+
     mood_key = _pick_weighted([m["key"] for m in _MOODS], [m["w"] for m in _MOODS])
-    mood = _MOOD_POOLS[mood_key]
-    pref_tags = _MOOD_SCENE_PREF.get(mood_key, ["day"])
-    compatible = [s for s in _SCENES if any(t in pref_tags for t in s["tags"])]
-    scene = _pick(compatible) if compatible else _pick(_SCENES)
-    carrier_def = _pick(_CARRIERS)
-    cat = carrier_def["cat"]
-    behaviors = _pickN(_BEHAVIORS.get(cat, []), 2)
-    typography = _pick(_TYPO_STYLES)
-    lighting = _pick(mood["lighting"])
-    color = _pick(mood["color"])
-    camera = _pick(_CAMERA_RULES)
-    moment = _pick(_LIFE_MOMENTS)
+    if custom_mood:
+        mood_line = custom_mood.rstrip(".") + "."
+    else:
+        mood = _MOOD_POOLS[mood_key]
+        mood_line = _join(mood["exposure"] + ".", _pick(mood["color"]) + ".", f"Lighting: {_pick(mood['lighting'])}.")
+
+    if custom_scene:
+        scene_line = f"Scene: {custom_scene}."
+    else:
+        pref_tags = _MOOD_SCENE_PREF.get(mood_key, ["day"])
+        compatible = [s for s in _SCENES if any(t in pref_tags for t in s["tags"])]
+        scene = _pick(compatible) if compatible else _pick(_SCENES)
+        scene_line = f"Scene: {scene['desc']}."
+
+    if custom_carrier:
+        carrier_line = f"The phrase appears on {custom_carrier}."
+        behavior_line = ""
+    else:
+        carrier_def = _pick(_CARRIERS)
+        cat = carrier_def["cat"]
+        behaviors = _pickN(_BEHAVIORS.get(cat, []), 2)
+        carrier_line = f"The phrase appears on {carrier_def['carrier']}."
+        behavior_line = ". ".join(behaviors) + "." if behaviors else ""
+
+    typography_line = f"Typography: {custom_typography}." if custom_typography else f"Typography: {_pick(_TYPO_STYLES)}."
+    camera_line = f"Lens/feel: {custom_camera}." if custom_camera else f"Lens/feel: {_pick(_CAMERA_RULES)}."
+    moment_line = f"Include a subtle real-life moment: {custom_moment}." if custom_moment else f"Include a subtle real-life moment: {_pick(_LIFE_MOMENTS)}."
 
     prompt = _join(
         "Photorealistic candid vertical photograph.",
@@ -350,12 +379,12 @@ def build_graphics_prompt(quote_text: str, brand: dict = None) -> str:
         "Do not include quotation marks in the rendered text.",
         _pick(_CENTER_SAFE), _pick(_CENTER_SAFE),
         "Keep the text centered in the frame safe area. Leave visible border around it on all sides.",
-        f"Typography: {typography}.", _pick(_HIERARCHY), _pick(_HIERARCHY),
-        mood["exposure"] + ".", color + ".",
-        f"Scene: {scene['desc']}.", f"Lighting: {lighting}.",
-        f"The phrase appears on {carrier_def['carrier']}.",
-        ". ".join(behaviors) + "." if behaviors else "",
-        f"Lens/feel: {camera}.", f"Include a subtle real-life moment: {moment}.",
+        typography_line, _pick(_HIERARCHY), _pick(_HIERARCHY),
+        mood_line,
+        scene_line,
+        carrier_line,
+        behavior_line,
+        camera_line, moment_line,
         _CLEANLINESS, brand_visual, _pick(_ANTI_MOCKUP), _pick(_ANTI_MOCKUP),
     )
     return prompt
@@ -399,6 +428,44 @@ async def api_delete_brand(brand_id: str):
         return JSONResponse({"error": "Brand not found"}, 404)
     shutil.rmtree(bd)
     return {"status": "deleted"}
+
+@router.post("/api/brand-guidelines/{brand_id}")
+async def api_save_brand_guidelines(brand_id: str, req: Request):
+    """Save this brand's Voice & Guidelines. This is the field that actually
+    drives tone across the whole flow: it's fed into AI topic generation, the
+    quote-writing prompt ("brand voice and positioning"), and the image
+    prompt's art-direction line — so it's the one setting that answers
+    'how do I make the graphics sound/feel like THIS brand'."""
+    body = await req.json()
+    guidelines = body.get("guidelines", "")
+    bd = BRANDS_DIR / brand_id
+    bd.mkdir(exist_ok=True)
+    sf = bd / "settings.json"
+    settings = load_json(sf, {})
+    settings["brand_persona"] = guidelines
+    save_json(sf, settings)
+    return {"status": "saved"}
+
+@router.post("/api/brand-prompt-sections/{brand_id}")
+async def api_save_prompt_sections(brand_id: str, req: Request):
+    """Save this brand's per-section Image Prompt overrides (scene, mood,
+    carrier, typography, camera, life_moment). Any section left blank stays
+    randomized by the shared engine for variety; a filled section is pinned
+    for this brand on every future prompt. Ignored entirely if this brand
+    also has a full raw template set (that takes priority)."""
+    body = await req.json()
+    sections = body.get("sections", {})
+    if not isinstance(sections, dict):
+        return JSONResponse({"error": "sections must be an object"}, 400)
+    allowed = {"scene", "mood", "carrier", "typography", "camera", "life_moment"}
+    clean = {k: str(v) for k, v in sections.items() if k in allowed}
+    bd = BRANDS_DIR / brand_id
+    bd.mkdir(exist_ok=True)
+    sf = bd / "settings.json"
+    settings = load_json(sf, {})
+    settings["prompt_sections"] = clean
+    save_json(sf, settings)
+    return {"status": "saved", "sections": clean}
 
 @router.post("/api/brand-prompt-template/{brand_id}")
 async def api_save_prompt_template(brand_id: str, req: Request):
@@ -795,6 +862,14 @@ GFX_HTML = r"""<!DOCTYPE html><html lang="en"><head>
         <option value="google-deepmind/imagen-4-preview">Imagen 4 ~$0.04</option>
       </select></div>
     </div>
+    <div class="fi" style="margin-top:.8em">
+      <div class="fl">Brand Voice &amp; Guidelines <span style="font-weight:400;text-transform:none;letter-spacing:0">(drives this brand's topic ideas, quote tone, and image art direction)</span></div>
+      <textarea class="fin" id="s-guidelines" rows="3" placeholder="Describe how this brand should sound and look — e.g. &quot;Confident, no-hype brand designer speaking to small business owners. Calm, editorial, blunt truths. Never salesy or motivational.&quot;"></textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.4em">
+        <span class="status" id="guidelines-status" style="font-size:.6em"></span>
+        <button class="btn btn-out" style="padding:.3em 1.2em" onclick="saveGuidelines()">Save Voice &amp; Guidelines</button>
+      </div>
+    </div>
   </div>
 
   <!-- ── 02 TOPIC ── -->
@@ -844,16 +919,40 @@ GFX_HTML = r"""<!DOCTYPE html><html lang="en"><head>
     <div class="fi"><div class="fl">Scene Engine builds a photorealistic lettering prompt</div>
       <textarea class="fin" id="f-prompt" rows="5" placeholder="Click Generate to build a randomized scene, or write your own..."></textarea>
     </div>
-    <div style="display:flex;justify-content:flex-end;margin:-.3em 0 .5em">
-      <span style="font-size:.6em;color:var(--txtd,#888);cursor:pointer;text-decoration:underline" onclick="toggleTplEditor()" id="tpl-toggle">Customize this brand's prompt template ▾</span>
+    <div style="display:flex;justify-content:flex-end;gap:14px;margin:-.3em 0 .5em">
+      <span style="font-size:.6em;color:var(--txtd,#888);cursor:pointer;text-decoration:underline" onclick="toggleSectionsEditor()" id="sec-toggle">Customize this brand's scene sections ▾</span>
+      <span style="font-size:.6em;color:var(--txtd,#888);cursor:pointer;text-decoration:underline" onclick="toggleTplEditor()" id="tpl-toggle">Advanced: full raw template ▾</span>
+    </div>
+    <div id="sec-editor" style="display:none;border:1px solid var(--bd2,#ddd);border-radius:var(--r,4px);padding:10px;margin-bottom:.6em">
+      <div class="fl" style="margin-bottom:4px">This brand's scene sections (optional, per-section)</div>
+      <div style="font-size:.6em;color:var(--txtd,#888);margin-bottom:8px">Every generated prompt is built from these pieces: environment, lighting/mood, surface the text appears on, typography, camera feel, and a small real-life detail. Leave any section blank to keep it randomized (for variety); fill one in to pin it for this brand only. Ignored if a full raw template below is set.</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.6em 1.2em">
+        <div class="fi"><div class="fl" style="font-size:.55em">Environment / Scene</div>
+          <textarea class="fin" id="sec-scene" rows="2" placeholder="e.g. modern minimalist studio with a clean neutral backdrop and soft daylight"></textarea></div>
+        <div class="fi"><div class="fl" style="font-size:.55em">Lighting &amp; Mood</div>
+          <textarea class="fin" id="sec-mood" rows="2" placeholder="e.g. soft even studio light, neutral color, calm and controlled — no harsh shadows"></textarea></div>
+        <div class="fi"><div class="fl" style="font-size:.55em">Surface / Carrier</div>
+          <textarea class="fin" id="sec-carrier" rows="2" placeholder="e.g. lettering printed on matte cardstock resting on a wood desk"></textarea></div>
+        <div class="fi"><div class="fl" style="font-size:.55em">Typography Style</div>
+          <textarea class="fin" id="sec-typography" rows="2" placeholder="e.g. modern serif, confident and editorial, generous letter spacing"></textarea></div>
+        <div class="fi"><div class="fl" style="font-size:.55em">Camera / Lens Feel</div>
+          <textarea class="fin" id="sec-camera" rows="2" placeholder="e.g. clean overhead flat-lay, shallow depth of field, no distortion"></textarea></div>
+        <div class="fi"><div class="fl" style="font-size:.55em">Real-life Detail</div>
+          <textarea class="fin" id="sec-moment" rows="2" placeholder="e.g. a coffee cup sits just out of frame at the edge of the desk"></textarea></div>
+      </div>
+      <div class="btn-row" style="margin-top:6px">
+        <button class="btn btn-grn" onclick="saveSections()">Save Sections</button>
+        <button class="btn btn-out" onclick="clearSections()">Clear All (fully randomized)</button>
+      </div>
+      <div class="status" id="sec-status"></div>
     </div>
     <div id="tpl-editor" style="display:none;border:1px solid var(--bd2,#ddd);border-radius:var(--r,4px);padding:10px;margin-bottom:.6em">
-      <div class="fl" style="margin-bottom:4px">This brand's Image Prompt template (optional)</div>
-      <div style="font-size:.6em;color:var(--txtd,#888);margin-bottom:6px">Leave empty to use the shared randomized photorealistic-lettering engine. Fill this in to replace it entirely with your own wording for this brand only — use <code>{TEXT}</code> anywhere you want the quote inserted.</div>
+      <div class="fl" style="margin-bottom:4px">This brand's Image Prompt template (optional, replaces everything above)</div>
+      <div style="font-size:.6em;color:var(--txtd,#888);margin-bottom:6px">Leave empty to use the sections above (or the shared randomized engine). Fill this in to replace the whole prompt with your own exact wording for this brand only — use <code>{TEXT}</code> anywhere you want the quote inserted.</div>
       <textarea class="fin" id="tpl-text" rows="6" placeholder="e.g. A clean flat-lay product photo. The exact text displayed must be: {TEXT}. Minimal, bright, on-brand colors..."></textarea>
       <div class="btn-row" style="margin-top:6px">
         <button class="btn btn-grn" onclick="saveTpl()">Save Template</button>
-        <button class="btn btn-out" onclick="clearTpl()">Clear (use default engine)</button>
+        <button class="btn btn-out" onclick="clearTpl()">Clear (use sections/default engine)</button>
       </div>
       <div class="status" id="tpl-status"></div>
     </div>
@@ -1031,13 +1130,31 @@ async function loadBrandInfo(){
     BRAND_INFO=(Array.isArray(brands)?brands:[]).find(b=>b.id===brand)||null;
     const box=$('tpl-text');
     if(box)box.value=(BRAND_INFO&&BRAND_INFO.image_prompt_template)||'';
+    const secs=(BRAND_INFO&&BRAND_INFO.prompt_sections)||{};
+    ['scene','mood','carrier','typography','camera','life_moment'].forEach(k=>{
+      const el=$('sec-'+k); if(el)el.value=secs[k]||'';
+    });
+    if($('sec-status'))$('sec-status').innerHTML='';
+    const g=$('s-guidelines');
+    if(g)g.value=(BRAND_INFO&&BRAND_INFO.guidelines)||'';
+    if($('guidelines-status'))$('guidelines-status').innerHTML='';
   }catch(e){BRAND_INFO=null;}
+}
+async function saveGuidelines(){
+  const brand=$('s-brand').value;if(!brand){alert('Pick a brand first');return;}
+  const guidelines=($('s-guidelines')||{}).value||'';
+  $('guidelines-status').innerHTML='<span class="spin">⏳</span> Saving...';
+  try{
+    await fetch(API+'/brand-guidelines/'+brand,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({guidelines})});
+    if(BRAND_INFO)BRAND_INFO.guidelines=guidelines;
+    $('guidelines-status').innerHTML='<span style="color:var(--grn)">✓ Saved</span>';
+  }catch(e){$('guidelines-status').innerHTML=`<span style="color:var(--red)">Save failed: ${e}</span>`;}
 }
 function toggleTplEditor(){
   TPL_OPEN=!TPL_OPEN;
   const el=$('tpl-editor'), tg=$('tpl-toggle');
   if(el)el.style.display=TPL_OPEN?'block':'none';
-  if(tg)tg.textContent=TPL_OPEN?"Customize this brand's prompt template ▴":"Customize this brand's prompt template ▾";
+  if(tg)tg.textContent=TPL_OPEN?"Advanced: full raw template ▴":"Advanced: full raw template ▾";
 }
 async function saveTpl(){
   const brand=$('s-brand').value;if(!brand)return;
@@ -1049,9 +1166,34 @@ async function saveTpl(){
   }catch(e){$('tpl-status').innerHTML=`<span style="color:var(--red)">Save failed: ${e}</span>`;}
 }
 async function clearTpl(){
-  if(!confirm("Clear this brand's custom prompt template? It will go back to the shared default engine."))return;
+  if(!confirm("Clear this brand's custom prompt template? It will go back to the section overrides / shared default engine."))return;
   const t=$('tpl-text');if(t)t.value='';
   await saveTpl();
+}
+
+// ─── PER-BRAND PROMPT SECTIONS (pin one piece of the prompt, randomize the rest) ───
+let SEC_OPEN=false;
+const SEC_KEYS=['scene','mood','carrier','typography','camera','life_moment'];
+function toggleSectionsEditor(){
+  SEC_OPEN=!SEC_OPEN;
+  const el=$('sec-editor'), tg=$('sec-toggle');
+  if(el)el.style.display=SEC_OPEN?'block':'none';
+  if(tg)tg.textContent=SEC_OPEN?"Customize this brand's scene sections ▴":"Customize this brand's scene sections ▾";
+}
+async function saveSections(){
+  const brand=$('s-brand').value;if(!brand)return;
+  const sections={};
+  SEC_KEYS.forEach(k=>{sections[k]=(($('sec-'+k)||{}).value||'').trim();});
+  try{
+    await fetch(API+'/brand-prompt-sections/'+brand,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sections})});
+    if(BRAND_INFO)BRAND_INFO.prompt_sections=sections;
+    $('sec-status').innerHTML='<span style="color:var(--grn)">✓ Saved — pinned sections apply from now on, blank ones stay randomized</span>';
+  }catch(e){$('sec-status').innerHTML=`<span style="color:var(--red)">Save failed: ${e}</span>`;}
+}
+async function clearSections(){
+  if(!confirm("Clear all scene section overrides for this brand? Every section goes back to fully randomized."))return;
+  SEC_KEYS.forEach(k=>{const el=$('sec-'+k);if(el)el.value='';});
+  await saveSections();
 }
 
 // ─── STEP MANAGEMENT ─────────────────────────────────────────
