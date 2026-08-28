@@ -66,12 +66,12 @@ def empty_scenes() -> dict:
     """A fully empty scene pack. Used for any brand other than 'knights' that
     doesn't have its own scenes.json yet — deliberately has NO figures, moods,
     cameras, intensity, or stories, so no brand inherits Knights content.
-    "themes" is the one exception: it's a shared tagging vocabulary (courage,
-    doubt, loss, etc.) rather than creative brand content, so it's always
-    available — see the note on THEME_KEYWORDS below."""
+    "themes" always gets filled in with a starting tag vocabulary so auto-
+    detection has something to match against — but it's GENERIC_THEME_KEYWORDS
+    here, not the Knights-flavored THEME_KEYWORDS (see get_scene_data below)."""
     return {
         "figures": [],
-        "themes": dict(THEME_KEYWORDS),
+        "themes": dict(GENERIC_THEME_KEYWORDS),
         "moods": {},
         "intensity": {},
         "cameras": {},
@@ -104,6 +104,31 @@ def standard_motion_defaults() -> dict:
     }
 
 
+# Generic, brand-neutral theme/tag vocabulary — no faith, combat, or knight
+# wording (no "armor of god", "warrior", "anointed", "crown", etc.). This is
+# what any brand other than "knights" gets by default, so a story's Theme
+# Tags don't carry Knights' voice into an unrelated brand. Story auto-
+# selection still works the same way: script text is scanned for these
+# keywords to guess which tag (and therefore which story) best matches.
+GENERIC_THEME_KEYWORDS = {
+    "excitement": ["exciting", "thrill", "amazing", "incredible", "energy", "bold", "electric", "rush", "wow"],
+    "calm": ["calm", "peaceful", "quiet", "gentle", "soft", "serene", "still", "relax", "ease"],
+    "confidence": ["confident", "strong", "sure", "bold", "assured", "powerful", "capable", "command"],
+    "connection": ["together", "community", "family", "friend", "relationship", "team", "trust", "belong"],
+    "growth": ["grow", "improve", "learn", "progress", "better", "develop", "change", "evolve", "level up"],
+    "challenge": ["challenge", "hard", "difficult", "struggle", "overcome", "push", "obstacle", "grind"],
+    "joy": ["joy", "happy", "fun", "delight", "smile", "laugh", "celebrate", "playful"],
+    "focus": ["focus", "clarity", "clear", "precise", "sharp", "intentional", "purpose", "discipline"],
+}
+
+
+def standard_theme_defaults() -> dict:
+    """Generic, brand-neutral starting theme/tag vocabulary — usable by any
+    brand as a reset target if it's stuck with old Knights-flavored tags from
+    before this existed."""
+    return dict(GENERIC_THEME_KEYWORDS)
+
+
 def get_scene_data() -> tuple:
     """Get scene data for the active brand.
     Returns (figures, themes, moods, intensity, cameras, stories).
@@ -116,7 +141,8 @@ def get_scene_data() -> tuple:
     brand = load_brand_scenes()
     if brand:
         figures   = brand.get("figures", [])
-        themes    = brand.get("themes") or dict(THEME_KEYWORDS)
+        default_themes = dict(THEME_KEYWORDS) if _active_brand_name() == "knights" else dict(GENERIC_THEME_KEYWORDS)
+        themes    = brand.get("themes") or default_themes
         moods     = brand.get("moods", {})
         intensity = brand.get("intensity", {})
         cameras   = brand.get("cameras", {})

@@ -1418,14 +1418,22 @@ function renderScenesEditor(){
           </select>
         </div>
         <div style="margin-top:.7em">
-          <div class="fl">THEME TAGS — helps the pipeline auto-pick this story to match a script's tone (optional)</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
-            ${themeKeys.map(tk=>{
-              const checked=(s.themes||[]).includes(tk);
-              return `<label style="display:flex;align-items:center;gap:4px;font-size:.6em;padding:4px 8px;border:1px solid ${checked?'var(--amb)':'var(--bd2)'};background:${checked?'var(--amblo)':'var(--bg)'};color:${checked?'var(--amb)':'var(--txtd)'};cursor:pointer">
-                <input type="checkbox" style="margin:0" ${checked?'checked':''} onchange="scToggleStoryTheme(${si},'${scJsStr(tk)}',this.checked)">${escHtml(tk)}
-              </label>`;
-            }).join('')}
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap">
+            <div class="fl" style="margin-bottom:0">THEME TAGS — helps the pipeline auto-pick this story to match a script's tone (up to 3, optional)</div>
+            <span style="font-size:.55em;color:var(--txtd);cursor:pointer;text-decoration:underline;white-space:nowrap" onclick="scResetThemeDefaults()">Reset tag list ↺</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+            ${(()=>{
+              const selected=s.themes||[];
+              const atCap=selected.length>=3;
+              return themeKeys.map(tk=>{
+                const checked=selected.includes(tk);
+                const disabled=atCap&&!checked;
+                return `<label style="display:flex;align-items:center;gap:4px;font-size:.6em;padding:4px 8px;border:1px solid ${checked?'var(--amb)':'var(--bd2)'};background:${checked?'var(--amblo)':'var(--bg)'};color:${checked?'var(--amb)':disabled?'var(--txtdd)':'var(--txtd)'};cursor:${disabled?'not-allowed':'pointer'};opacity:${disabled?.5:1}">
+                  <input type="checkbox" style="margin:0" ${checked?'checked':''} ${disabled?'disabled':''} onchange="scToggleStoryTheme(${si},'${scJsStr(tk)}',this.checked)">${escHtml(tk)}
+                </label>`;
+              }).join('');
+            })()}
           </div>
         </div>
         <div class="fl" style="margin-top:.7em">CLIPS</div>
@@ -1464,9 +1472,23 @@ function scRenameKey(kind,oldKey,newKey){
 function scToggleStoryTheme(si,tag,checked){
   const s=SC_DATA.stories[si];
   s.themes=s.themes||[];
-  if(checked){if(!s.themes.includes(tag))s.themes.push(tag);}
-  else{s.themes=s.themes.filter(t=>t!==tag);}
+  if(checked){
+    if(s.themes.length>=3){renderScenesEditor();return;} // cap enforced — checkbox shouldn't even fire this, but guard anyway
+    if(!s.themes.includes(tag))s.themes.push(tag);
+  }else{
+    s.themes=s.themes.filter(t=>t!==tag);
+  }
   renderScenesEditor();
+}
+
+async function scResetThemeDefaults(){
+  if(!confirm("Reset this brand's Theme Tags to the generic default set? This replaces the tag list for every story in this brand — old tag names on stories that used them will just stop matching anything (nothing is deleted, uncheck/recheck as needed)."))return;
+  try{
+    const r=await fetch('/api/scenes/seed-theme-defaults',{method:'POST'});
+    if(!r.ok){const e=await r.json().catch(()=>({}));scStatus('✗ '+(e.detail||'Failed to reset tags'),false);return;}
+    await loadScenesEditor();
+    scStatus('Theme tags reset to generic defaults ✓',true);
+  }catch(e){scStatus('✗ Failed to reset tags: '+e,false);}
 }
 
 async function scSeedMotion(){

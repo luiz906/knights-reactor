@@ -764,14 +764,16 @@ async def get_scenes():
     """Get scene pack for the active brand. The hardcoded knight defaults are
     only ever shown for the 'knights' brand — every other brand gets an empty
     pack when it hasn't built its own yet, so brands never inherit Knights
-    content. "themes" is the one exception (see phases/scenes.py) — it's a
-    shared, generic tagging vocabulary (courage/doubt/loss/etc.), not creative
-    brand content, so it's always filled in even for an otherwise-empty pack."""
-    from phases.scenes import load_brand_scenes, export_default_scenes, empty_scenes, THEME_KEYWORDS
+    content. "themes" always gets filled in even for an otherwise-empty pack
+    (auto-detection needs something to match against), but which vocabulary
+    it uses depends on the brand: Knights' own faith/combat-flavored tags for
+    the 'knights' brand, a generic brand-neutral set for everyone else."""
+    from phases.scenes import load_brand_scenes, export_default_scenes, empty_scenes, THEME_KEYWORDS, GENERIC_THEME_KEYWORDS
+    default_themes = dict(THEME_KEYWORDS) if get_active_brand() == "knights" else dict(GENERIC_THEME_KEYWORDS)
     data = load_brand_scenes()
     if data:
         if not data.get("themes"):
-            data["themes"] = dict(THEME_KEYWORDS)
+            data["themes"] = default_themes
         return {"source": "brand", "data": data}
     if get_active_brand() == "knights":
         return {"source": "default", "data": export_default_scenes()}
@@ -812,10 +814,27 @@ async def seed_motion_defaults():
     save_brand_scenes(data)
     return {"status": "seeded", "cameras": list(data["cameras"].keys()), "intensity": list(data["intensity"].keys())}
 
+@app.post("/api/scenes/seed-theme-defaults")
+async def seed_theme_defaults():
+    """Reset the active brand's Theme Tags to the generic, brand-neutral set.
+    Mainly for a brand whose scenes.json still has the old Knights-flavored
+    tags baked in from before that vocabulary was split by brand — this wipes
+    them back to something any type of business can use. Not offered for the
+    'knights' brand itself, since its faith/combat-tuned tags are intentional
+    there."""
+    if get_active_brand() == "knights":
+        raise HTTPException(status_code=400, detail="The 'knights' brand keeps its own tuned theme tags — this reset is for other brands only.")
+    from phases.scenes import load_brand_scenes, save_brand_scenes, standard_theme_defaults, empty_scenes
+    data = load_brand_scenes() or empty_scenes()
+    data["themes"] = standard_theme_defaults()
+    save_brand_scenes(data)
+    return {"status": "seeded", "themes": list(data["themes"].keys())}
+
 @app.get("/api/scenes/summary")
 async def scenes_summary():
     """Quick summary of the active brand's scene pack."""
-    from phases.scenes import load_brand_scenes, STORY_SEEDS, FIGURES, THEME_KEYWORDS
+    from phases.scenes import load_brand_scenes, STORY_SEEDS, FIGURES, THEME_KEYWORDS, GENERIC_THEME_KEYWORDS
+    default_themes = THEME_KEYWORDS if get_active_brand() == "knights" else GENERIC_THEME_KEYWORDS
     data = load_brand_scenes()
     if data:
         stories = data.get("stories", [])
@@ -824,7 +843,7 @@ async def scenes_summary():
             "stories": len(stories),
             "figures": len(data.get("figures", [])),
             "moods": list(data.get("moods", {}).keys()),
-            "themes": list(data.get("themes") or THEME_KEYWORDS.keys()),
+            "themes": list(data.get("themes") or default_themes.keys()),
             "story_names": [s["name"] for s in stories],
         }
     if get_active_brand() == "knights":
@@ -841,7 +860,7 @@ async def scenes_summary():
         "stories": 0,
         "figures": 0,
         "moods": [],
-        "themes": list(THEME_KEYWORDS.keys()),
+        "themes": list(default_themes.keys()),
         "story_names": [],
     }
 
