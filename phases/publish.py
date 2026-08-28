@@ -137,11 +137,15 @@ def blotato_upload_media(video_url: str) -> str:
 
 
 def blotato_post(account_id: str, platform: str, caption: str,
-                 media_urls: list = None, schedule_time: str = None, **kwargs):
-    """Post to a platform via Blotato."""
+                 media_urls: list = None, schedule_time: str = None, **kwargs) -> dict:
+    """Post to a platform via Blotato. Returns a structured status dict —
+    {"platform", "status": "posted"|"failed"|"skipped", "detail"} — instead
+    of raising or returning a bare API payload, so the caller can report
+    per-platform results (and so one platform failing doesn't lose the
+    status of the others)."""
     if not account_id:
         log.info(f"   ⏭️  {platform}: no account ID, skipping")
-        return None
+        return {"platform": platform, "status": "skipped", "detail": "No account ID configured"}
 
     payload = {
         "post": {
@@ -157,27 +161,51 @@ def blotato_post(account_id: str, platform: str, caption: str,
     if schedule_time:
         payload["scheduledTime"] = schedule_time
 
-    r = requests.post("https://backend.blotato.com/v2/posts", headers={
-        "Authorization": f"Bearer {Config.BLOTATO_KEY}",
-        "Content-Type": "application/json",
-    }, json=payload, timeout=30)
+    try:
+        r = requests.post("https://backend.blotato.com/v2/posts", headers={
+            "Authorization": f"Bearer {Config.BLOTATO_KEY}",
+            "Content-Type": "application/json",
+        }, json=payload, timeout=30)
+    except Exception as e:
+        log.warning(f"   ✗ {platform}: request error: {e}")
+        return {"platform": platform, "status": "failed", "detail": str(e)}
 
     if r.ok:
         log.info(f"   ✓ {platform}")
-    else:
-        log.warning(f"   ✗ {platform}: {r.status_code}")
+        return {"platform": platform, "status": "posted", "detail": None}
 
-    return r.json() if r.ok else None
+    try:
+        err = r.json()
+        detail = err.get("message") or err.get("error") or json.dumps(err)[:300]
+    except Exception:
+        detail = (r.text or f"HTTP {r.status_code}")[:300]
+    log.warning(f"   ✗ {platform}: {r.status_code} {detail}")
+    return {"platform": platform, "status": "failed", "detail": detail, "http_status": r.status_code}
 
 
-def publish_everywhere(final_video_url: str, captions: dict, topic: dict):
-    """Publish video + text to all platforms via Blotato."""
-    log.info("📡 Phase 11: Publishing to all platforms via Blotato...")
+def publish_everywhere(final_video_url: str, captions: dict, topic: dict, only: list = None) -> dict:
+    """Publish video + text to all platforms via Blotato. Returns a dict of
+    {platform: status}. Pass `only` (a list of platform keys) to publish to
+    just those platforms — used to retry the platforms that failed on an
+    earlier attempt without re-posting to ones that already succeeded."""
+    log.info("📡 Phase 11: Publishing to all platforms via Blotato..." if only is None
+              else f"📡 Phase 11: Retrying publish for {', '.join(only)}...")
 
     acct = Config.BLOTATO_ACCOUNTS
+    def want(p): return only is None or p in only
 
-    # Upload media to Blotato
-    media_url = blotato_upload_media(final_video_url)
+    statuses = {}
+    video_platforms = [p for p in ("tiktok", "youtube", "instagram", "facebook") if want(p)]
+
+    media_url = None
+    if video_platforms:
+        try:
+            media_url = blotato_upload_media(final_video_url)
+        except Exception as e:
+            log.error(f"   ✗ media upload failed: {e}")
+            for p in video_platforms:
+                statuses[p] = {"platform": p, "status": "failed", "detail": f"Media upload failed: {e}"}
+            video_platforms = []
 
     # Schedule times (tomorrow, optimal hours EST→UTC)
     tomorrow = datetime.now() + timedelta(days=1)
@@ -188,26 +216,33 @@ def publish_everywhere(final_video_url: str, captions: dict, topic: dict):
         "facebook":  tomorrow.replace(hour=19, minute=0).isoformat() + "Z",
     }
 
-    # Video platforms
-    blotato_post(acct["tiktok"], "tiktok", captions.get("tiktok", ""),
-                 [media_url], times["tiktok"],
-                 privacyLevel="PUBLIC_TO_EVERYONE", isAiGenerated=True)
+    if "tiktok" in video_platforms:
+        statuses["tiktok"] = blotato_post(acct["tiktok"], "tiktok", captions.get("tiktok", ""),
+                     [media_url], times["tiktok"],
+                     privacyLevel="PUBLIC_TO_EVERYONE", isAiGenerated=True)
 
-    blotato_post(acct["youtube"], "youtube", captions.get("youtube", ""),
-                 [media_url], times["youtube"],
-                 title=captions.get("youtube_title", topic["idea"]),
-                 privacyStatus="public", shouldNotifySubscribers=True)
+    if "youtube" in video_platforms:
+        statuses["youtube"] = blotato_post(acct["youtube"], "youtube", captions.get("youtube", ""),
+                     [media_url], times["youtube"],
+                     title=captions.get("youtube_title", topic.get("idea", "")),
+                     privacyStatus="public", shouldNotifySubscribers=True)
 
-    blotato_post(acct["instagram"], "instagram", captions.get("instagram", ""),
-                 [media_url], times["instagram"])
+    if "instagram" in video_platforms:
+        statuses["instagram"] = blotato_post(acct["instagram"], "instagram", captions.get("instagram", ""),
+                     [media_url], times["instagram"])
 
-    blotato_post(acct["facebook"], "facebook", captions.get("facebook", ""),
-                 [media_url], times["facebook"],
-                 pageId=acct.get("facebook_page"))
+    if "facebook" in video_platforms:
+        statuses["facebook"] = blotato_post(acct["facebook"], "facebook", captions.get("facebook", ""),
+                     [media_url], times["facebook"],
+                     pageId=acct.get("facebook_page"))
 
     # Text platforms
-    blotato_post(acct["twitter"], "twitter", captions.get("twitter", ""))
-    blotato_post(acct["threads"], "threads", captions.get("threads", ""))
+    if want("twitter"):
+        statuses["twitter"] = blotato_post(acct["twitter"], "twitter", captions.get("twitter", ""))
+    if want("threads"):
+        statuses["threads"] = blotato_post(acct["threads"], "threads", captions.get("threads", ""))
+
+    return statuses
 
 
 # ══════════════════════════════════════════════════════════════

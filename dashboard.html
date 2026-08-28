@@ -98,6 +98,12 @@ select.fin option{background:var(--bg2);color:var(--amb);padding:6px}
 .run-cap-lbl{font-family:var(--f1);font-size:.5em;font-weight:700;letter-spacing:.12em;color:var(--amb);text-transform:uppercase;margin-bottom:.3em}
 .run-cap-txt{font-size:.65em;color:var(--txtd);line-height:1.5;white-space:pre-wrap;word-break:break-word}
 .run-dl{margin-top:.8em}
+.pub-block{margin-top:.9em;padding-top:.8em;border-top:1px solid var(--bd2)}
+.pub-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:.5em}
+.pub-chip{font-size:.55em;font-weight:600;letter-spacing:.04em;padding:.3em .6em;border-radius:99px;border:1px solid var(--bd2);cursor:default}
+.pub-chip.pub-ok{color:var(--grn);background:var(--grn2);border-color:rgba(0,0,0,0)}
+.pub-chip.pub-fail{color:var(--red);background:var(--red2);border-color:rgba(0,0,0,0)}
+.pub-chip.pub-skip{color:var(--txtd);background:var(--bg)}
 .panel{background:var(--panel);border:1px solid var(--bd2);padding:1.2em;position:relative;overflow:hidden;border-radius:var(--r-lg)}
 .ptitle{font-family:var(--f3);font-size:.6em;font-weight:700;letter-spacing:.15em;color:var(--txtd);margin-bottom:.6em;display:flex;align-items:center;gap:.6em;text-transform:uppercase}
 .ptitle::before{content:'';width:3px;height:.8em;background:var(--amb);border-radius:2px}
@@ -1115,6 +1121,27 @@ function runCapsHtml(caps){
     .join('');
 }
 
+const PUB_PLATFORMS=[['tiktok','TikTok'],['youtube','YouTube'],['instagram','Instagram'],['facebook','Facebook'],['twitter','Twitter / X'],['threads','Threads']];
+
+function pubNeedsRetry(pubStatus){
+  if(!pubStatus)return true;
+  return PUB_PLATFORMS.some(([k])=>{const st=pubStatus[k];return st&&st.status!=='posted';});
+}
+
+function pubStatusHtml(pubStatus){
+  if(!pubStatus)return '<div class="run-meta" style="margin-top:.3em">No publish attempt recorded for this run.</div>';
+  const chips=PUB_PLATFORMS.map(([k,label])=>{
+    const st=pubStatus[k];
+    if(!st)return '';
+    const s=st.status||'unknown';
+    const cls=s==='posted'?'pub-ok':s==='failed'?'pub-fail':'pub-skip';
+    const icon=s==='posted'?'✓':s==='failed'?'✗':'⏭';
+    const title=st.detail?` title="${escHtml(String(st.detail))}"`:'';
+    return `<span class="pub-chip ${cls}"${title}>${icon} ${label}</span>`;
+  }).join('');
+  return `<div class="pub-row">${chips}</div>`;
+}
+
 function runCardHtml(r){
   const ok=r.status==='published'||r.status==='complete';
   const capsHtml=runCapsHtml(r.captions);
@@ -1129,6 +1156,16 @@ function runCardHtml(r){
       </div>
     </div>`;
   }
+  const canPublish=r.final_video&&r.captions;
+  const retryNeeded=canPublish&&pubNeedsRetry(r.publish_status);
+  const pubHtml=canPublish?`<div class="pub-block">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <div class="fl" style="margin-bottom:0">PUBLISH STATUS</div>
+      ${retryNeeded?`<button class="btn-sm btn-blu" id="rtb-${r.id}" onclick="retryPublish(${r.id})">↻ RETRY PUBLISH</button>`:'<span style="font-size:.55em;color:var(--grn)">✓ Posted everywhere</span>'}
+    </div>
+    ${pubStatusHtml(r.publish_status)}
+    <div id="rts-${r.id}" style="font-size:.55em;color:var(--txtd);margin-top:.3em"></div>
+  </div>`:'';
   return `<div class="run-card">
     <div class="run-hd">
       <div style="flex:1;min-width:0">
@@ -1139,7 +1176,29 @@ function runCardHtml(r){
     </div>
     ${r.error?`<div class="run-err">${escHtml(r.error)}</div>`:''}
     ${body}
+    ${pubHtml}
   </div>`;
+}
+
+async function retryPublish(runId){
+  const btn=$('rtb-'+runId), st=$('rts-'+runId);
+  if(btn){btn.disabled=true;btn.textContent='Retrying...';}
+  if(st)st.textContent='';
+  try{
+    const r=await(await fetch(`/api/runs/${runId}/republish`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})})).json();
+    if(r.error){
+      if(st)st.textContent='✗ '+r.error;
+      if(btn){btn.disabled=false;btn.textContent='↻ RETRY PUBLISH';}
+      return;
+    }
+    if(r.status==='already_posted'){
+      if(st)st.textContent='Already posted everywhere ✓';
+    }
+    loadRuns();
+  }catch(e){
+    if(st)st.textContent='✗ '+e;
+    if(btn){btn.disabled=false;btn.textContent='↻ RETRY PUBLISH';}
+  }
 }
 
 async function loadRuns(){

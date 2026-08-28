@@ -396,7 +396,7 @@ Return JSON only:
 
         # ── Phase 10: Publish ───────────────────────────────────
         notify(10, "Publish", "running")
-        publish_everywhere(final_r2_url, captions, topic)
+        result["publish_status"] = publish_everywhere(final_r2_url, captions, topic)
         result["phases"].append({"name": "Publish", "status": "done"})
         notify(10, "Publish", "done")
 

@@ -247,6 +247,7 @@ def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: l
         "status": result.get("status", "failed"), "duration": result.get("duration", "?"),
         "error": result.get("error"), "failed_phase": result.get("failed_phase", 0),
         "final_video": result.get("final_video"), "captions": result.get("captions"),
+        "publish_status": result.get("publish_status"),
     }
     RUNS.insert(0, run_entry)
     save_json(RUNS_FILE, RUNS[:100])
@@ -1284,6 +1285,53 @@ async def get_status():
 
 @app.get("/api/runs")
 async def get_runs(): return RUNS[:50]
+
+@app.post("/api/runs/{run_id}/republish")
+async def republish_run(run_id: int, req: Request):
+    """Re-attempt publishing a past run — e.g. after fixing a Blotato account
+    ID or a caption issue — without re-generating the video. By default only
+    retries platforms that were skipped/failed last time, so an already-
+    successful post doesn't get duplicated; pass {"all": true} to re-post
+    to every platform regardless of previous status."""
+    global RUNS
+    body = {}
+    try: body = await req.json()
+    except Exception: pass
+    retry_all = bool(body.get("all"))
+
+    run = next((r for r in RUNS if r.get("id") == run_id), None)
+    if not run:
+        return JSONResponse({"error": f"Run {run_id} not found"}, 404)
+    if not run.get("final_video"):
+        return JSONResponse({"error": "This run has no final video to publish"}, 400)
+    if not run.get("captions"):
+        return JSONResponse({"error": "This run has no captions to publish"}, 400)
+
+    apply_credentials()
+    apply_model_settings()  # pick up any account-ID / settings fixes made since this run
+
+    prev = run.get("publish_status") or {}
+    if retry_all or not prev:
+        only = None
+    else:
+        only = [p for p, st in prev.items() if not st or st.get("status") != "posted"]
+        if not only:
+            return {"status": "already_posted", "publish_status": prev}
+
+    from phases.publish import publish_everywhere
+    topic = {"idea": run.get("topic", ""), "category": run.get("category", "")}
+    try:
+        new_status = publish_everywhere(run["final_video"], run["captions"], topic, only=only)
+    except Exception as e:
+        log_entry("Publish", "error", f"Retry failed for run #{run_id}: {e}")
+        return JSONResponse({"error": str(e)}, 500)
+
+    merged = dict(prev)
+    merged.update(new_status)
+    run["publish_status"] = merged
+    save_json(RUNS_FILE, RUNS[:100])
+    log_entry("Publish", "ok", f"Retried publish for run #{run_id} ({', '.join(new_status.keys())})")
+    return {"status": "done", "publish_status": merged}
 
 @app.get("/api/logs")
 async def get_logs(): return LOGS[-200:]
