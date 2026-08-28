@@ -591,8 +591,9 @@ const PHS=[{n:"FETCH TOPIC",a:"LOCAL DB",i:"⬡",d:"~1s"},{n:"GENERATE SCRIPT",a
 
 const STS=[
 {t:"BRAND",f:[{k:"brand_name",l:"Brand Name",d:"Knights Reactor",b:1},{k:"brand_tagline",l:"Tagline",d:"Biblical content for men of faith",b:1},{k:"brand_persona",l:"Character Persona",tp:"textarea",d:"A battle-hardened Christian knight: Strong, disciplined, capable, calm. Not cruel, not cold—firm and compassionate. Protector of faith, family, duty, truth. Lives in peace but ready for war. Wears the Armor of God (Ephesians 6) symbolically. Unwavering allegiance: Christ is King.",b:1},{k:"brand_voice",l:"Voice Description",tp:"textarea",d:"Low, controlled, resonant. Calm intensity; authoritative without shouting. Short, declarative sentences. Measured pacing. Dark, mysterious presence—disciplined resolve. Masculine and grounded. NO hype. NO motivational fluff.",b:1},{k:"brand_themes",l:"Core Themes",tp:"textarea",d:"Address real daily battles: Finances, family leadership, temptation, fatigue, doubt, lust, anger, responsibility, endurance, obedience. Discipline over comfort. Duty over desire. Endurance over escape. Faith over fear. Action over emotion.",b:1},{k:"brand_avoid",l:"What to Avoid",d:"Warmth or sentimentality, soft encouragement, modern slang, politics, long scripture quotations, hashtags",b:1}]},
-{t:"SCRIPT ENGINE",f:[{k:"script_model",l:"AI Model",tp:"select",o:["gpt-4o","gpt-4o-mini"],d:"gpt-4o"},{k:"script_temp",l:"Temperature",d:"0.85"},{k:"script_words",l:"Script Length",tp:"slider",min:30,max:180,step:5,d:90}]},
-{t:"SCENE ENGINE",f:[{k:"scene_story",l:"Story Seed",tp:"select",o:["auto"],d:"auto",dynamic:"stories"},{k:"scene_theme",l:"Theme Force",tp:"select",o:["auto"],d:"auto",dynamic:"themes"},{k:"scene_figure",l:"Figure",tp:"select",o:["auto"],d:"auto",dynamic:"figures"},{k:"scene_intensity",l:"Intensity",tp:"select",o:["still","measured","dynamic"],d:"measured"},{k:"scene_camera",l:"Camera Style",tp:"select",o:["steady","dynamic","handheld"],d:"steady"},{k:"scene_mood",l:"Mood Lighting",tp:"select",o:["auto"],d:"auto",dynamic:"moods"},{k:"_scene_pack",l:"",tp:"scene_pack"}]},
+{t:"SCRIPT ENGINE",f:[{k:"script_model",l:"AI Model",tp:"select",o:["gpt-4o","gpt-4o-mini"],d:"gpt-4o"},{k:"script_temp",l:"Temperature",d:"0.85"},{k:"script_words",l:"Script Length",tp:"slider",min:30,max:180,step:5,d:90},{k:"script_prompt_template",l:"Script Prompt (optional override, leave blank for built-in default)",tp:"textarea",rows:12,d:""}]},
+{t:"TOPICS",f:[{k:"topics_prompt_template",l:"AI Topic Generation Prompt (optional override, leave blank for built-in default — keep {count} in the text)",tp:"textarea",rows:6,d:""}]},
+{t:"SCENE ENGINE",f:[{k:"scene_story",l:"Story Seed",tp:"select",o:["auto"],d:"auto",dynamic:"stories"},{k:"scene_theme",l:"Theme Force",tp:"select",o:["auto"],d:"auto",dynamic:"themes"},{k:"scene_figure",l:"Figure",tp:"select",o:["auto"],d:"auto",dynamic:"figures"},{k:"scene_intensity",l:"Intensity",tp:"select",o:["still","measured","dynamic"],d:"measured"},{k:"scene_camera",l:"Camera Style",tp:"select",o:["steady","dynamic","handheld"],d:"steady"},{k:"scene_mood",l:"Mood Lighting",tp:"select",o:["auto"],d:"auto",dynamic:"moods"},{k:"_scene_pack",l:"",tp:"scene_pack"},{k:"scene_image_prompt_template",l:"Image Prompt Template (optional override, leave blank for built-in default — placeholders: {figure} {action} {setting} {composition} {lighting} {atmosphere} {suffix})",tp:"textarea",rows:3,d:""},{k:"scene_motion_prompt_template",l:"Motion Prompt Template (optional override, leave blank for built-in default — placeholders: {camera} {subject} {ambient} {pace} {tech_suffix})",tp:"textarea",rows:3,d:""}]},
 {t:"VOICE SYNTH",f:[{k:"voice_id",l:"Voice ID",d:"bwCXcoVxWNYMlC6Esa8u",b:1},{k:"voice_model",l:"Model",tp:"select",o:["eleven_turbo_v2","eleven_multilingual_v2","eleven_monolingual_v1"],d:"eleven_turbo_v2"},{k:"voice_stability",l:"Stability",d:"0.5"},{k:"voice_similarity",l:"Similarity",d:"0.75"},{k:"voice_speed",l:"Speed",d:"1.0"},{k:"voice_style",l:"Style",d:"0.0"}]},
 {t:"IMAGE GENERATION",f:[{k:"image_provider",l:"Provider",tp:"select",o:["replicate"],d:"replicate"},{k:"image_model",l:"Model",tp:"select",o:[],d:"black-forest-labs/flux-1.1-pro",dep:"image_provider"},{k:"image_quality",l:"Quality",tp:"select",o:["low","medium","high"],d:"high"}]},
 {t:"VIDEO GENERATION",f:[{k:"video_provider",l:"Provider",tp:"select",o:["replicate"],d:"replicate"},{k:"video_model",l:"Model",tp:"select",o:[],d:"bytedance/seedance-1-lite",dep:"video_provider"},{k:"clip_count",l:"Clips",tp:"select",o:["2","3","4","5"],d:"3"},{k:"clip_duration",l:"Clip Duration",tp:"select",o:["5","8","10","12","15"],d:"10"},{k:"cta_enabled",l:"CTA End Card",tp:"toggle",d:true},{k:"cta_duration",l:"CTA Duration (sec)",tp:"select",o:["3","4","5","6","8"],d:"5"},{k:"_vid_total",l:"",tp:"computed"},{k:"video_timeout",l:"Timeout (sec)",d:"600"}]},
@@ -1301,10 +1302,24 @@ async function rPv(){
 }
 
 /* ═══ SETTINGS ═══ */
-async function loadCaptionDefault(key){
+// Every editable full-prompt override shares one "load built-in default"
+// helper — each entry says which endpoint to hit and which key in that
+// endpoint's response holds this field's default text.
+const PROMPT_DEFAULTS_EP={
+  captions_video_prompt:{url:'/api/captions/defaults',key:'captions_video_prompt'},
+  captions_text_prompt:{url:'/api/captions/defaults',key:'captions_text_prompt'},
+  script_prompt_template:{url:'/api/script/defaults',key:'script_prompt_template'},
+  topics_prompt_template:{url:'/api/topics/prompt-default',key:'topics_prompt_template'},
+  scene_image_prompt_template:{url:'/api/scenes/prompt-defaults',key:'scene_image_prompt_template'},
+  scene_motion_prompt_template:{url:'/api/scenes/prompt-defaults',key:'scene_motion_prompt_template'},
+};
+
+async function loadPromptDefault(fieldKey){
+  const ep=PROMPT_DEFAULTS_EP[fieldKey];
+  if(!ep)return;
   try{
-    const r=await(await fetch('/api/captions/defaults')).json();
-    if(r[key]!==undefined){ST[key]=r[key];rSt();}
+    const r=await(await fetch(ep.url)).json();
+    if(r[ep.key]!==undefined){ST[fieldKey]=r[ep.key];rSt();}
     else alert('Failed to load default text');
   }catch(e){alert('Failed to load default: '+e);}
 }
@@ -1395,8 +1410,8 @@ ${showSeed?`<button style="flex:1;padding:6px;background:var(--bg);border:1px so
 </div>
 </div>`;
       }else if(f.tp==='textarea'){
-        const isCapPrompt=f.k==='captions_video_prompt'||f.k==='captions_text_prompt';
-        ff+=`<div class="fi w"><div class="fl">${f.l}</div><textarea class="fin" rows="${f.rows||3}" style="resize:vertical;min-height:3em" onchange="ST['${f.k}']=this.value">${v||''}</textarea>${isCapPrompt?`<span class="run-caps-toggle" style="display:inline-block;margin-top:.4em" onclick="loadCaptionDefault('${f.k}')">↧ Load built-in default into this field</span>`:''}</div>`;
+        const hasDefault=!!PROMPT_DEFAULTS_EP[f.k];
+        ff+=`<div class="fi w"><div class="fl">${f.l}</div><textarea class="fin" rows="${f.rows||3}" style="resize:vertical;min-height:3em" onchange="ST['${f.k}']=this.value">${v||''}</textarea>${hasDefault?`<span class="run-caps-toggle" style="display:inline-block;margin-top:.4em" onclick="loadPromptDefault('${f.k}')">↧ Load built-in default into this field</span>`:''}</div>`;
       }else{
         ff+=`<div class="fi"><div class="fl">${f.l}</div><input class="fin" value="${v||''}" onchange="ST['${f.k}']=this.value"></div>`;
       }

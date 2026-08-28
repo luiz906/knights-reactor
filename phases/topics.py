@@ -74,6 +74,26 @@ def update_topic_status(topic_id, status, extra=None, brand=None):
             break
     save_topics(topics, brand)
 
+def default_topics_prompt(brand_name: str, persona: str, themes: str) -> str:
+    """Build the topic-generation prompt. Keeps {count} as a live placeholder
+    (filled in per-call by render_topics_prompt) — brand_name/persona/themes
+    are baked in directly since they already have their own Settings fields
+    (Brand Name / Character Persona / Core Themes)."""
+    return (f"Generate {{count}} unique viral short-form video topics for a content channel called {brand_name}. "
+            f"Brand persona: {persona or 'A compelling content creator'}. "
+            f"Core themes: {themes or 'Real daily struggles and growth'}. "
+            "CATEGORIES: Shocking Revelations, Shocking Reveal, Behind-the-Scenes, Myths Debunked, Deep Dive Analysis. "
+            'Return ONLY a JSON array: [{"idea":"topic title","category":"one category","scripture":"verse ref"}]. '
+            "Make them provocative and scroll-stopping. No generic churchy language.")
+
+
+def render_topics_prompt(template: str, count) -> str:
+    """Fill the {count} placeholder via plain substring replacement (not
+    str.format()) so a Settings-tab override with a literal JSON example
+    doesn't need brace-escaping."""
+    return template.replace("{count}", str(count))
+
+
 def generate_topics_ai(count=10, brand=None):
     """Generate topics via GPT-4o. `brand` should be captured by the CALLER
     before this runs (it makes a network call that can take several seconds) —
@@ -83,12 +103,9 @@ def generate_topics_ai(count=10, brand=None):
     brand_name = getattr(Config, 'BRAND_NAME', 'Content Channel')
     brand_persona = getattr(Config, 'BRAND_PERSONA', '')
     brand_themes = getattr(Config, 'BRAND_THEMES', '')
-    prompt = (f"Generate {count} unique viral short-form video topics for a content channel called {brand_name}. "
-              f"Brand persona: {brand_persona or 'A compelling content creator'}. "
-              f"Core themes: {brand_themes or 'Real daily struggles and growth'}. "
-              "CATEGORIES: Shocking Revelations, Shocking Reveal, Behind-the-Scenes, Myths Debunked, Deep Dive Analysis. "
-              'Return ONLY a JSON array: [{"idea":"topic title","category":"one category","scripture":"verse ref"}]. '
-              "Make them provocative and scroll-stopping. No generic churchy language.")
+    override = getattr(Config, 'TOPICS_PROMPT_TEMPLATE', '')
+    template = override or default_topics_prompt(brand_name, brand_persona, brand_themes)
+    prompt = render_topics_prompt(template, count)
     r = requests.post("https://api.openai.com/v1/chat/completions",
         headers={"Authorization": f"Bearer {Config.OPENAI_KEY}", "Content-Type": "application/json"},
         json={"model": "gpt-4o", "messages": [{"role": "user", "content": prompt}], "temperature": 0.9, "max_tokens": 3000}, timeout=30)

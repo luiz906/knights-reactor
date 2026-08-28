@@ -320,6 +320,31 @@ def detect_theme(text: str, theme_keywords: dict = None) -> str:
     return best if scores[best] > 0 else "random"
 
 
+def default_image_prompt_template() -> str:
+    return "{figure} {action}. {setting}. {composition}. {lighting}. {atmosphere}. {suffix}"
+
+
+def default_motion_prompt_template() -> str:
+    return "{camera}. {subject}. {ambient}. {pace} {tech_suffix}"
+
+
+def render_image_prompt(template, figure, action, setting, composition, lighting, atmosphere, suffix) -> str:
+    """Fill an image-prompt template via plain substring replacement (not
+    str.format()) so a Settings-tab override doesn't need brace-escaping."""
+    return (template
+            .replace("{figure}", figure).replace("{action}", action)
+            .replace("{setting}", setting).replace("{composition}", composition)
+            .replace("{lighting}", lighting).replace("{atmosphere}", atmosphere)
+            .replace("{suffix}", suffix))
+
+
+def render_motion_prompt(template, camera, subject, ambient, pace, tech_suffix) -> str:
+    return (template
+            .replace("{camera}", camera).replace("{subject}", subject)
+            .replace("{ambient}", ambient).replace("{pace}", pace)
+            .replace("{tech_suffix}", tech_suffix))
+
+
 def scene_engine(script: dict, topic: dict) -> list:
     """Generate clip prompt pairs (image + motion). Scene Engine v8 — per-brand scenes."""
     story_override = getattr(Config, 'SCENE_STORY', 'auto')
@@ -406,9 +431,14 @@ def scene_engine(script: dict, topic: dict) -> list:
         story_clips = story_clips + story["clips"]
     story_clips = story_clips[:target_count]
 
+    img_template = getattr(Config, 'SCENE_IMAGE_PROMPT_TEMPLATE', '') or default_image_prompt_template()
+    mot_template = getattr(Config, 'SCENE_MOTION_PROMPT_TEMPLATE', '') or default_motion_prompt_template()
+
     for i, clip in enumerate(story_clips):
-        image_prompt = f"{figure} {clip['action']}. {clip['setting']}. {clip['composition']}. {clip['lighting']}. {clip['atmosphere']}. {img_suffix}"
-        motion_prompt = f"{clip['camera']}. {clip['subject']}. {clip['ambient']}. {clip['pace']} {tech_suffix}"
+        image_prompt = render_image_prompt(img_template, figure, clip['action'], clip['setting'],
+                                            clip['composition'], clip['lighting'], clip['atmosphere'], img_suffix)
+        motion_prompt = render_motion_prompt(mot_template, clip['camera'], clip['subject'],
+                                              clip['ambient'], clip['pace'], tech_suffix)
         clips.append({
             "index": i + 1,
             "image_prompt": image_prompt,

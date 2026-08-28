@@ -62,6 +62,10 @@ class Config:
     BRAND_AVOID       = ""
     CAPTIONS_VIDEO_PROMPT = ""   # Optional override, loaded from settings — blank = use built-in default
     CAPTIONS_TEXT_PROMPT  = ""   # Optional override, loaded from settings — blank = use built-in default
+    SCRIPT_PROMPT_TEMPLATE = ""       # Optional override for the Phase 2 script prompt — blank = built-in default
+    TOPICS_PROMPT_TEMPLATE = ""       # Optional override for the AI topic-generation prompt — blank = built-in default
+    SCENE_IMAGE_PROMPT_TEMPLATE  = "" # Optional override for how a clip's image prompt is assembled — blank = built-in default
+    SCENE_MOTION_PROMPT_TEMPLATE = "" # Optional override for how a clip's motion prompt is assembled — blank = built-in default
     ON_TT = True; ON_YT = True; ON_IG = True; ON_FB = True
     ON_TW = True; ON_TH = True; ON_PN = False
     SHOTSTACK_KEY     = env("SHOTSTACK_API_KEY")

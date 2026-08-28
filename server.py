@@ -173,6 +173,11 @@ def apply_model_settings():
     # Captions — optional full-prompt overrides for Phase 10 (blank = built-in default)
     if s.get("captions_video_prompt"): Config.CAPTIONS_VIDEO_PROMPT = s["captions_video_prompt"]
     if s.get("captions_text_prompt"):  Config.CAPTIONS_TEXT_PROMPT = s["captions_text_prompt"]
+    # Script / Topics / Scene — optional full-prompt overrides (blank = built-in default)
+    if s.get("script_prompt_template"):        Config.SCRIPT_PROMPT_TEMPLATE = s["script_prompt_template"]
+    if s.get("topics_prompt_template"):        Config.TOPICS_PROMPT_TEMPLATE = s["topics_prompt_template"]
+    if s.get("scene_image_prompt_template"):   Config.SCENE_IMAGE_PROMPT_TEMPLATE = s["scene_image_prompt_template"]
+    if s.get("scene_motion_prompt_template"):  Config.SCENE_MOTION_PROMPT_TEMPLATE = s["scene_motion_prompt_template"]
     # Social channel IDs (Blotato) — Settings > Channels was saving these to
     # settings.json but publish_everywhere() only ever read Config.BLOTATO_ACCOUNTS,
     # which is built once from env vars at import time. Wire the saved IDs in here
@@ -1293,6 +1298,35 @@ async def get_caption_defaults():
     instead of writing one blind."""
     from phases.publish import CAPTION_PROMPT, TEXT_POST_PROMPT
     return {"captions_video_prompt": CAPTION_PROMPT, "captions_text_prompt": TEXT_POST_PROMPT}
+
+@app.get("/api/script/defaults")
+async def get_script_defaults():
+    """Live-computed default script prompt (brand-aware — reflects the
+    active brand's persona/voice/themes right now) for the Settings >
+    Script 'load default' helper."""
+    from phases.script import default_script_prompt
+    return {"script_prompt_template": default_script_prompt()}
+
+@app.get("/api/topics/prompt-default")
+async def get_topics_prompt_default():
+    """Live-computed default topic-generation prompt (brand name/persona/
+    themes baked in, {count} left as a placeholder) for Settings > Topics."""
+    from phases.topics import default_topics_prompt
+    return {"topics_prompt_template": default_topics_prompt(
+        getattr(Config, "BRAND_NAME", "Content Channel"),
+        getattr(Config, "BRAND_PERSONA", ""),
+        getattr(Config, "BRAND_THEMES", ""),
+    )}
+
+@app.get("/api/scenes/prompt-defaults")
+async def get_scene_prompt_defaults():
+    """Built-in scene image/motion prompt assembly templates, for Settings
+    > Scene Prompts 'load default' helper."""
+    from phases.scenes import default_image_prompt_template, default_motion_prompt_template
+    return {
+        "scene_image_prompt_template": default_image_prompt_template(),
+        "scene_motion_prompt_template": default_motion_prompt_template(),
+    }
 
 @app.get("/api/runs")
 async def get_runs(): return RUNS[:50]
