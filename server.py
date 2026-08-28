@@ -1286,6 +1286,31 @@ async def get_status():
 @app.get("/api/runs")
 async def get_runs(): return RUNS[:50]
 
+@app.post("/api/runs/{run_id}/captions")
+async def update_run_captions(run_id: int, req: Request):
+    """Save edited captions for a past run — e.g. fixing wording or a
+    hashtag that got a platform rejected — so a later retry publish uses
+    the corrected text instead of what was originally generated."""
+    body = await req.json()
+    new_captions = body.get("captions")
+    if not isinstance(new_captions, dict):
+        return JSONResponse({"error": "captions object required"}, 400)
+
+    run = next((r for r in RUNS if r.get("id") == run_id), None)
+    if not run:
+        return JSONResponse({"error": f"Run {run_id} not found"}, 404)
+
+    from phases.publish import cap_hashtags
+    captions = dict(run.get("captions") or {})
+    for k, v in new_captions.items():
+        if isinstance(v, str):
+            # Same 3-hashtag safety net as generation — a hand-edited caption
+            # can just as easily trip a platform's hashtag limit as a GPT one.
+            captions[k] = cap_hashtags(v.strip(), 3)
+    run["captions"] = captions
+    save_json(RUNS_FILE, RUNS[:100])
+    return {"status": "saved", "captions": captions}
+
 @app.post("/api/runs/{run_id}/republish")
 async def republish_run(run_id: int, req: Request):
     """Re-attempt publishing a past run — e.g. after fixing a Blotato account

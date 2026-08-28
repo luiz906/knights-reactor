@@ -91,9 +91,11 @@ select.fin option{background:var(--bg2);color:var(--amb);padding:6px}
 .run-body{display:flex;gap:1em;margin-top:.9em;flex-wrap:wrap;align-items:flex-start}
 .run-vid{width:10em;max-width:100%;border-radius:var(--r);background:#000;flex-shrink:0;display:block}
 .run-side{flex:1;min-width:12em}
-.run-caps-toggle{font-size:.6em;color:var(--txtd);cursor:pointer;text-decoration:underline;display:inline-block;margin-bottom:.6em}
+.run-caps-bar{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:.6em}
+.run-caps-toggle{font-size:.6em;color:var(--txtd);cursor:pointer;text-decoration:underline;display:inline-block;white-space:nowrap}
 .run-caps{display:flex;flex-direction:column;gap:.6em}
 .run-caps.shut{display:none}
+.run-caps-editor{display:flex;flex-direction:column;gap:.6em;margin-bottom:.6em;padding:.7em;border:1px solid var(--bd2);border-radius:var(--r);background:var(--bg)}
 .run-cap{background:var(--bg);border:1px solid var(--bd2);border-radius:var(--r);padding:.5em .7em}
 .run-cap-lbl{font-family:var(--f1);font-size:.5em;font-weight:700;letter-spacing:.12em;color:var(--amb);text-transform:uppercase;margin-bottom:.3em}
 .run-cap-txt{font-size:.65em;color:var(--txtd);line-height:1.5;white-space:pre-wrap;word-break:break-word}
@@ -1121,6 +1123,14 @@ function runCapsHtml(caps){
     .join('');
 }
 
+function runCapsEditHtml(runId,caps){
+  caps=caps||{};
+  return RUN_CAP_FIELDS.map(([k,label])=>`<div class="run-cap">
+    <div class="run-cap-lbl">${label}</div>
+    <textarea class="fin sc-ta run-cap-edit" data-run="${runId}" data-key="${k}" rows="1" oninput="scGrow(this)">${escHtml(String(caps[k]||''))}</textarea>
+  </div>`).join('');
+}
+
 const PUB_PLATFORMS=[['tiktok','TikTok'],['youtube','YouTube'],['instagram','Instagram'],['facebook','Facebook'],['twitter','Twitter / X'],['threads','Threads']];
 
 function pubNeedsRetry(pubStatus){
@@ -1150,8 +1160,20 @@ function runCardHtml(r){
     body=`<div class="run-body">
       <video class="run-vid" src="${r.final_video}" controls preload="none" playsinline></video>
       <div class="run-side">
-        ${capsHtml?`<span class="run-caps-toggle" onclick="const c=this.nextElementSibling;c.classList.toggle('shut');this.textContent=c.classList.contains('shut')?'Show captions used ▾':'Hide captions ▴'">Show captions used ▾</span>
-        <div class="run-caps shut">${capsHtml}</div>`:'<div class="run-meta">No captions saved for this run.</div>'}
+        <div class="run-caps-bar">
+          ${capsHtml?`<span class="run-caps-toggle" id="rct-${r.id}" onclick="toggleCapsView(${r.id})">Show captions used ▾</span>`:'<span class="run-meta">No captions saved for this run.</span>'}
+          <span class="run-caps-toggle" id="rce-${r.id}" onclick="toggleCapsEdit(${r.id})">✎ Edit captions</span>
+        </div>
+        <div class="run-caps shut" id="rcv-${r.id}">${capsHtml}</div>
+        <div class="run-caps-editor" id="rcen-${r.id}" style="display:none">
+          ${runCapsEditHtml(r.id,r.captions)}
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:.5em">
+            <button class="btn-sm btn-grn" onclick="saveCaptions(${r.id},true)">💾 SAVE &amp; RETRY POST</button>
+            <button class="btn-sm" onclick="saveCaptions(${r.id},false)">SAVE ONLY</button>
+            <button class="btn-sm" onclick="toggleCapsEdit(${r.id})">CANCEL</button>
+          </div>
+          <div id="rcs-${r.id}" style="font-size:.55em;color:var(--txtd);margin-top:.3em"></div>
+        </div>
         <div class="run-dl"><a class="btn-sm" href="${r.final_video}" download target="_blank">⬇ Download video</a></div>
       </div>
     </div>`;
@@ -1178,6 +1200,46 @@ function runCardHtml(r){
     ${body}
     ${pubHtml}
   </div>`;
+}
+
+function toggleCapsView(runId){
+  const c=$('rcv-'+runId), t=$('rct-'+runId);
+  if(!c)return;
+  c.classList.toggle('shut');
+  if(t)t.textContent=c.classList.contains('shut')?'Show captions used ▾':'Hide captions ▴';
+}
+
+function toggleCapsEdit(runId){
+  const editor=$('rcen-'+runId);
+  if(!editor)return;
+  const opening=editor.style.display==='none';
+  editor.style.display=opening?'block':'none';
+  if(opening){
+    const view=$('rcv-'+runId);
+    if(view)view.classList.add('shut');
+    const t=$('rct-'+runId);
+    if(t)t.textContent='Show captions used ▾';
+    editor.querySelectorAll('textarea').forEach(scGrow);
+  }
+}
+
+async function saveCaptions(runId,alsoRetry){
+  const st=$('rcs-'+runId);
+  const textareas=document.querySelectorAll(`.run-cap-edit[data-run="${runId}"]`);
+  const captions={};
+  textareas.forEach(t=>{captions[t.dataset.key]=t.value;});
+  if(st)st.textContent='Saving...';
+  try{
+    const r=await(await fetch(`/api/runs/${runId}/captions`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({captions})})).json();
+    if(r.error){if(st)st.textContent='✗ '+r.error;return;}
+    if(alsoRetry){
+      if(st)st.textContent='Captions saved — retrying publish...';
+      await retryPublish(runId);
+    }else{
+      if(st)st.textContent='Captions saved ✓';
+      loadRuns();
+    }
+  }catch(e){if(st)st.textContent='✗ '+e;}
 }
 
 async function retryPublish(runId){
