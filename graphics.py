@@ -52,6 +52,7 @@ def get_brands() -> list:
                 "logo_url": s.get("logo_url", ""),
                 "guidelines": s.get("brand_persona", ""),
                 "themes": s.get("brand_themes", ""),
+                "image_prompt_template": s.get("image_prompt_template", ""),
                 "blotato": {
                     "instagram": s.get("blotato_instagram_id", os.environ.get("BLOTATO_INSTAGRAM_ID", "")),
                     "facebook": s.get("blotato_facebook_id", os.environ.get("BLOTATO_FACEBOOK_ID", "")),
@@ -303,8 +304,20 @@ _CAMERA_RULES = [
 
 
 def build_graphics_prompt(quote_text: str, brand: dict = None) -> str:
-    """Build a full photorealistic lettering prompt from quote + brand."""
+    """Build a full photorealistic lettering prompt from quote + brand.
+    If this brand has its own custom Image Prompt template saved, that
+    template is used verbatim (with {TEXT} swapped for the quote) instead of
+    the shared randomized photorealistic-lettering engine below — each brand
+    can fully own its visual style, not just tweak the generic one."""
     TEXT = quote_text
+    template = (brand or {}).get("image_prompt_template", "").strip()
+    if template:
+        if "{TEXT}" in template:
+            return template.replace("{TEXT}", TEXT)
+        # No placeholder in the template — still make sure the exact text
+        # requirement is present so lettering generation doesn't silently omit it.
+        return _join(template, f"The exact text displayed must be: {TEXT}.")
+
     guidelines = (brand or {}).get("guidelines", "")
     if guidelines:
         brand_visual = f"Brand art direction: align with these guidelines — {str(guidelines)[:600]}. Translate voice into photography choices (composition, light, restraint)."
@@ -347,6 +360,23 @@ def build_graphics_prompt(quote_text: str, brand: dict = None) -> str:
 @router.get("/api/brands")
 async def api_brands():
     return get_brands()
+
+@router.post("/api/brand-prompt-template/{brand_id}")
+async def api_save_prompt_template(brand_id: str, req: Request):
+    """Save this brand's custom Image Prompt template. When set (non-empty),
+    it replaces the shared randomized photorealistic-lettering engine for this
+    brand's Image Prompt step entirely — {TEXT} in the template is swapped for
+    the quote at generation time. An empty template falls back to the shared
+    generic engine, same as before this existed."""
+    body = await req.json()
+    template = body.get("template", "")
+    bd = BRANDS_DIR / brand_id
+    bd.mkdir(exist_ok=True)
+    sf = bd / "settings.json"
+    settings = load_json(sf, {})
+    settings["image_prompt_template"] = template
+    save_json(sf, settings)
+    return {"status": "saved", "template": template}
 
 @router.get("/api/topics/{brand_id}")
 async def api_get_topics(brand_id: str):
@@ -737,6 +767,19 @@ GFX_HTML = r"""<!DOCTYPE html><html lang="en"><head>
     <div class="fi"><div class="fl">Scene Engine builds a photorealistic lettering prompt</div>
       <textarea class="fin" id="f-prompt" rows="5" placeholder="Click Generate to build a randomized scene, or write your own..."></textarea>
     </div>
+    <div style="display:flex;justify-content:flex-end;margin:-.3em 0 .5em">
+      <span style="font-size:.6em;color:var(--txtd,#888);cursor:pointer;text-decoration:underline" onclick="toggleTplEditor()" id="tpl-toggle">Customize this brand's prompt template ▾</span>
+    </div>
+    <div id="tpl-editor" style="display:none;border:1px solid var(--bd2,#ddd);border-radius:var(--r,4px);padding:10px;margin-bottom:.6em">
+      <div class="fl" style="margin-bottom:4px">This brand's Image Prompt template (optional)</div>
+      <div style="font-size:.6em;color:var(--txtd,#888);margin-bottom:6px">Leave empty to use the shared randomized photorealistic-lettering engine. Fill this in to replace it entirely with your own wording for this brand only — use <code>{TEXT}</code> anywhere you want the quote inserted.</div>
+      <textarea class="fin" id="tpl-text" rows="6" placeholder="e.g. A clean flat-lay product photo. The exact text displayed must be: {TEXT}. Minimal, bright, on-brand colors..."></textarea>
+      <div class="btn-row" style="margin-top:6px">
+        <button class="btn btn-grn" onclick="saveTpl()">Save Template</button>
+        <button class="btn btn-out" onclick="clearTpl()">Clear (use default engine)</button>
+      </div>
+      <div class="status" id="tpl-status"></div>
+    </div>
     <div class="btn-row">
       <button class="btn btn-amb" onclick="genPrompt()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">auto_awesome</span> Generate</button>
       <button class="btn btn-out" onclick="genPrompt()"><span class="material-symbols-outlined" style="font-size:1em;vertical-align:middle">refresh</span> Regenerate</button>
@@ -857,22 +900,56 @@ function gN(p,b){
 (function(){if(localStorage.getItem('kr-theme')==='light')document.documentElement.classList.add('light');})();
 
 // ─── BRANDS ──────────────────────────────────────────────────
+function onBrandChange(){loadTopics();loadBrandInfo();}
 async function lB(){
   try{
     const r=await(await fetch('/api/brands')).json();
     if(r.brands && r.brands.length){
       $('s-brand').innerHTML=r.brands.map(b=>`<option value="${b.id}"${b.id===r.active?' selected':''}>${b.display_name||b.id}</option>`).join('');
-      $('s-brand').onchange=()=>loadTopics();
-      loadTopics();
+      $('s-brand').onchange=onBrandChange;
+      loadTopics();loadBrandInfo();
       return;
     }
   }catch(e){}
   try{
     const brands=await(await fetch(API+'/brands')).json();
     $('s-brand').innerHTML=brands.map(b=>`<option value="${b.id}">${b.name}</option>`).join('')||'<option>No brands</option>';
-    $('s-brand').onchange=()=>loadTopics();
-    if(brands.length)loadTopics();
+    $('s-brand').onchange=onBrandChange;
+    if(brands.length){loadTopics();loadBrandInfo();}
   }catch(e){}
+}
+
+// ─── PER-BRAND IMAGE PROMPT TEMPLATE ────────────────────────────
+let BRAND_INFO=null;
+let TPL_OPEN=false;
+async function loadBrandInfo(){
+  const brand=$('s-brand').value;if(!brand)return;
+  try{
+    const brands=await(await fetch(API+'/brands')).json();
+    BRAND_INFO=(Array.isArray(brands)?brands:[]).find(b=>b.id===brand)||null;
+    const box=$('tpl-text');
+    if(box)box.value=(BRAND_INFO&&BRAND_INFO.image_prompt_template)||'';
+  }catch(e){BRAND_INFO=null;}
+}
+function toggleTplEditor(){
+  TPL_OPEN=!TPL_OPEN;
+  const el=$('tpl-editor'), tg=$('tpl-toggle');
+  if(el)el.style.display=TPL_OPEN?'block':'none';
+  if(tg)tg.textContent=TPL_OPEN?"Customize this brand's prompt template ▴":"Customize this brand's prompt template ▾";
+}
+async function saveTpl(){
+  const brand=$('s-brand').value;if(!brand)return;
+  const template=($('tpl-text')||{}).value||'';
+  try{
+    await fetch(API+'/brand-prompt-template/'+brand,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({template})});
+    if(BRAND_INFO)BRAND_INFO.image_prompt_template=template;
+    $('tpl-status').innerHTML='<span style="color:var(--grn)">✓ Saved — this brand will use it from now on</span>';
+  }catch(e){$('tpl-status').innerHTML=`<span style="color:var(--red)">Save failed: ${e}</span>`;}
+}
+async function clearTpl(){
+  if(!confirm("Clear this brand's custom prompt template? It will go back to the shared default engine."))return;
+  const t=$('tpl-text');if(t)t.value='';
+  await saveTpl();
 }
 
 // ─── STEP MANAGEMENT ─────────────────────────────────────────
