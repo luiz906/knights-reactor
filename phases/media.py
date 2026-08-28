@@ -98,6 +98,42 @@ def generate_images(clips: list) -> list:
 
 
 # ══════════════════════════════════════════════════════════════
+# PHASE 4b: REGENERATE SINGLE IMAGE
+# ══════════════════════════════════════════════════════════════
+
+def generate_image_single(clip: dict) -> dict:
+    """Regenerate a single image for one clip. Used by the image approval
+    gate — lets one image be redone (after editing its prompt, or just to
+    reroll) without regenerating the whole batch."""
+    model = Config.IMAGE_MODEL
+    quality = getattr(Config, 'IMAGE_QUALITY', 'high')
+    log.info(f"🖼️  Regenerating image for clip {clip.get('index','')} via {model}...")
+
+    params = {"prompt": clip["image_prompt"]}
+    if "grok-imagine" in model:
+        params["aspect_ratio"] = "9:16"
+    elif "nano-banana" in model:
+        params["aspect_ratio"] = "9:16"
+    elif "seedream" in model:
+        params["aspect_ratio"] = "9:16"
+    elif "ideogram" in model:
+        params["aspect_ratio"] = "9:16"
+    elif "recraft" in model:
+        params["aspect_ratio"] = "9:16"
+    elif "imagen" in model:
+        params["aspect_ratio"] = "9:16"
+    else:
+        params["aspect_ratio"] = "9:16"
+        params["quality"] = quality
+
+    url = replicate_create(model, params)
+    clip["image_poll_url"] = url
+    clip["image_url"] = replicate_poll(url)
+    log.info(f"   Clip {clip.get('index','')}: image regenerated ✓")
+    return clip
+
+
+# ══════════════════════════════════════════════════════════════
 # PHASE 5: GENERATE VIDEOS (Replicate → Seedance-1-Lite)
 # ══════════════════════════════════════════════════════════════
 

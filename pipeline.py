@@ -1,7 +1,8 @@
 """
 Knights Reactor — Pipeline Orchestrator v2
-Phases: Topic → Script → Scenes → [GATE: Edit Prompts] → Images → Videos →
-        [GATE: Approve Videos] → Voice → Transcribe → Upload → Render → Captions → Publish
+Phases: Topic → Script → Scenes → [GATE: Edit Prompts] → Images →
+        [GATE: Approve Images] → Videos → [GATE: Approve Videos] →
+        Voice → Transcribe → Upload → Render → Captions → Publish
 """
 import os, json, time, re, base64
 
@@ -11,7 +12,7 @@ from config import Config, DATA_DIR, log
 from phases.topics import fetch_topic, update_topic
 from phases.script import generate_script
 from phases.scenes import scene_engine
-from phases.media import generate_images, generate_videos, generate_video_single, generate_voiceover, transcribe_voiceover
+from phases.media import generate_images, generate_image_single, generate_videos, generate_video_single, generate_voiceover, transcribe_voiceover
 from phases.render import get_s3_client, upload_to_r2, upload_assets, create_srt, render_video
 from phases.publish import generate_captions, publish_everywhere
 
@@ -36,6 +37,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
 
     Gates:
       - After phase 2 (Scene Engine): pauses for prompt editing (gate="prompts")
+      - After phase 3 (Generate Images): pauses for image approval (gate="images")
       - After phase 4 (Generate Videos): pauses for video approval (gate="videos")
 
     Checkpoints saved after each phase to brand dir/pipeline_checkpoint.json
@@ -179,8 +181,21 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
                 result["images"] = [{"index": c["index"], "url": c["image_url"], "prompt": c.get("image_prompt","")} for c in clips]
                 save_checkpoint(3, {"clips_with_images": clips})
                 notify(3, "Generate Images", "done")
+
+                # ═══ GATE 1.5: Image Approval ═══
+                # These images are the base frame every video clip animates
+                # from — pausing here (instead of running straight into the
+                # slower/costlier video generation) lets a bad image be
+                # regenerated or its prompt tweaked before that happens.
+                result["status"] = "awaiting_image_approval"
+                result["gate"] = "images"
+                result["gate_phase"] = 4
+                result["clips"] = clips
+                result["script"] = script
+                log.info("⏸️  Gate: Awaiting image approval — review/regenerate images then resume")
+                return result
             else:
-                clips = ckpt["clips_with_images"]
+                clips = ckpt.get("clips_images_approved") or ckpt.get("clips_with_images")
                 result["images"] = [{"index": c["index"], "url": c["image_url"], "prompt": c.get("image_prompt","")} for c in clips]
                 result["phases"].append({"name": "Generate Images", "status": "done"})
                 notify(3, "Generate Images", "done")

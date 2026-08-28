@@ -16,13 +16,14 @@ Category: {category}
 PLATFORM REQUIREMENTS:
 
 VIDEO PLATFORMS (with captions):
-- TikTok: 300 chars max, trendy casual, 3-5 hashtags
-- YouTube Shorts: 500 chars max, searchable keywords, 5-8 hashtags. Also provide a title.
-- Instagram Reels: 400 chars max, hashtag-rich, 8-12 hashtags
-- Facebook Reels: 400 chars max, conversational, 3-5 hashtags
+- TikTok: 300 chars max, trendy casual, 3 hashtags max
+- YouTube Shorts: 500 chars max, searchable keywords, 3 hashtags max. Also provide a title.
+- Instagram Reels: 400 chars max, punchy, 3 hashtags max
+- Facebook Reels: 400 chars max, conversational, 3 hashtags max
 
 Use line breaks to separate thoughts. MINIMAL emojis (0-2 per caption).
-CTA must be on its own line. Hashtags grouped at end.
+CTA must be on its own line. Hashtags grouped at end. NEVER exceed 3 hashtags
+on any platform, no matter how many the platform technically allows.
 
 Return as JSON:
 {{
@@ -42,7 +43,10 @@ Category: {category}
 
 1. X/TWITTER: Single viral tweet, 280 chars max, NO hashtags
 2. THREADS: Conversational, 500 chars max
-3. PINTEREST: 400-500 chars, educational, 5-7 hashtags
+3. PINTEREST: 400-500 chars, educational, 3 hashtags max
+
+Never exceed 3 hashtags on any platform, no matter how many the platform
+technically allows.
 
 Return as JSON:
 {{
@@ -51,6 +55,28 @@ Return as JSON:
   "pinterest": "pinterest caption"
 }}
 """
+
+def cap_hashtags(text: str, max_n: int = 3) -> str:
+    """Hard safety net: trim a caption down to at most max_n hashtags.
+    The prompt above already asks GPT for a 3-hashtag max, but GPT doesn't
+    always comply — and platforms like Instagram hard-reject (422) posts
+    that exceed their limit, so this guarantees it regardless of what GPT
+    returns. Keeps the first max_n hashtags in place, strips the rest."""
+    if not text:
+        return text
+    tags = list(re.finditer(r'#\w+', text))
+    if len(tags) <= max_n:
+        return text
+    # Remove excess hashtags from the end backwards so earlier match
+    # positions don't shift while we edit the string.
+    for m in reversed(tags[max_n:]):
+        text = text[:m.start()] + text[m.end():]
+    # Clean up whitespace left behind by the removed tags
+    text = re.sub(r'[ \t]+\n', '\n', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r'[ \t]{2,}', ' ', text)
+    return text.strip()
+
 
 def generate_captions(script: dict, topic: dict) -> dict:
     """Generate platform-specific captions via GPT-4o."""
@@ -85,6 +111,12 @@ def generate_captions(script: dict, topic: dict) -> dict:
             captions.update(parsed)
         except json.JSONDecodeError:
             log.warning(f"   Failed to parse {label} captions")
+
+    # Safety net — cap every caption at 3 hashtags regardless of what GPT
+    # actually returned (youtube_title has no hashtags, capping is a no-op there)
+    for k, v in captions.items():
+        if isinstance(v, str):
+            captions[k] = cap_hashtags(v, 3)
 
     log.info(f"   Captions: {len(captions)} platforms")
     return captions
