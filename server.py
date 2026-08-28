@@ -170,6 +170,9 @@ def apply_model_settings():
     if s.get("brand_voice"):   Config.BRAND_VOICE = s["brand_voice"]
     if s.get("brand_themes"):  Config.BRAND_THEMES = s["brand_themes"]
     if s.get("brand_avoid"):   Config.BRAND_AVOID = s["brand_avoid"]
+    # Captions — optional full-prompt overrides for Phase 10 (blank = built-in default)
+    if s.get("captions_video_prompt"): Config.CAPTIONS_VIDEO_PROMPT = s["captions_video_prompt"]
+    if s.get("captions_text_prompt"):  Config.CAPTIONS_TEXT_PROMPT = s["captions_text_prompt"]
     # Social channel IDs (Blotato) — Settings > Channels was saving these to
     # settings.json but publish_everywhere() only ever read Config.BLOTATO_ACCOUNTS,
     # which is built once from env vars at import time. Wire the saved IDs in here
@@ -1282,6 +1285,14 @@ async def get_status():
     return {"running": CURRENT_RUN["active"], "phase": CURRENT_RUN.get("phase", 0),
             "phase_name": CURRENT_RUN.get("phase_name", ""), "phases_done": CURRENT_RUN.get("phases_done", []),
             "result": CURRENT_RUN.get("result")}
+
+@app.get("/api/captions/defaults")
+async def get_caption_defaults():
+    """Built-in caption prompt templates, for the Settings > Captions 'load
+    default' helper — lets a user start their override from the real prompt
+    instead of writing one blind."""
+    from phases.publish import CAPTION_PROMPT, TEXT_POST_PROMPT
+    return {"captions_video_prompt": CAPTION_PROMPT, "captions_text_prompt": TEXT_POST_PROMPT}
 
 @app.get("/api/runs")
 async def get_runs(): return RUNS[:50]

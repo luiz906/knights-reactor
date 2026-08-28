@@ -26,13 +26,13 @@ CTA must be on its own line. Hashtags grouped at end. NEVER exceed 3 hashtags
 on any platform, no matter how many the platform technically allows.
 
 Return as JSON:
-{{
+{
   "tiktok": "caption text",
   "youtube": "caption text",
   "youtube_title": "short title",
   "instagram": "caption text",
   "facebook": "caption text"
-}}
+}
 """
 
 TEXT_POST_PROMPT = """You are a multi-platform content strategist. Transform this viral video into TEXT-ONLY content.
@@ -49,11 +49,11 @@ Never exceed 3 hashtags on any platform, no matter how many the platform
 technically allows.
 
 Return as JSON:
-{{
+{
   "twitter": "tweet text",
   "threads": "threads text",
   "pinterest": "pinterest caption"
-}}
+}
 """
 
 def cap_hashtags(text: str, max_n: int = 3) -> str:
@@ -78,18 +78,30 @@ def cap_hashtags(text: str, max_n: int = 3) -> str:
     return text.strip()
 
 
+def render_caption_prompt(template: str, script_text: str, topic_idea: str, category: str) -> str:
+    """Fill {script}/{topic}/{category} placeholders via plain substring
+    replacement rather than str.format() — a Settings-tab prompt override
+    can contain a literal JSON example (unescaped { }) without needing to
+    know about Python format-string escaping."""
+    return (template
+            .replace("{script}", script_text)
+            .replace("{topic}", topic_idea)
+            .replace("{category}", category))
+
+
 def generate_captions(script: dict, topic: dict) -> dict:
-    """Generate platform-specific captions via GPT-4o."""
+    """Generate platform-specific captions via GPT-4o. The prompt templates
+    can be overridden per-brand from Settings > Captions (Config.CAPTIONS_
+    VIDEO_PROMPT / CAPTIONS_TEXT_PROMPT); blank means use the built-in
+    default defined above."""
     log.info("💬 Phase 10: Generating captions via GPT-4o...")
 
     captions = {}
+    video_prompt = getattr(Config, "CAPTIONS_VIDEO_PROMPT", "") or CAPTION_PROMPT
+    text_prompt = getattr(Config, "CAPTIONS_TEXT_PROMPT", "") or TEXT_POST_PROMPT
 
-    for label, prompt_tpl in [("video", CAPTION_PROMPT), ("text", TEXT_POST_PROMPT)]:
-        prompt = prompt_tpl.format(
-            script=script["script_full"],
-            topic=topic["idea"],
-            category=topic["category"],
-        )
+    for label, prompt_tpl in [("video", video_prompt), ("text", text_prompt)]:
+        prompt = render_caption_prompt(prompt_tpl, script["script_full"], topic["idea"], topic["category"])
 
         r = requests.post("https://api.openai.com/v1/chat/completions", headers={
             "Authorization": f"Bearer {Config.OPENAI_KEY}",

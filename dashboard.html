@@ -600,6 +600,7 @@ const STS=[
 {t:"WATERMARK / LOGO",f:[{k:"logo_enabled",l:"Show Logo",tp:"toggle",d:true},{k:"captions_enabled",l:"Show Captions",tp:"toggle",d:true},{k:"logo_url",l:"Logo URL",d:""},{k:"logo_position",l:"Position",tp:"select",o:["topRight","topLeft","bottomRight","bottomLeft","center"],d:"topRight"},{k:"logo_scale",l:"Scale",d:"0.12"},{k:"logo_opacity",l:"Opacity",d:"0.8"}]},
 {t:"PLATFORMS",f:[{k:"on_tt",l:"TikTok",tp:"toggle",d:true},{k:"on_yt",l:"YouTube",tp:"toggle",d:true},{k:"on_ig",l:"Instagram",tp:"toggle",d:true},{k:"on_fb",l:"Facebook",tp:"toggle",d:true},{k:"on_tw",l:"X/Twitter",tp:"toggle",d:true},{k:"on_th",l:"Threads",tp:"toggle",d:true},{k:"on_pn",l:"Pinterest",tp:"toggle",d:false}]},
 {t:"CHANNELS (BLOTATO IDs)",f:[{k:"ch_instagram",l:"Instagram Account ID",d:""},{k:"ch_tiktok",l:"TikTok Account ID",d:""},{k:"ch_youtube",l:"YouTube Account ID",d:""},{k:"ch_facebook",l:"Facebook Account ID",d:""},{k:"ch_facebook_page",l:"Facebook Page ID",d:""},{k:"ch_twitter",l:"Twitter/X Account ID",d:""},{k:"ch_threads",l:"Threads Account ID",d:""},{k:"ch_pinterest",l:"Pinterest Account ID",d:""},{k:"ch_pinterest_board",l:"Pinterest Board ID",d:""}]},
+{t:"CAPTIONS",f:[{k:"captions_video_prompt",l:"Video Caption Prompt — TikTok/YouTube/Instagram/Facebook (optional override, leave blank for built-in default)",tp:"textarea",rows:10,d:""},{k:"captions_text_prompt",l:"Text-Only Caption Prompt — X/Threads/Pinterest (optional override, leave blank for built-in default)",tp:"textarea",rows:8,d:""}]},
 {t:"AUTO-POST",f:[{k:"ap_enabled",l:"Enable AutoPost",tp:"toggle",d:false},{k:"ap_caption_prompt",l:"Caption Prompt (optional)",tp:"textarea",d:""}]}
 ];
 let stOpen={};
@@ -1300,6 +1301,14 @@ async function rPv(){
 }
 
 /* ═══ SETTINGS ═══ */
+async function loadCaptionDefault(key){
+  try{
+    const r=await(await fetch('/api/captions/defaults')).json();
+    if(r[key]!==undefined){ST[key]=r[key];rSt();}
+    else alert('Failed to load default text');
+  }catch(e){alert('Failed to load default: '+e);}
+}
+
 function getModels(fk){const prov=fk==='image_model'?(ST.image_provider||'replicate'):(ST.video_provider||'replicate');const cat=fk==='image_model'?IMG_MODELS:VID_MODELS;return cat[prov]||[];}
 
 function rSt(){
@@ -1386,7 +1395,8 @@ ${showSeed?`<button style="flex:1;padding:6px;background:var(--bg);border:1px so
 </div>
 </div>`;
       }else if(f.tp==='textarea'){
-        ff+=`<div class="fi w"><div class="fl">${f.l}</div><textarea class="fin" rows="3" style="resize:vertical;min-height:3em" onchange="ST['${f.k}']=this.value">${v||''}</textarea></div>`;
+        const isCapPrompt=f.k==='captions_video_prompt'||f.k==='captions_text_prompt';
+        ff+=`<div class="fi w"><div class="fl">${f.l}</div><textarea class="fin" rows="${f.rows||3}" style="resize:vertical;min-height:3em" onchange="ST['${f.k}']=this.value">${v||''}</textarea>${isCapPrompt?`<span class="run-caps-toggle" style="display:inline-block;margin-top:.4em" onclick="loadCaptionDefault('${f.k}')">↧ Load built-in default into this field</span>`:''}</div>`;
       }else{
         ff+=`<div class="fi"><div class="fl">${f.l}</div><input class="fin" value="${v||''}" onchange="ST['${f.k}']=this.value"></div>`;
       }

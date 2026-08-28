@@ -60,6 +60,8 @@ class Config:
     BRAND_VOICE       = ""
     BRAND_THEMES      = ""
     BRAND_AVOID       = ""
+    CAPTIONS_VIDEO_PROMPT = ""   # Optional override, loaded from settings — blank = use built-in default
+    CAPTIONS_TEXT_PROMPT  = ""   # Optional override, loaded from settings — blank = use built-in default
     ON_TT = True; ON_YT = True; ON_IG = True; ON_FB = True
     ON_TW = True; ON_TH = True; ON_PN = False
     SHOTSTACK_KEY     = env("SHOTSTACK_API_KEY")
