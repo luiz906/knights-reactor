@@ -1176,12 +1176,12 @@ async function saveScenePack(){
     st.style.color='var(--grn)';st.textContent='✓ Saved — '+data.stories.length+' stories, '+data.figures.length+' figures';
     await loadSceneData();
     rSt();
-    if(typeof SC_DATA!=='undefined'){SC_DATA=data;SC_SRC='brand';renderScenesEditor();}
+    if(typeof SC_DATA!=='undefined'){SC_DATA=data;SC_SRC='brand';SC_STORY_SEL=0;renderScenesEditor();}
   }catch(e){st.style.color='var(--red)';st.textContent='Save failed: '+e;}
 }
 
 /* ═══ SCENE ENGINE TAB — plain-text editor (no raw JSON) ═══ */
-let SC_DATA=null, SC_SRC='default', scOpen={};
+let SC_DATA=null, SC_SRC='default', scOpen={}, SC_STORY_SEL=0;
 const SC_CLIP_FIELDS=[['action','ACTION'],['setting','SETTING'],['lighting','LIGHTING'],['atmosphere','ATMOSPHERE'],['composition','COMPOSITION'],['camera','CAMERA MOVE'],['subject','SUBJECT MOTION'],['ambient','AMBIENT'],['pace','PACE']];
 const SC_CAMERA_KEYS=['steady','dynamic','handheld'];
 const SC_INTENSITY_KEYS=['still','measured','dynamic'];
@@ -1198,6 +1198,7 @@ async function loadScenesEditor(){
     const r=await(await fetch('/api/scenes')).json();
     SC_DATA=r.data||{figures:[],themes:{},moods:{},intensity:{},cameras:{},stories:[]};
     SC_SRC=r.source||'default';
+    SC_STORY_SEL=0;
     renderScenesEditor();
   }catch(e){console.error('loadScenesEditor:',e);}
 }
@@ -1323,21 +1324,39 @@ function renderScenesEditor(){
   h+='</div></div>';
 
   h+=`<div class="sec-t" style="margin:1em 0 .5em;color:var(--amb)">STORIES (${stories.length})</div>`;
+
+  // Card rail: one small card per story, click to open it below. Keeps the
+  // list scannable instead of a long stack of accordions.
+  h+=`<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:.8em">`;
   stories.forEach((s,si)=>{
-    const open=!!scOpen['story'+si];
+    const active=si===SC_STORY_SEL;
+    h+=`<div onclick="scSelectStory(${si})" style="flex:0 0 auto;min-width:9em;max-width:12em;padding:.7em .8em;border:1px solid ${active?'var(--amb)':'var(--bd2)'};background:${active?'var(--amblo)':'var(--panel)'};border-radius:var(--r-lg);cursor:pointer">
+      <div style="font-family:var(--f2);font-weight:600;font-size:.8em;color:${active?'var(--amb)':'var(--wht)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(s.name||'(unnamed)')}</div>
+      <div style="font-size:.55em;color:var(--txtd);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(s.mood||'no look')} · ${(s.clips||[]).length} clips</div>
+    </div>`;
+  });
+  h+=`<div onclick="scAddStory()" style="flex:0 0 auto;min-width:6em;padding:.7em .8em;border:1px dashed var(--bd2);border-radius:var(--r-lg);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--txtd);font-size:.65em;letter-spacing:.05em">+ STORY</div>`;
+  h+='</div>';
+
+  // Single story "page" — only the selected story's full editor renders,
+  // with prev/next to page through the rest instead of scrolling a stack.
+  if(!stories.length){
+    h+=`<div style="padding:1.6em;text-align:center;color:var(--txtd);font-size:.65em;border:1px dashed var(--bd2);border-radius:var(--r-lg)">No stories yet — click + STORY above to add your first one.</div>`;
+  }else{
+    if(SC_STORY_SEL>=stories.length)SC_STORY_SEL=stories.length-1;
+    if(SC_STORY_SEL<0)SC_STORY_SEL=0;
+    const si=SC_STORY_SEL, s=stories[si];
     h+=`<div class="story-card">
-      <div class="story-hd" onclick="scT('story${si}')">
-        <div style="flex:1;min-width:0">
-          <div style="font-family:var(--f2);font-weight:600;font-size:.85em;color:var(--wht);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(s.name||'(unnamed)')}</div>
-          <div style="font-size:.55em;color:var(--txtd);margin-top:2px">${escHtml(s.mood||'(no look)')} · ${(s.themes||[]).join(', ')||'no theme tags'} · ${(s.clips||[]).length} clips</div>
-        </div>
-        <div style="display:flex;gap:4px;flex-shrink:0" onclick="event.stopPropagation()">
+      <div class="story-hd" style="cursor:default">
+        <button class="btn-sm" style="${si===0?'opacity:.3;pointer-events:none':''}" onclick="scStoryNav(-1)">◀ PREV</button>
+        <div style="flex:1;text-align:center;font-size:.6em;color:var(--txtd);letter-spacing:.1em">STORY ${si+1} OF ${stories.length}</div>
+        <button class="btn-sm" style="${si===stories.length-1?'opacity:.3;pointer-events:none':''}" onclick="scStoryNav(1)">NEXT ▶</button>
+        <div style="display:flex;gap:4px;flex-shrink:0;margin-left:10px">
           <button class="btn-sm" onclick="scDupStory(${si})" title="Duplicate">⧉</button>
           <button class="btn-sm btn-red" onclick="scRemoveStory(${si})" title="Delete">✕</button>
         </div>
-        <span class="sec-a" style="margin-left:6px">${open?'▾':'▸'}</span>
       </div>
-      <div class="story-bd${open?'':' shut'}">
+      <div class="story-bd">
         <div class="fl">NAME</div>
         <textarea class="fin sc-ta" rows="1" oninput="scGrow(this);SC_DATA.stories[${si}].name=this.value">${escHtml(s.name||'')}</textarea>
         <div style="margin-top:.7em;min-width:10em">
@@ -1362,8 +1381,7 @@ function renderScenesEditor(){
         <button class="btn-sm btn-grn" onclick="scAddClip(${si})" style="margin-top:4px">+ ADD CLIP</button>
       </div>
     </div>`;
-  });
-  h+=`<button class="btn-sm btn-grn" onclick="scAddStory()" style="width:100%;margin-top:8px">+ ADD STORY</button>`;
+  }
 
   ['d-scenes-body','m-scenes-body'].forEach(id=>{if($(id))$(id).innerHTML=h;});
   scGrowAll();
@@ -1407,21 +1425,25 @@ async function scSeedMotion(){
   scStatus('Motion defaults filled in ✓',true);
 }
 
+function scSelectStory(i){SC_STORY_SEL=i;renderScenesEditor();}
+function scStoryNav(d){SC_STORY_SEL+=d;renderScenesEditor();}
 function scAddStory(){
   scEnsure('stories');scEnsure('moods');
   SC_DATA.stories.push({name:'new_story',themes:[],mood:Object.keys(SC_DATA.moods)[0]||'',clips:[scEmptyClip()]});
-  scOpen['story'+(SC_DATA.stories.length-1)]=true;
+  SC_STORY_SEL=SC_DATA.stories.length-1;
   renderScenesEditor();
 }
 function scDupStory(si){
   const copy=JSON.parse(JSON.stringify(SC_DATA.stories[si]));
   copy.name=(copy.name||'story')+'_copy';
   SC_DATA.stories.splice(si+1,0,copy);
+  SC_STORY_SEL=si+1;
   renderScenesEditor();
 }
 function scRemoveStory(si){
   if(!confirm('Delete story "'+(SC_DATA.stories[si].name||'')+'"? This cannot be undone until you reload without saving.'))return;
   SC_DATA.stories.splice(si,1);
+  if(SC_STORY_SEL>=si)SC_STORY_SEL=Math.max(0,SC_STORY_SEL-1);
   renderScenesEditor();
 }
 function scAddClip(si){SC_DATA.stories[si].clips.push(scEmptyClip());renderScenesEditor();}
