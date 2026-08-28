@@ -1052,8 +1052,25 @@ async def gen_topics(req: Request, bg: BackgroundTasks):
 @app.post("/api/topics/seed")
 async def seed_topics():
     brand = get_active_brand()
+    before = len(load_topics(brand))
     seed_default_topics(brand=brand)
-    return {"status": "seeded", "total": len(load_topics(brand))}
+    after = len(load_topics(brand))
+    return {
+        "status": "seeded" if after > before else "skipped",
+        "total": after, "added": after - before,
+        "is_knights": brand == "knights",
+    }
+
+@app.post("/api/topics/purge-seeded")
+async def purge_seeded_topics():
+    """Remove the built-in Knights demo topics from the active brand's topic
+    list — for cleaning up a brand that had them seeded onto it before
+    seeding was made brand-aware. Only removes exact matches against the
+    fixed demo list; anything the user added themselves is untouched."""
+    from phases.topics import purge_default_topics
+    brand = get_active_brand()
+    removed = purge_default_topics(brand=brand)
+    return {"status": "purged", "removed": removed, "total": len(load_topics(brand))}
 
 # ─── PROMPT EDITING GATE ─────────────────────────────────────
 

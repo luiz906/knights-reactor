@@ -123,11 +123,7 @@ def generate_topics_ai(count=10, brand=None):
     return added
 
 
-def seed_default_topics(brand=None):
-    """Seed 100 default topics if DB is empty."""
-    if load_topics(brand): return
-    log.info("Seeding 100 default topics...")
-    defaults = [
+KNIGHTS_DEFAULT_TOPICS = [
         ("The Sword You Never Picked Up","Shocking Revelations","Ephesians 6:17"),
         ("Your Silence Is Killing Your Family","Shocking Reveal","Joshua 24:15"),
         ("Why Most Christian Men Are Losing","Myths Debunked","1 Corinthians 16:13"),
@@ -229,9 +225,40 @@ def seed_default_topics(brand=None):
         ("The Fire That Purifies Not Destroys","Deep Dive Analysis","1 Peter 1:7"),
         ("Repentance Is Strength Not Shame","Myths Debunked","Acts 3:19"),
     ]
-    for idea, cat, scripture in defaults:
+
+
+def seed_default_topics(brand=None):
+    """Seed the 100 built-in demo topics — 'knights' brand only. Every other
+    brand gets nothing seeded here (there's no generic topic list that makes
+    sense for an arbitrary business) — use AI Generate instead, which builds
+    topics from that brand's own persona/themes, or add topics manually."""
+    if load_topics(brand): return
+    active = brand
+    if active is None:
+        ab_file = DATA_DIR / "active_brand.txt"
+        active = ab_file.read_text().strip() if ab_file.exists() else "knights"
+    if active != "knights":
+        log.info(f"Skipping default topic seed for brand '{active}' — those 100 topics are Knights-specific demo content. Use AI Generate or add topics manually instead.")
+        return
+    log.info("Seeding 100 default topics...")
+    for idea, cat, scripture in KNIGHTS_DEFAULT_TOPICS:
         add_topic(idea, cat, scripture, brand=brand)
-    log.info(f"   Seeded {len(defaults)} topics")
+    log.info(f"   Seeded {len(KNIGHTS_DEFAULT_TOPICS)} topics")
+
+
+def purge_default_topics(brand=None):
+    """Remove any of the built-in Knights demo topics from `brand`'s topic
+    list, matched by exact (idea, category) pair — cleans up a brand that
+    had them seeded onto it before this was made brand-aware. Anything the
+    user actually added themselves is left untouched. Returns how many were
+    removed."""
+    topics = load_topics(brand)
+    knights_pairs = {(idea, cat) for idea, cat, _ in KNIGHTS_DEFAULT_TOPICS}
+    remaining = [t for t in topics if (t.get("idea"), t.get("category")) not in knights_pairs]
+    removed = len(topics) - len(remaining)
+    if removed:
+        save_topics(remaining, brand)
+    return removed
 
 
 

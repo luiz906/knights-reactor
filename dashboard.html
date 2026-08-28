@@ -395,6 +395,7 @@ body{overflow:auto}
 <span class="ptitle" style="margin:0">TOPIC DATABASE</span>
 <div style="display:flex;gap:6px">
 <button class="btn-sm" onclick="seedTopics()">SEED DEFAULTS</button>
+<button class="btn-sm btn-red" onclick="purgeSeededTopics()" title="Remove Knights demo topics that don't belong to this brand">🧹 REMOVE KNIGHTS TOPICS</button>
 <button class="btn-sm btn-blu" onclick="generateTopicsAI()">✦ AI GENERATE</button>
 </div>
 </div>
@@ -517,6 +518,7 @@ body{overflow:auto}
 <div class="mpage" id="mp-topics">
 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.5em">
 <button class="btn-sm" onclick="seedTopics()">SEED</button>
+<button class="btn-sm btn-red" onclick="purgeSeededTopics()">🧹 CLEAN</button>
 <button class="btn-sm btn-blu" onclick="generateTopicsAI()">✦ AI GEN</button>
 </div>
 <div class="panel" style="padding:.5em;margin-bottom:.5em">
@@ -1099,8 +1101,24 @@ async function deleteTopic(id){
 }
 
 async function seedTopics(){
-  if(!confirm('Seed 100 default topics?'))return;
-  await fetch('/api/topics/seed',{method:'POST'});
+  if(!confirm('Seed 100 default topics? (These are Knights-specific demo topics — only useful if this brand IS Knights.)'))return;
+  try{
+    const r=await(await fetch('/api/topics/seed',{method:'POST'})).json();
+    if(r.status==='skipped'){
+      alert("Nothing seeded — those 100 topics are Knights-specific demo content and this isn't the Knights brand. Use ✦ AI GENERATE instead, or add topics manually.");
+    }else{
+      alert('Seeded '+(r.added||0)+' topics.');
+    }
+  }catch(e){alert('Failed: '+e);}
+  loadTopics();
+}
+
+async function purgeSeededTopics(){
+  if(!confirm("Remove any Knights demo topics from this brand's list? This only removes exact matches against the built-in 100 — anything you added yourself is untouched."))return;
+  try{
+    const r=await(await fetch('/api/topics/purge-seeded',{method:'POST'})).json();
+    alert(r.removed?`Removed ${r.removed} Knights demo topic(s).`:'No Knights demo topics found — nothing to remove.');
+  }catch(e){alert('Failed: '+e);}
   loadTopics();
 }
 
