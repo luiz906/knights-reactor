@@ -118,6 +118,20 @@ def apply_credentials():
     Config.R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL", "")
     Config.BLOTATO_KEY = os.getenv("BLOTATO_API_KEY", "")
 
+# Exact text of the built-in Knights brand-identity defaults from the
+# Settings UI (dashboard.html's BRAND section `d:` values). Used by
+# apply_model_settings() to detect when the dashboard's settings-load
+# backfill wrote Knights' own persona/voice/themes/avoid into another
+# brand's settings.json instead of that brand's real (or blank) values.
+_KNIGHTS_BRAND_DEFAULTS = {
+    "brand_name":    "Knights Reactor",
+    "brand_tagline": "Biblical content for men of faith",
+    "brand_persona": "A battle-hardened Christian knight: Strong, disciplined, capable, calm. Not cruel, not cold—firm and compassionate. Protector of faith, family, duty, truth. Lives in peace but ready for war. Wears the Armor of God (Ephesians 6) symbolically. Unwavering allegiance: Christ is King.",
+    "brand_voice":   "Low, controlled, resonant. Calm intensity; authoritative without shouting. Short, declarative sentences. Measured pacing. Dark, mysterious presence—disciplined resolve. Masculine and grounded. NO hype. NO motivational fluff.",
+    "brand_themes":  "Address real daily battles: Finances, family leadership, temptation, fatigue, doubt, lust, anger, responsibility, endurance, obedience. Discipline over comfort. Duty over desire. Endurance over escape. Faith over fear. Action over emotion.",
+    "brand_avoid":   "Warmth or sentimentality, soft encouragement, modern slang, politics, long scripture quotations, hashtags",
+}
+
 def apply_model_settings():
     """Load ALL settings from saved config into Config."""
     s = load_json(SETTINGS_FILE, {})
@@ -186,12 +200,40 @@ def apply_model_settings():
     # Platforms
     for pk in ["on_tt","on_yt","on_ig","on_fb","on_tw","on_th","on_pn"]:
         if pk in s: setattr(Config, pk.upper(), s[pk] in (True, "true", "True"))
-    # Brand / Persona
-    if s.get("brand_name"):    Config.BRAND_NAME = s["brand_name"]
-    if s.get("brand_persona"): Config.BRAND_PERSONA = s["brand_persona"]
-    if s.get("brand_voice"):   Config.BRAND_VOICE = s["brand_voice"]
-    if s.get("brand_themes"):  Config.BRAND_THEMES = s["brand_themes"]
-    if s.get("brand_avoid"):   Config.BRAND_AVOID = s["brand_avoid"]
+    # Brand / Persona — THE ACTUAL SOURCE of the "battles/suffer/demand"
+    # military voice leaking into non-Knights scripts and captions. The
+    # Settings UI backfills any brand-identity field the current brand
+    # hasn't explicitly saved with the built-in Knights template text (so
+    # the form isn't blank) — see _KNIGHTS_BRAND_DEFAULTS below. That
+    # backfilled text then gets POSTed and saved to settings.json the next
+    # time ANY setting is saved for that brand (even an unrelated one, like
+    # clip duration), which permanently writes Knights' own persona/voice/
+    # themes/avoid into that brand's Config.BRAND_* — overriding the blank
+    # class-level defaults and silently out-competing script.py's brand-
+    # neutral GENERIC_* fallback, since an explicit override always wins.
+    # Reject the value here if it's exactly that Knights template text and
+    # this isn't the knights brand, so it's treated as never having been set.
+    not_knights = get_active_brand() != "knights"
+    def _brand_field(key):
+        val = s.get(key, "")
+        if not_knights and val and val.strip() == _KNIGHTS_BRAND_DEFAULTS.get(key, "\0"):
+            return ""
+        return val
+    bn = _brand_field("brand_name")
+    if bn:            Config.BRAND_NAME = bn
+    elif not_knights: Config.BRAND_NAME = get_active_brand().replace("_", " ").replace("-", " ").title()
+    bp = _brand_field("brand_persona")
+    if bp:            Config.BRAND_PERSONA = bp
+    elif not_knights: Config.BRAND_PERSONA = ""
+    bv = _brand_field("brand_voice")
+    if bv:            Config.BRAND_VOICE = bv
+    elif not_knights: Config.BRAND_VOICE = ""
+    bt = _brand_field("brand_themes")
+    if bt:            Config.BRAND_THEMES = bt
+    elif not_knights: Config.BRAND_THEMES = ""
+    ba = _brand_field("brand_avoid")
+    if ba:            Config.BRAND_AVOID = ba
+    elif not_knights: Config.BRAND_AVOID = ""
     # Captions — optional full-prompt overrides for Phase 10 (blank = built-in default)
     if s.get("captions_video_prompt"): Config.CAPTIONS_VIDEO_PROMPT = s["captions_video_prompt"]
     if s.get("captions_text_prompt"):  Config.CAPTIONS_TEXT_PROMPT = s["captions_text_prompt"]

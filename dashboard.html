@@ -1912,8 +1912,23 @@ async function init(){
   ['d','m'].forEach(px=>renderManualCards(px)); // Init manual clip cards
   try{
     const r=await(await fetch('/api/settings')).json();
-    STS.forEach(s=>s.f.forEach(f=>{if(r[f.k]!==undefined)ST[f.k]=r[f.k];else ST[f.k]=f.d;}));
-  }catch(e){STS.forEach(s=>s.f.forEach(f=>ST[f.k]=f.d));}
+    // Brand-identity fields (f.b) default (f.d) to the built-in Knights
+    // persona/voice/themes text. Backfilling that into ST for any OTHER
+    // brand that hasn't saved its own value yet used to mean the very next
+    // Settings save — even one unrelated to Brand, like Clip Duration —
+    // would silently persist Knights' own voice into that brand's
+    // settings.json and carry it straight into that brand's scripts and
+    // captions. Blank those fields instead for every brand except knights.
+    const notKnights=typeof ACTIVE_BRAND!=='undefined'&&ACTIVE_BRAND!=='knights';
+    STS.forEach(s=>s.f.forEach(f=>{
+      if(r[f.k]!==undefined){ST[f.k]=r[f.k];return;}
+      if(f.b&&notKnights){ST[f.k]=f.k==='brand_name'?ACTIVE_BRAND.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()):'';}
+      else{ST[f.k]=f.d;}
+    }));
+  }catch(e){
+    const notKnights=typeof ACTIVE_BRAND!=='undefined'&&ACTIVE_BRAND!=='knights';
+    STS.forEach(s=>s.f.forEach(f=>{ST[f.k]=(f.b&&notKnights)?(f.k==='brand_name'?ACTIVE_BRAND:''):f.d;}));
+  }
   await loadSceneData();
   rSt();
   try{
