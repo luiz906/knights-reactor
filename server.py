@@ -231,6 +231,7 @@ def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: l
         "category": result.get("topic", {}).get("category", ""),
         "status": result.get("status", "failed"), "duration": result.get("duration", "?"),
         "error": result.get("error"), "failed_phase": result.get("failed_phase", 0),
+        "final_video": result.get("final_video"), "captions": result.get("captions"),
     }
     RUNS.insert(0, run_entry)
     save_json(RUNS_FILE, RUNS[:100])

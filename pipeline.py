@@ -370,11 +370,13 @@ Return JSON only:
             notify(9, "Captions", "running")
             captions = generate_captions(script, topic)
             result["phases"].append({"name": "Generate Captions", "status": "done"})
+            result["captions"] = captions
             save_checkpoint(9, {"captions": captions})
             notify(9, "Captions", "done")
         else:
             captions = ckpt["captions"]
             result["phases"].append({"name": "Generate Captions", "status": "done"})
+            result["captions"] = captions
             notify(9, "Captions", "done")
 
         # ── Phase 10: Publish ───────────────────────────────────

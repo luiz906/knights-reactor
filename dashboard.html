@@ -81,6 +81,23 @@ select.fin option{background:var(--bg2);color:var(--amb);padding:6px}
 .btn-upload{padding:.4em .7em;background:rgba(244,171,37,.04);border:1px solid var(--bd2);color:var(--amb);font-size:.85em;cursor:pointer;white-space:nowrap;font-family:var(--f3);min-width:2.5em;text-align:center;border-radius:var(--r);transition:background .15s}.btn-upload:hover{background:rgba(244,171,37,.1)}.btn-upload.uploading{opacity:.5;pointer-events:none}
 .sm{background:var(--grn2);border:1px solid rgba(0,230,118,.12);padding:.5em .9em;margin-bottom:.55em;font-size:.65em;color:var(--grn);font-weight:500;border-radius:var(--r)}
 .rw{padding:.85em 1.2em;border-bottom:1px solid rgba(var(--fg),.04);transition:background .15s}.rw:hover{background:rgba(244,171,37,.02)}
+
+/* RUN HISTORY — post-style cards with the final video + captions used */
+.run-card{background:var(--panel);border:1px solid var(--bd2);border-radius:var(--r-lg);padding:1em 1.1em;margin-bottom:.7em}
+.run-hd{display:flex;align-items:center;gap:.6em}
+.run-topic{font-family:var(--f2);font-size:.85em;font-weight:600;color:var(--wht)}
+.run-meta{font-size:.55em;color:var(--txtd);margin-top:.05em;letter-spacing:.08em}
+.run-err{font-size:.65em;color:var(--red);margin-top:.5em;background:var(--red2);padding:.35em .5em;border-radius:var(--r)}
+.run-body{display:flex;gap:1em;margin-top:.9em;flex-wrap:wrap;align-items:flex-start}
+.run-vid{width:10em;max-width:100%;border-radius:var(--r);background:#000;flex-shrink:0;display:block}
+.run-side{flex:1;min-width:12em}
+.run-caps-toggle{font-size:.6em;color:var(--txtd);cursor:pointer;text-decoration:underline;display:inline-block;margin-bottom:.6em}
+.run-caps{display:flex;flex-direction:column;gap:.6em}
+.run-caps.shut{display:none}
+.run-cap{background:var(--bg);border:1px solid var(--bd2);border-radius:var(--r);padding:.5em .7em}
+.run-cap-lbl{font-family:var(--f1);font-size:.5em;font-weight:700;letter-spacing:.12em;color:var(--amb);text-transform:uppercase;margin-bottom:.3em}
+.run-cap-txt{font-size:.65em;color:var(--txtd);line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.run-dl{margin-top:.8em}
 .panel{background:var(--panel);border:1px solid var(--bd2);padding:1.2em;position:relative;overflow:hidden;border-radius:var(--r-lg)}
 .ptitle{font-family:var(--f3);font-size:.6em;font-weight:700;letter-spacing:.15em;color:var(--txtd);margin-bottom:.6em;display:flex;align-items:center;gap:.6em;text-transform:uppercase}
 .ptitle::before{content:'';width:3px;height:.8em;background:var(--amb);border-radius:2px}
@@ -248,6 +265,8 @@ body{overflow:auto}
 .sc-col-hd{display:none}
 .sc-row{flex-direction:column;gap:6px}
 .sc-key{width:100%}
+.run-body{justify-content:center}
+.run-vid{width:100%;max-width:15em;margin:0 auto}
 
 /* Bottom Nav */
 .bnav{position:fixed;bottom:0;left:0;right:0;z-index:100;background:var(--bg2);border-top:1px solid var(--bd2);display:flex;justify-content:space-around;padding:4px 0 calc(4px + env(safe-area-inset-bottom,0px));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
@@ -1002,13 +1021,50 @@ async function generateTopicsAI(){
 }
 
 /* ═══ RUNS ═══ */
+// Caption keys generate_captions() may produce, in display order.
+const RUN_CAP_FIELDS=[['tiktok','TikTok'],['instagram','Instagram'],['facebook','Facebook'],['youtube','YouTube'],['youtube_title','YouTube Title'],['twitter','Twitter / X'],['threads','Threads']];
+
+function runCapsHtml(caps){
+  if(!caps)return '';
+  return RUN_CAP_FIELDS.filter(([k])=>caps[k]&&String(caps[k]).trim())
+    .map(([k,label])=>`<div class="run-cap"><div class="run-cap-lbl">${label}</div><div class="run-cap-txt">${escHtml(String(caps[k]))}</div></div>`)
+    .join('');
+}
+
+function runCardHtml(r){
+  const ok=r.status==='published'||r.status==='complete';
+  const capsHtml=runCapsHtml(r.captions);
+  let body='';
+  if(r.final_video){
+    body=`<div class="run-body">
+      <video class="run-vid" src="${r.final_video}" controls preload="none" playsinline></video>
+      <div class="run-side">
+        ${capsHtml?`<span class="run-caps-toggle" onclick="const c=this.nextElementSibling;c.classList.toggle('shut');this.textContent=c.classList.contains('shut')?'Show captions used ▾':'Hide captions ▴'">Show captions used ▾</span>
+        <div class="run-caps shut">${capsHtml}</div>`:'<div class="run-meta">No captions saved for this run.</div>'}
+        <div class="run-dl"><a class="btn-sm" href="${r.final_video}" download target="_blank">⬇ Download video</a></div>
+      </div>
+    </div>`;
+  }
+  return `<div class="run-card">
+    <div class="run-hd">
+      <div style="flex:1;min-width:0">
+        <div class="run-topic">${escHtml(r.topic||'?')}</div>
+        <div class="run-meta">${escHtml(r.date||'')} · ${escHtml(r.category||'')}</div>
+      </div>
+      ${B(ok?'done':'failed',r.status)}
+    </div>
+    ${r.error?`<div class="run-err">${escHtml(r.error)}</div>`:''}
+    ${body}
+  </div>`;
+}
+
 async function loadRuns(){
   try{
     const runs=await(await fetch('/api/runs')).json();
     const t=runs.length,ok=runs.filter(r=>r.status==='published'||r.status==='complete').length;
     const sh=[{l:'TOTAL',v:t,c:'amb'},{l:'SUCCESS',v:ok,c:'grn'},{l:'RATE',v:t?Math.round(ok/t*100)+'%':'—',c:'blu'},{l:'FAILED',v:t-ok,c:'red'}].map(s=>`<div class="stat"><b style="color:var(--${s.c})">${s.v}</b><small style="color:var(--${s.c})">${s.l}</small></div>`).join('');
     ['d-rs','m-rs'].forEach(id=>{if($(id))$(id).innerHTML=sh;});
-    const rh=runs.length?runs.map(r=>`<div class="rw"><div style="display:flex;align-items:center;gap:.55em"><div style="flex:1"><div style="font-family:var(--f2);font-size:.85em;font-weight:600;color:var(--wht)">${r.topic||'?'}</div><div style="font-size:.55em;color:var(--txtd);margin-top:.05em;letter-spacing:.08em">${r.date} · ${r.category||''}</div></div>${B(r.status==='published'||r.status==='complete'?'done':'failed',r.status)}</div>${r.error?`<div style="font-size:.65em;color:var(--red);margin-top:.3em;background:var(--red2);padding:.2em .4em">${r.error}</div>`:''}</div>`).join(''):'<div class="rw" style="color:var(--txtd)">NO RUNS</div>';
+    const rh=runs.length?runs.map(runCardHtml).join(''):'<div class="rw" style="color:var(--txtd)">NO RUNS</div>';
     ['d-rl','m-rl'].forEach(id=>{if($(id))$(id).innerHTML=rh;});
   }catch(e){}
 }
