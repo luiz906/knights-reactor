@@ -18,13 +18,20 @@ def _active_brand_name() -> str:
         return "knights"
 
 
+# Note: this used to say "Wears the Armor of God (Ephesians 6) symbolically"
+# — that explicit verse citation, appearing in EVERY script prompt regardless
+# of topic, was why nearly every generated script quoted Ephesians 6 no
+# matter what the topic's own assigned scripture was. The actual verse to
+# use now comes from each topic's "scripture" field via the {scripture}
+# placeholder in default_script_prompt()'s reveal_line below, so the
+# character description no longer needs (or should) name one itself.
 KNIGHTS_PERSONA = (
     "A battle-hardened Christian knight:\n"
     "- Strong, disciplined, capable, calm\n"
     "- Not cruel, not cold—firm and compassionate\n"
     "- Protector of faith, family, duty, truth\n"
     "- Lives in peace but ready for war\n"
-    "- Wears the Armor of God (Ephesians 6) symbolically\n"
+    "- Wears the Armor of God symbolically\n"
     "- Unwavering allegiance: Christ is King"
 )
 GENERIC_PERSONA = (
@@ -121,15 +128,21 @@ GENERIC_CATEGORY_CONFIG = {
 }
 
 
-def render_script_prompt(template: str, topic_idea: str, category: str, angle: str) -> str:
-    """Fill {topic}/{category}/{angle} placeholders via plain substring
-    replacement rather than str.format() — a Settings-tab prompt override
-    can contain a literal JSON example (unescaped { }) without needing to
-    know about Python format-string escaping."""
+def render_script_prompt(template: str, topic_idea: str, category: str, angle: str, scripture: str = "") -> str:
+    """Fill {topic}/{category}/{angle}/{scripture} placeholders via plain
+    substring replacement rather than str.format() — a Settings-tab prompt
+    override can contain a literal JSON example (unescaped { }) without
+    needing to know about Python format-string escaping."""
+    scripture_line = scripture.strip() if scripture else (
+        "one that genuinely fits this specific topic — pick a DIFFERENT "
+        "verse than you'd use for other topics, don't default to a single "
+        "go-to reference"
+    )
     return (template
             .replace("{topic}", topic_idea)
             .replace("{category}", category)
-            .replace("{angle}", angle))
+            .replace("{angle}", angle)
+            .replace("{scripture}", scripture_line))
 
 
 def build_script_prompt():
@@ -167,7 +180,12 @@ def default_script_prompt():
     # since these lines are baked into the template, not sourced from Config.
     if is_knights:
         build_line = "Name the specific battle. The real struggle men face daily. Paint the scene with military imagery."
-        reveal_line = "The truth. Brief scripture reference woven naturally. Military language. The weapon or shield for this battle."
+        # {scripture} is filled per-generation by render_script_prompt() from
+        # THIS topic's own assigned scripture field — naming the exact verse
+        # here (instead of leaving GPT to pick one) is what actually varies
+        # the reference video-to-video instead of it defaulting to whatever
+        # verse happens to be named elsewhere in the prompt.
+        reveal_line = "The truth. Weave in this scripture naturally, in your own words (not a direct quote): {scripture}. Military language. The weapon or shield for this battle."
         reveal_json_hint = "Scripture truth, NO QUOTES"
         tone_options = "disciplined|resolute|commanding|unwavering"
         use_line = "Direct honest practical language, brief scripture references woven naturally, one clear action for today."
@@ -252,7 +270,7 @@ def generate_script(topic: dict) -> dict:
     config = cfg_source.get(cat, list(cfg_source.values())[0])
     angle = config["angle"]
 
-    prompt = render_script_prompt(build_script_prompt(), topic["idea"], cat, angle)
+    prompt = render_script_prompt(build_script_prompt(), topic["idea"], cat, angle, topic.get("scripture", ""))
 
     r = requests.post("https://api.openai.com/v1/chat/completions", headers={
         "Authorization": f"Bearer {Config.OPENAI_KEY}", "Content-Type": "application/json",

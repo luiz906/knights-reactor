@@ -126,7 +126,7 @@ def apply_credentials():
 _KNIGHTS_BRAND_DEFAULTS = {
     "brand_name":    "Knights Reactor",
     "brand_tagline": "Biblical content for men of faith",
-    "brand_persona": "A battle-hardened Christian knight: Strong, disciplined, capable, calm. Not cruel, not cold—firm and compassionate. Protector of faith, family, duty, truth. Lives in peace but ready for war. Wears the Armor of God (Ephesians 6) symbolically. Unwavering allegiance: Christ is King.",
+    "brand_persona": "A battle-hardened Christian knight: Strong, disciplined, capable, calm. Not cruel, not cold—firm and compassionate. Protector of faith, family, duty, truth. Lives in peace but ready for war. Wears the Armor of God symbolically. Unwavering allegiance: Christ is King.",
     "brand_voice":   "Low, controlled, resonant. Calm intensity; authoritative without shouting. Short, declarative sentences. Measured pacing. Dark, mysterious presence—disciplined resolve. Masculine and grounded. NO hype. NO motivational fluff.",
     "brand_themes":  "Address real daily battles: Finances, family leadership, temptation, fatigue, doubt, lust, anger, responsibility, endurance, obedience. Discipline over comfort. Duty over desire. Endurance over escape. Faith over fear. Action over emotion.",
     "brand_avoid":   "Warmth or sentimentality, soft encouragement, modern slang, politics, long scripture quotations, hashtags",
