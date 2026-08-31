@@ -152,6 +152,23 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
             result["phases"].append({"name": "Generate Script", "status": "done"})
             notify(1, "Generate Script", "done")
 
+        # Verse of the Day: clip count is driven purely by how long the
+        # verse actually takes to read — NOT capped or floored by the
+        # Settings "Clips" count (that setting is for normal GPT-scripted
+        # runs, which are all roughly the same length by design; verses
+        # vary a lot, from a single short line to a multi-verse passage).
+        # A short verse can use fewer clips than Settings says, and a
+        # longer passage can use more — either way nothing is generated
+        # just to be discarded at render time.
+        if verse_mode:
+            words = len((script.get("script_full") or "").split())
+            est_secs = max(words / 3, 3)  # same 3 words/sec convention script.py uses
+            clip_dur = float(getattr(Config, "CLIP_DURATION", 10) or 10)
+            needed = max(1, -(-int(round(est_secs)) // int(clip_dur)))  # ceil(est_secs / clip_dur)
+            if needed != Config.CLIP_COUNT:
+                log.info(f"📖 Verse of the Day: ~{est_secs:.0f}s reading needs {needed} clip(s) (Settings clip count ignored for this mode)")
+                Config.CLIP_COUNT = needed
+
         # ── Phase 2-4: SKIP if manual clips provided ─────────────
         if manual_clips and resume_from <= 4:
             log.info(f"📦 Manual mode: {len(manual_clips)} clips provided, skipping phases 2-4")
