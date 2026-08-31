@@ -151,14 +151,24 @@ def generate_videos(clips: list) -> list:
                 "prompt": clip["motion_prompt"],
                 "mode": "normal",
             }
-        elif "minimax" in model.lower():
-            # Minimax — uses first_frame_image
+        elif "minimax" in model.lower() or "hailuo" in model.lower():
+            # Minimax / Hailuo — uses first_frame_image
             params = {
                 "first_frame_image": clip["image_url"],
                 "prompt": clip["motion_prompt"],
             }
+        elif "kling" in model.lower() or "luma" in model.lower() or "ray-" in model.lower():
+            # Kling (v3+) and Luma Ray both take the starting frame as
+            # "start_image", not the plain "image" field the other models
+            # below use — verified against each model's own Replicate API
+            # schema. Sending "image" here silently gets ignored and the
+            # model runs on no image input at all.
+            params = {
+                "start_image": clip["image_url"],
+                "prompt": clip["motion_prompt"],
+            }
         else:
-            # Most models: Seedance, Wan, Kling, Luma, Veo
+            # Most other models: Seedance, Wan, Veo
             params = {
                 "image": clip["image_url"],
                 "prompt": clip["motion_prompt"],
@@ -166,6 +176,13 @@ def generate_videos(clips: list) -> list:
         # Pass 9:16 where supported
         if "seedance" in model.lower() or "wan" in model.lower():
             params["aspect_ratio"] = "9:16"
+        if "seedance-2" in model.lower():
+            # Seedance 2.0 supports clips up to ~20s and picks its own length
+            # ("intelligent duration") if not told otherwise — pin it to this
+            # brand's configured clip length so switching from 1-Lite/Pro to
+            # 2.0 doesn't silently generate much longer, costlier clips than
+            # the pipeline (and Shotstack render timing) expects.
+            params["duration"] = int(Config.CLIP_DURATION)
 
         url = replicate_create(model, params)
         clip["video_poll_url"] = url
@@ -190,12 +207,16 @@ def generate_video_single(clip: dict) -> dict:
 
     if "grok-imagine" in model.lower():
         params = {"image_url": clip["image_url"], "prompt": clip["motion_prompt"], "mode": "normal"}
-    elif "minimax" in model.lower():
+    elif "minimax" in model.lower() or "hailuo" in model.lower():
         params = {"first_frame_image": clip["image_url"], "prompt": clip["motion_prompt"]}
+    elif "kling" in model.lower() or "luma" in model.lower() or "ray-" in model.lower():
+        params = {"start_image": clip["image_url"], "prompt": clip["motion_prompt"]}
     else:
         params = {"image": clip["image_url"], "prompt": clip["motion_prompt"]}
     if "seedance" in model.lower() or "wan" in model.lower():
         params["aspect_ratio"] = "9:16"
+    if "seedance-2" in model.lower():
+        params["duration"] = int(Config.CLIP_DURATION)
 
     url = replicate_create(model, params)
     clip["video_poll_url"] = url
