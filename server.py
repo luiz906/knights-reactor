@@ -284,9 +284,9 @@ def log_entry(phase, level, msg):
     LOGS.append({"t": datetime.now().strftime("%H:%M:%S"), "phase": phase, "level": level, "msg": msg})
     if len(LOGS) > 500: LOGS.pop(0)
 
-def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: list = None, manual_voiceover: str = None):
+def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: list = None, manual_voiceover: str = None, verse_mode: bool = False):
     apply_model_settings()  # Reload model selections before each run
-    mode = "full-manual" if (manual_clips and manual_voiceover) else ("manual" if manual_clips else ("resume" if resume_from > 0 else "normal"))
+    mode = "verse-of-the-day" if verse_mode else ("full-manual" if (manual_clips and manual_voiceover) else ("manual" if manual_clips else ("resume" if resume_from > 0 else "normal")))
     CURRENT_RUN.update({"active": True, "started": datetime.now().isoformat(), "result": None, "phase": 0, "phase_name": "", "phases_done": []})
     if resume_from == 0:
         LOGS.clear()
@@ -302,7 +302,7 @@ def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: l
                 CURRENT_RUN["phases_done"].append(phase_index)
             log_entry(phase_name, "ok", f"Complete ✓")
 
-    result = run_pipeline(progress_cb=on_phase, resume_from=resume_from, topic_id=topic_id, manual_clips=manual_clips, manual_voiceover=manual_voiceover)
+    result = run_pipeline(progress_cb=on_phase, resume_from=resume_from, topic_id=topic_id, manual_clips=manual_clips, manual_voiceover=manual_voiceover, verse_mode=verse_mode)
 
     # Handle gate pauses (pipeline returned early, not finished)
     gate = result.get("gate")
@@ -1020,8 +1020,9 @@ async def trigger_run(bg: BackgroundTasks, req: Request):
     try: body = await req.json()
     except: pass
     topic_id = body.get("topic_id")
-    bg.add_task(execute_pipeline, 0, topic_id)
-    return {"status": "started", "topic_id": topic_id}
+    verse_mode = bool(body.get("verse_mode"))
+    bg.add_task(execute_pipeline, 0, topic_id, None, None, verse_mode)
+    return {"status": "started", "topic_id": topic_id, "verse_mode": verse_mode}
 
 @app.post("/api/resume")
 async def trigger_resume(bg: BackgroundTasks):

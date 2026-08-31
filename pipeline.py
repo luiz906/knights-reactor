@@ -11,6 +11,7 @@ from config import Config, DATA_DIR, log
 # Phase functions
 from phases.topics import fetch_topic, update_topic
 from phases.script import generate_script
+from phases.verse import build_verse_topic, build_verse_script
 from phases.scenes import scene_engine
 from phases.media import generate_images, generate_image_single, generate_videos, generate_video_single, generate_voiceover, transcribe_voiceover
 from phases.render import get_s3_client, upload_to_r2, upload_assets, create_srt, render_video
@@ -23,8 +24,9 @@ from phases.topics import (
 )
 
 
-def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None, 
-                 manual_clips: list = None, manual_voiceover: str = None) -> dict:
+def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
+                 manual_clips: list = None, manual_voiceover: str = None,
+                 verse_mode: bool = False) -> dict:
     """Execute the full pipeline with checkpoint/resume and approval gates.
 
     resume_from: Phase index to resume from (0 = start fresh).
@@ -34,6 +36,13 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
     manual_voiceover: URL to voiceover audio file.
                       When provided with manual_clips, skips phases 0-5.
                       Whisper transcribes it, GPT derives topic/captions from transcript.
+    verse_mode: "Verse of the Day" — instead of a GPT-written topic/script,
+                Phase 0 picks a KJV Bible reference and Phase 1 builds the
+                script straight from its real verse text (no GPT call, no
+                hook/build/reveal/command story — the video is just a
+                reading of the verse). Everything from Phase 2 onward
+                (Scene Engine, images, video, voice, render, publish) is
+                unchanged — it just consumes this script like any other.
 
     Gates:
       - After phase 2 (Scene Engine): pauses for prompt editing (gate="prompts")
@@ -87,6 +96,17 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
             result["topic"] = topic
             save_checkpoint(0, {"topic": topic})
             notify(0, "Fetch Topic", "done")
+        elif verse_mode and resume_from <= 0:
+            # Verse of the Day — picks a KJV reference + real verse text
+            # instead of a topic-database entry. Nothing else in the
+            # pipeline needs to know the difference; build_verse_topic()
+            # returns the same id/idea/category/scripture shape.
+            notify(0, "Fetch Topic", "running")
+            topic = build_verse_topic()
+            result["phases"].append({"name": "Fetch Topic", "status": "done"})
+            result["topic"] = topic
+            save_checkpoint(0, {"topic": topic})
+            notify(0, "Fetch Topic", "done")
         elif resume_from <= 0:
             notify(0, "Fetch Topic", "running")
             topic = fetch_topic(topic_id)
@@ -107,6 +127,15 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
             notify(1, "Generate Script", "running")
             script = {"hook": "", "build": "", "reveal": "", "command": "", "script_full": "", "tone": "manual"}
             result["phases"].append({"name": "Generate Script", "status": "skipped"})
+            result["script"] = script
+            save_checkpoint(1, {"script": script})
+            notify(1, "Generate Script", "done")
+        elif verse_mode and resume_from <= 1:
+            # No GPT call here at all — the script IS the verse text,
+            # fetched in Phase 0 (or re-fetched on a mid-run resume).
+            notify(1, "Generate Script", "running")
+            script = build_verse_script(topic) if resume_from < 1 else ckpt.get("script") or build_verse_script(topic)
+            result["phases"].append({"name": "Generate Script", "status": "done"})
             result["script"] = script
             save_checkpoint(1, {"script": script})
             notify(1, "Generate Script", "done")

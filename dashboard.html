@@ -333,6 +333,7 @@ body{overflow:auto}
 <!-- Action Bar -->
 <div style="display:flex;gap:6px;margin-bottom:10px">
 <button id="d-rb2" onclick="runNow()" style="flex:1;padding:.7em;background:var(--amb);border:none;color:var(--bg);font-family:var(--f1);font-size:.65em;font-weight:600;letter-spacing:.15em;box-shadow:0 0 8px rgba(227,160,40,.2)">▶ EXECUTE</button>
+<button onclick="runNow(null,true)" title="Reads a KJV Bible verse — no story, just the verse" style="flex:1;padding:.7em;background:rgba(160,120,224,.08);border:1px solid rgba(160,120,224,.2);color:#a078e0;font-family:var(--f1);font-size:.65em;font-weight:600;letter-spacing:.15em">📖 VERSE OF THE DAY</button>
 <button onclick="scriptOnly()" style="flex:1;padding:.7em;background:rgba(40,160,224,.06);border:1px solid rgba(40,160,224,.15);color:var(--blu);font-family:var(--f1);font-size:.65em;font-weight:600;letter-spacing:.15em">✎ SCRIPT ONLY</button>
 <button class="sb-res" id="d-rsb2" onclick="resumeNow()" style="flex:1;padding:.7em;font-family:var(--f1);font-size:.65em;letter-spacing:.15em;color:var(--amb);background:none;border:1px solid var(--bd);display:none">♻ RESUME</button>
 </div>
@@ -470,6 +471,7 @@ body{overflow:auto}
 <button style="padding:.4em .7em;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('scenes',document.querySelectorAll('.bnav-i')[0])">◈ SCENES</button>
 <button style="padding:.4em .7em;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('runs',document.querySelectorAll('.bnav-i')[0])">◈ RUNS</button>
 </div>
+<button onclick="runNow(null,true)" style="width:100%;padding:.6em;margin-bottom:8px;background:rgba(160,120,224,.08);border:1px solid rgba(160,120,224,.2);color:#a078e0;font-family:var(--f1);font-size:.55em;font-weight:600;letter-spacing:.1em;min-height:2.5em">📖 VERSE OF THE DAY</button>
 <div id="m-gate"></div>
 <!-- Script Only Result Mobile -->
 <div id="m-script-result" class="hd" style="background:var(--panel);border:1px solid var(--bd2);padding:.7em;margin-bottom:6px">
@@ -824,9 +826,11 @@ function rP(){
 }
 
 /* ═══ ACTIONS ═══ */
-async function runNow(topicId){
+async function runNow(topicId,verseMode){
   if(RN)return;
-  const body=topicId?{topic_id:topicId}:{};
+  const body={};
+  if(topicId)body.topic_id=topicId;
+  if(verseMode)body.verse_mode=true;
   await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   RN=true;PH=0;PD=[];GATE=null;rP();poll();
 }
