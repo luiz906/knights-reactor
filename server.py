@@ -323,7 +323,13 @@ def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: l
     }
     RUNS.insert(0, run_entry)
     save_json(RUNS_FILE, RUNS[:100])
-    log_entry("System", "ok" if result.get("status") in ("published","complete") else "error", f"Pipeline finished: {result.get('status')}")
+    # Include the actual exception text on failure — without this the Logs
+    # tab only ever showed "Pipeline finished: failed" with no indication of
+    # WHY (the real reason was only visible on the Run History card itself).
+    _fin_msg = f"Pipeline finished: {result.get('status')}"
+    if result.get("status") not in ("published", "complete") and result.get("error"):
+        _fin_msg += f" — {result['error']}"
+    log_entry("System", "ok" if result.get("status") in ("published","complete") else "error", _fin_msg)
 
 # ══════════════════════════════════════════════════════════════
 # AUTOPOST v2 — Brand-aware Dropbox → Blotato image publisher
@@ -1233,6 +1239,11 @@ async def regen_image(req: Request):
         ckpt_path.write_text(json.dumps(ckpt))
         return {"status": "regenerated", "clip": target}
     except Exception as e:
+        # This previously only returned the error to the browser — it never
+        # reached the Logs tab or anywhere else persistent, so a failed
+        # regen looked like it vanished with no trace. Log it like a real
+        # pipeline failure so it's visible there too.
+        log_entry("Generate Images", "error", f"Regen failed for clip {clip_index}: {e}")
         return JSONResponse({"error": str(e)}, 500)
 
 # ─── VIDEO APPROVAL GATE ─────────────────────────────────────
@@ -1288,6 +1299,7 @@ async def regen_video(req: Request):
         ckpt_path.write_text(json.dumps(ckpt))
         return {"status": "regenerated", "clip": target}
     except Exception as e:
+        log_entry("Generate Videos", "error", f"Regen failed for clip {clip_index}: {e}")
         return JSONResponse({"error": str(e)}, 500)
 
 @app.post("/api/upload")

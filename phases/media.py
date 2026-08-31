@@ -80,6 +80,15 @@ def generate_images(clips: list) -> list:
         elif "imagen" in model:
             # Google Imagen — uses aspect_ratio
             params["aspect_ratio"] = "9:16"
+        elif "gpt-image" in model:
+            # OpenAI GPT Image (via Replicate) only accepts aspect_ratio
+            # "1:1", "3:2", or "2:3" — NOT arbitrary ratios like "9:16".
+            # Sending "9:16" gets a 422 Unprocessable Entity before the
+            # request even reaches the model. "2:3" is the closest
+            # supported portrait option. quality ("low"/"medium"/"high")
+            # is accepted as-is, same values this app already uses.
+            params["aspect_ratio"] = "2:3"
+            params["quality"] = quality
         else:
             # Flux, SD, and most others
             params["aspect_ratio"] = "9:16"
@@ -122,6 +131,10 @@ def generate_image_single(clip: dict) -> dict:
         params["aspect_ratio"] = "9:16"
     elif "imagen" in model:
         params["aspect_ratio"] = "9:16"
+    elif "gpt-image" in model:
+        # See generate_images() above — GPT Image only accepts 1:1/3:2/2:3.
+        params["aspect_ratio"] = "2:3"
+        params["quality"] = quality
     else:
         params["aspect_ratio"] = "9:16"
         params["quality"] = quality
