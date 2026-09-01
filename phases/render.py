@@ -291,20 +291,68 @@ def render_video(clips: list, voiceover_url: str, srt_url: str, audio_duration: 
         log.info(f"   ⏱️  TIMING: audio={audio_duration:.1f}s | content={content_dur:.1f}s | cta={cta_dur:.1f}s")
 
         if audio_needs > content_dur and cta_dur > 0:
-            # Voice runs past clips — stretch CTA to cover the difference
-            new_cta_dur = round(audio_needs - content_dur, 3)
+            # Voice runs past clips. If the overflow is bigger than the
+            # CTA's own designed length, stretch the CTA to cover it. If the
+            # overflow is SMALLER than the CTA's designed length, don't
+            # shrink the CTA below its intended size just to land exactly on
+            # audio_needs — the CTA doesn't need to end the instant the
+            # voice does, so keep it at full length and let the video run a
+            # little past the voice instead. (Previously this always set
+            # length = overflow with no floor, which could truncate a 4s CTA
+            # down to ~2s for a small overflow — cutting off its message.)
+            overflow = round(audio_needs - content_dur, 3)
+            new_cta_dur = max(cta_dur, overflow)
             cta_clip = video_clips[-1]  # CTA is always last
             old_cta = cta_clip["length"]
             cta_clip["length"] = new_cta_dur
             cta_clip["start"] = round(content_dur, 3)
-            total_dur = round(audio_needs, 3)
-            log.info(f"   ⏱️  CTA stretched: {old_cta}s → {new_cta_dur}s | total={total_dur:.1f}s")
+            total_dur = round(content_dur + new_cta_dur, 3)
+            if new_cta_dur > old_cta:
+                log.info(f"   ⏱️  CTA stretched: {old_cta}s → {new_cta_dur}s | total={total_dur:.1f}s")
+            else:
+                log.info(f"   ⏱️  CTA kept at full {new_cta_dur}s (voice overflow was only {overflow}s) | total={total_dur:.1f}s")
         elif audio_needs > total_dur:
             # No CTA but voice is longer — just set total to audio length
             total_dur = audio_needs
             log.info(f"   ⏱️  No CTA to stretch — total set to audio: {total_dur:.1f}s")
+        elif audio_needs < content_dur:
+            # Voice is SHORTER than the generated clips (e.g. a short Verse
+            # of the Day reading vs a full 3x10s clip set). Previously this
+            # branch only shrank the `total_dur` bookkeeping variable used
+            # for the audio track/logo length — it never touched the actual
+            # video clips, which kept their full original length. Shotstack
+            # renders the timeline out to its LONGEST track regardless, so
+            # the video track (still full length) would play on in total
+            # silence (no voice, no logo) for however long was left after
+            # the audio and logo cut off, with the CTA still sitting at its
+            # original far-later start time. Trim the main clips down to
+            # match the audio instead, so the video ends when the reading
+            # does (plus the CTA), not whenever the raw clips happen to run out.
+            main_clips = video_clips[:-1] if cta_dur > 0 else video_clips
+            kept = []
+            for c in main_clips:
+                if c["start"] >= audio_needs:
+                    break  # this clip starts after the audio already ended
+                max_len = round(audio_needs - c["start"], 3)
+                if c["length"] > max_len:
+                    c["length"] = max_len
+                kept.append(c)
+                if round(c["start"] + c["length"], 3) >= audio_needs:
+                    break
+            if not kept and main_clips:
+                main_clips[0]["length"] = round(audio_needs, 3)
+                kept = [main_clips[0]]
+            content_dur_trimmed = round(kept[-1]["start"] + kept[-1]["length"], 3) if kept else 0
+            if cta_dur > 0:
+                cta_clip = video_clips[-1]
+                cta_clip["start"] = content_dur_trimmed
+                video_clips[:] = kept + [cta_clip]
+            else:
+                video_clips[:] = kept
+            total_dur = round(content_dur_trimmed + cta_dur, 3)
+            log.info(f"   ⏱️  Clips trimmed to match short audio: {len(kept)} clip(s), {content_dur_trimmed:.1f}s content + {cta_dur:.1f}s CTA = {total_dur:.1f}s total")
         else:
-            # Clips cover the audio fine
+            # Clips and audio line up closely enough as-is
             total_dur = round(audio_needs + cta_dur, 3)
             log.info(f"   ⏱️  TIMING OK — total={total_dur:.1f}s")
     else:

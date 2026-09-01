@@ -48,6 +48,7 @@ class Config:
     LOGO_URL          = env("LOGO_URL", "https://pub-8d4a1338211a44a7875ebe6ac8487129.r2.dev/gods_knights.png")
     LOGO_ENABLED      = True
     CAPTIONS_ENABLED  = True
+    VERSE_TRANSLATION = env("VERSE_TRANSLATION", "kjv")  # bible-api.com code (kjv/web/asv/bbe/darby/dra/...) — Verse of the Day only
     LOGO_POSITION     = "topRight"
     LOGO_SCALE        = 0.12
     LOGO_OPACITY      = 0.8

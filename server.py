@@ -178,6 +178,7 @@ def apply_model_settings():
     elif get_active_brand() != "knights":
         Config.LOGO_ENABLED = False
     if "captions_enabled" in s: Config.CAPTIONS_ENABLED = s["captions_enabled"] in (True, "true", "True")
+    if s.get("verse_translation"): Config.VERSE_TRANSLATION = s["verse_translation"]
     if s.get("logo_position"):  Config.LOGO_POSITION = s["logo_position"]
     if s.get("logo_scale"):     Config.LOGO_SCALE = float(s["logo_scale"])
     if s.get("logo_opacity"):   Config.LOGO_OPACITY = float(s["logo_opacity"])
