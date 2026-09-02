@@ -7,9 +7,62 @@ brand silently inherits Knights content.
 """
 import json, random
 from pathlib import Path
-from config import Config, log
+from config import Config, DATA_DIR, log
 
 pick = lambda arr: random.choice(arr)
+
+
+# ─── NO-REPEAT SELECTION ──────────────────────────────────────
+# random.choice() has no memory, so a small candidate pool (a theme might
+# only match 3-8 of the ~20 stories; there are only 5 figures total) can
+# hand back the same story or figure run after run just by chance — which
+# is what "the same rain scene keeps repeating" actually was. This mirrors
+# the cycle-without-repeat approach phases/verse.py already uses for Bible
+# references: track which names have been used recently for THIS pool, pick
+# from whatever's left, and only reset once the whole pool is exhausted.
+def _scene_state_file(brand=None):
+    if brand is None:
+        ab_file = DATA_DIR / "active_brand.txt"
+        brand = ab_file.read_text().strip() if ab_file.exists() else _active_brand_name()
+    bd = DATA_DIR / "brands" / brand
+    bd.mkdir(parents=True, exist_ok=True)
+    return bd / "scene_state.json"
+
+
+def _load_scene_state(brand=None):
+    f = _scene_state_file(brand)
+    if f.exists():
+        try:
+            return json.loads(f.read_text())
+        except Exception:
+            pass
+    return {"used": []}
+
+
+def _save_scene_state(state, brand=None):
+    _scene_state_file(brand).write_text(json.dumps(state, indent=2))
+
+
+def pick_no_repeat(candidates: list, brand=None):
+    """Pick one item (a story or a figure dict/string) from `candidates`
+    without repeating until every item in THIS pool has come up once. Only
+    the names relevant to the current pool are ever cleared on reset, so
+    cycling progress on other themes' pools isn't disturbed."""
+    if len(candidates) <= 1:
+        return candidates[0]
+    state = _load_scene_state(brand)
+    used = set(state.get("used", []))
+    key = lambda c: c["name"] if isinstance(c, dict) else c
+    names = {key(c) for c in candidates}
+    remaining = [c for c in candidates if key(c) not in used]
+    if not remaining:
+        used -= names
+        remaining = candidates
+    choice = random.choice(remaining)
+    used.add(key(choice))
+    state["used"] = list(used)
+    _save_scene_state(state, brand)
+    return choice
 
 
 # ─── BRAND SCENE LOADER ──────────────────────────────────────
@@ -66,12 +119,12 @@ def empty_scenes() -> dict:
     """A fully empty scene pack. Used for any brand other than 'knights' that
     doesn't have its own scenes.json yet — deliberately has NO figures, moods,
     cameras, intensity, or stories, so no brand inherits Knights content.
-    "themes" is the one exception: it's a shared tagging vocabulary (courage,
-    doubt, loss, etc.) rather than creative brand content, so it's always
-    available — see the note on THEME_KEYWORDS below."""
+    "themes" always gets filled in with a starting tag vocabulary so auto-
+    detection has something to match against — but it's GENERIC_THEME_KEYWORDS
+    here, not the Knights-flavored THEME_KEYWORDS (see get_scene_data below)."""
     return {
         "figures": [],
-        "themes": dict(THEME_KEYWORDS),
+        "themes": dict(GENERIC_THEME_KEYWORDS),
         "moods": {},
         "intensity": {},
         "cameras": {},
@@ -104,6 +157,31 @@ def standard_motion_defaults() -> dict:
     }
 
 
+# Generic, brand-neutral theme/tag vocabulary — no faith, combat, or knight
+# wording (no "armor of god", "warrior", "anointed", "crown", etc.). This is
+# what any brand other than "knights" gets by default, so a story's Theme
+# Tags don't carry Knights' voice into an unrelated brand. Story auto-
+# selection still works the same way: script text is scanned for these
+# keywords to guess which tag (and therefore which story) best matches.
+GENERIC_THEME_KEYWORDS = {
+    "excitement": ["exciting", "thrill", "amazing", "incredible", "energy", "bold", "electric", "rush", "wow"],
+    "calm": ["calm", "peaceful", "quiet", "gentle", "soft", "serene", "still", "relax", "ease"],
+    "confidence": ["confident", "strong", "sure", "bold", "assured", "powerful", "capable", "command"],
+    "connection": ["together", "community", "family", "friend", "relationship", "team", "trust", "belong"],
+    "growth": ["grow", "improve", "learn", "progress", "better", "develop", "change", "evolve", "level up"],
+    "challenge": ["challenge", "hard", "difficult", "struggle", "overcome", "push", "obstacle", "grind"],
+    "joy": ["joy", "happy", "fun", "delight", "smile", "laugh", "celebrate", "playful"],
+    "focus": ["focus", "clarity", "clear", "precise", "sharp", "intentional", "purpose", "discipline"],
+}
+
+
+def standard_theme_defaults() -> dict:
+    """Generic, brand-neutral starting theme/tag vocabulary — usable by any
+    brand as a reset target if it's stuck with old Knights-flavored tags from
+    before this existed."""
+    return dict(GENERIC_THEME_KEYWORDS)
+
+
 def get_scene_data() -> tuple:
     """Get scene data for the active brand.
     Returns (figures, themes, moods, intensity, cameras, stories).
@@ -116,7 +194,8 @@ def get_scene_data() -> tuple:
     brand = load_brand_scenes()
     if brand:
         figures   = brand.get("figures", [])
-        themes    = brand.get("themes") or dict(THEME_KEYWORDS)
+        default_themes = dict(THEME_KEYWORDS) if _active_brand_name() == "knights" else dict(GENERIC_THEME_KEYWORDS)
+        themes    = brand.get("themes") or default_themes
         moods     = brand.get("moods", {})
         intensity = brand.get("intensity", {})
         cameras   = brand.get("cameras", {})
@@ -156,10 +235,11 @@ FIGURES = [
 IMAGE_SUFFIXES = {
     "storm": "Cinematic dark atmosphere, cold blue-grey tones, rain, fog, 9:16 vertical.",
     "fire": "Cinematic dark atmosphere, orange ember glow against darkness, smoke, ash particles, 9:16 vertical.",
-    "dawn": "Cinematic golden hour light, warm amber highlights, cold shadows, fog, 9:16 vertical.",
+    "dawn": "Cinematic golden hour light, warm amber highlights, soft haze, warm glow, 9:16 vertical.",
     "night": "Cinematic moonlit scene, silver-blue cold tones, deep shadows, mist, 9:16 vertical.",
     "grey": "Cinematic overcast atmosphere, muted grey tones, rain, wet surfaces, 9:16 vertical.",
     "battle": "Cinematic dark atmosphere, smoke, distant fire, debris, dramatic lighting, 9:16 vertical.",
+    "daylight": "Cinematic bright daylight, clear vibrant sky, sharp direct sunlight, warm golden tones, no shadows or haze, 9:16 vertical.",
 }
 
 INTENSITY_MODIFIERS = {
@@ -267,7 +347,7 @@ STORY_SEEDS = [
         {"action":"strikes the glowing metal on the anvil with a heavy hammer","setting":"dark forge, sparks flying from the impact, fire blazing in the pit","lighting":"orange sparks from the hammer strike illuminating his helm","atmosphere":"sparks spraying from the anvil","composition":"Extreme close-up on hammer strike","camera":"Close on hammer striking metal","subject":"Hammer strikes the glowing metal","ambient":"Sparks fly from the anvil","pace":"Controlled motion."},
         {"action":"holds the finished sword up, examining the blade in the firelight","setting":"dark forge, fire burning low in the pit, the completed sword in his gauntlet","lighting":"orange firelight on the blade surface","atmosphere":"embers drifting from the dying fire","composition":"Low angle full body","camera":"Low angle looking up at the raised sword","subject":"Knight raises sword slowly, examining the blade","ambient":"Embers drift from the fire","pace":"Slow smooth motion."},
     ]},
-    {"name":"the_desert","themes":["endurance","temptation","patience"],"mood":"fire","clips":[
+    {"name":"the_desert","themes":["endurance","temptation","patience"],"mood":"daylight","clips":[
         {"action":"walks across empty cracked desert ground, sword at his hip","setting":"vast empty desert at high noon, cracked earth stretching in all directions","lighting":"harsh bright sunlight from directly overhead","atmosphere":"heat shimmer on the desert surface","composition":"Wide full-body shot","camera":"Wide locked shot from the front","subject":"Knight walks forward, heavy deliberate steps","ambient":"Heat shimmer distorts the horizon","pace":"Heavy weighted motion."},
         {"action":"kneels on the cracked desert ground, head bowed against the heat","setting":"empty desert, cracked earth, blazing sky above","lighting":"harsh overhead sunlight beating down on his helm","atmosphere":"heat waves rising from the cracked ground","composition":"Overhead downward angle","camera":"Overhead angle tilting down","subject":"Knight bows head low, shoulders slumped","ambient":"Heat shimmer rises from the ground","pace":"Heavy weighted motion."},
         {"action":"stands and walks forward across the desert toward a distant dark shape on the horizon","setting":"empty desert, faint dark shape on the far horizon, blazing sky","lighting":"harsh sunlight from above, dark shape ahead","atmosphere":"heat shimmer between him and the distant shape","composition":"Front-facing medium shot","camera":"Slow push-in from behind","subject":"Knight walks forward, picking up pace","ambient":"Heat shimmer distorts the distant shape","pace":"Steady motion."},
@@ -286,12 +366,56 @@ STORY_SEEDS = [
 
 
 def detect_theme(text: str, theme_keywords: dict = None) -> str:
+    """Score every theme by keyword hits and return the best match. Ties are
+    broken RANDOMLY, not by dict order — `max(scores, key=scores.get)` always
+    returns the first key it encounters among tied top scores, which quietly
+    made "temptation" (or whichever theme sits earliest in THEME_KEYWORDS)
+    win most ties every single time. Since brand persona/voice text often
+    repeats similar vocabulary across scripts (battle, courage, stand...),
+    ties were common — and a fixed tie-break meant the same handful of
+    theme-matched stories (e.g. the storm/rain ones under "courage") kept
+    getting selected far more often than the other themes ever could."""
     kw = theme_keywords or THEME_KEYWORDS
-    scores = {}
-    for theme, keywords in kw.items():
-        scores[theme] = sum(1 for k in keywords if k in text)
-    best = max(scores, key=scores.get)
-    return best if scores[best] > 0 else "random"
+    scores = {theme: sum(1 for k in keywords if k in text) for theme, keywords in kw.items()}
+    top_score = max(scores.values())
+    if top_score == 0:
+        return "random"
+    tied = [theme for theme, score in scores.items() if score == top_score]
+    return random.choice(tied)
+
+
+def default_image_prompt_template() -> str:
+    # Quality-boost phrase sits between the scene content and the mood
+    # suffix, so the mood text (which ends in "9:16 vertical.") stays the
+    # last thing the model reads — aspect-ratio adherence is more reliable
+    # when it's the final instruction, not buried mid-prompt.
+    return ("{figure} {action}. {setting}. {composition}. {lighting}. {atmosphere}. "
+            "Cinematic film still, ultra-detailed textures, dramatic natural lighting, "
+            "volumetric atmosphere, rich color grading, shallow depth of field, "
+            "photorealistic, award-winning cinematography, 8k detail. {suffix}")
+
+
+def default_motion_prompt_template() -> str:
+    return ("{camera}. {subject}. {ambient}. {pace} "
+            "Smooth cinematic motion, realistic physics and weight, subtle film grain, "
+            "natural camera micro-movement, professional cinematography. {tech_suffix}")
+
+
+def render_image_prompt(template, figure, action, setting, composition, lighting, atmosphere, suffix) -> str:
+    """Fill an image-prompt template via plain substring replacement (not
+    str.format()) so a Settings-tab override doesn't need brace-escaping."""
+    return (template
+            .replace("{figure}", figure).replace("{action}", action)
+            .replace("{setting}", setting).replace("{composition}", composition)
+            .replace("{lighting}", lighting).replace("{atmosphere}", atmosphere)
+            .replace("{suffix}", suffix))
+
+
+def render_motion_prompt(template, camera, subject, ambient, pace, tech_suffix) -> str:
+    return (template
+            .replace("{camera}", camera).replace("{subject}", subject)
+            .replace("{ambient}", ambient).replace("{pace}", pace)
+            .replace("{tech_suffix}", tech_suffix))
 
 
 def scene_engine(script: dict, topic: dict) -> list:
@@ -339,14 +463,14 @@ def scene_engine(script: dict, topic: dict) -> list:
             if mood_match:
                 matching = mood_match
         if matching:
-            story = pick(matching)
+            story = pick_no_repeat(matching)
             log.info(f"   Theme forced: {theme_override} → {story['name']} [{story['mood']}]")
 
     # 3. Mood bias → pick matching story
     if not story and Config.SCENE_MOOD_BIAS != "auto" and Config.SCENE_MOOD_BIAS in moods:
         matching = [s for s in stories if s["mood"] == Config.SCENE_MOOD_BIAS]
         if matching:
-            story = pick(matching)
+            story = pick_no_repeat(matching)
             log.info(f"   Mood forced: {Config.SCENE_MOOD_BIAS} → {story['name']}")
 
     # 4. Auto-detect from script text
@@ -358,14 +482,14 @@ def scene_engine(script: dict, topic: dict) -> list:
             matching = [s for s in stories if theme in s["themes"]]
             if not matching:
                 matching = stories
-        story = pick(matching)
+        story = pick_no_repeat(matching)
         log.info(f"   Auto-detect: {theme} → {story['name']} [{story['mood']}]")
 
     # ── FIGURE SELECTION ────────────────────────────────────
     if figure_override and figure_override != "auto":
         figure = f"a {figure_override}"
     else:
-        figure = pick(figures)
+        figure = pick_no_repeat(figures)
 
     # ── BUILD CLIPS ─────────────────────────────────────────
     img_suffix = moods.get(story["mood"], list(moods.values())[0] if moods else "9:16 vertical.")
@@ -380,9 +504,14 @@ def scene_engine(script: dict, topic: dict) -> list:
         story_clips = story_clips + story["clips"]
     story_clips = story_clips[:target_count]
 
+    img_template = getattr(Config, 'SCENE_IMAGE_PROMPT_TEMPLATE', '') or default_image_prompt_template()
+    mot_template = getattr(Config, 'SCENE_MOTION_PROMPT_TEMPLATE', '') or default_motion_prompt_template()
+
     for i, clip in enumerate(story_clips):
-        image_prompt = f"{figure} {clip['action']}. {clip['setting']}. {clip['composition']}. {clip['lighting']}. {clip['atmosphere']}. {img_suffix}"
-        motion_prompt = f"{clip['camera']}. {clip['subject']}. {clip['ambient']}. {clip['pace']} {tech_suffix}"
+        image_prompt = render_image_prompt(img_template, figure, clip['action'], clip['setting'],
+                                            clip['composition'], clip['lighting'], clip['atmosphere'], img_suffix)
+        motion_prompt = render_motion_prompt(mot_template, clip['camera'], clip['subject'],
+                                              clip['ambient'], clip['pace'], tech_suffix)
         clips.append({
             "index": i + 1,
             "image_prompt": image_prompt,
