@@ -52,6 +52,30 @@ def replicate_poll(get_url: str, timeout: int = 300) -> str:
     raise TimeoutError("Replicate prediction timed out")
 
 
+def _apply_reference_image(params: dict, clip: dict, model: str):
+    """Attach the cast member's reference image so the same character shows
+    up across every clip, instead of a differently-armored knight each time.
+
+    `image_input` is an ARRAY of image URLs — verified against the Replicate
+    schemas for the Nano Banana (Gemini) and Seedream families; Flux 2 takes
+    the same field. Classic Flux 1.1 Pro / Schnell / Dev are text-only and
+    would silently ignore it, so the reference is skipped (with a warning)
+    rather than sent into the void."""
+    ref = (clip.get("ref_image") or "").strip()
+    if not ref:
+        return
+    from phases.scenes import figure_supports_reference
+    if not figure_supports_reference(model):
+        log.warning(
+            f"   ⚠️  Clip {clip.get('index','')}: cast reference image set, but "
+            f"{model} does not accept reference images — generating from text only. "
+            f"Switch to Nano Banana, Seedream, or Flux 2 in Settings to use it."
+        )
+        return
+    params["image_input"] = [ref]
+    log.info(f"   Clip {clip.get('index','')}: using cast reference image")
+
+
 def generate_images(clips: list) -> list:
     """Generate cinematic images via Replicate (all models support 9:16)."""
     model = Config.IMAGE_MODEL
@@ -60,6 +84,7 @@ def generate_images(clips: list) -> list:
 
     for clip in clips:
         params = {"prompt": clip["image_prompt"]}
+        _apply_reference_image(params, clip, model)
 
         # Model-specific parameter mapping
         if "grok-imagine" in model:
@@ -119,6 +144,7 @@ def generate_image_single(clip: dict) -> dict:
     log.info(f"🖼️  Regenerating image for clip {clip.get('index','')} via {model}...")
 
     params = {"prompt": clip["image_prompt"]}
+    _apply_reference_image(params, clip, model)
     if "grok-imagine" in model:
         params["aspect_ratio"] = "9:16"
     elif "nano-banana" in model:

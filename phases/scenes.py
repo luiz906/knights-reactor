@@ -7,9 +7,121 @@ brand silently inherits Knights content.
 """
 import json, random
 from pathlib import Path
-from config import Config, log
+from config import Config, DATA_DIR, log
 
 pick = lambda arr: random.choice(arr)
+
+
+# ─── NO-REPEAT SELECTION ──────────────────────────────────────
+# random.choice() has no memory, so a small candidate pool (a theme might
+# only match 3-8 of the ~20 stories; there are only 5 figures total) can
+# hand back the same story or figure run after run just by chance — which
+# is what "the same rain scene keeps repeating" actually was. This mirrors
+# the cycle-without-repeat approach phases/verse.py already uses for Bible
+# references: track which names have been used recently for THIS pool, pick
+# from whatever's left, and only reset once the whole pool is exhausted.
+def _scene_state_file(brand=None):
+    if brand is None:
+        ab_file = DATA_DIR / "active_brand.txt"
+        brand = ab_file.read_text().strip() if ab_file.exists() else _active_brand_name()
+    bd = DATA_DIR / "brands" / brand
+    bd.mkdir(parents=True, exist_ok=True)
+    return bd / "scene_state.json"
+
+
+def _load_scene_state(brand=None):
+    f = _scene_state_file(brand)
+    if f.exists():
+        try:
+            return json.loads(f.read_text())
+        except Exception:
+            pass
+    return {"used": []}
+
+
+def _save_scene_state(state, brand=None):
+    _scene_state_file(brand).write_text(json.dumps(state, indent=2))
+
+
+def _pool_key(c) -> str:
+    """Stable identity for one item in a no-repeat pool. Stories always carry
+    a "name"; figures may not (a legacy figure is a bare description string,
+    and a normalized one can have an empty name), so fall back to the
+    description — otherwise every unnamed figure would collide on the same
+    "" key and the no-repeat cycle would think the whole cast was one item."""
+    if isinstance(c, dict):
+        return c.get("name") or c.get("desc") or json.dumps(c, sort_keys=True)
+    return str(c)
+
+
+def pick_no_repeat(candidates: list, brand=None):
+    """Pick one item (a story or a figure dict/string) from `candidates`
+    without repeating until every item in THIS pool has come up once. Only
+    the names relevant to the current pool are ever cleared on reset, so
+    cycling progress on other themes' pools isn't disturbed."""
+    if len(candidates) <= 1:
+        return candidates[0]
+    state = _load_scene_state(brand)
+    used = set(state.get("used", []))
+    key = _pool_key
+    names = {key(c) for c in candidates}
+    remaining = [c for c in candidates if key(c) not in used]
+    if not remaining:
+        used -= names
+        remaining = candidates
+    choice = random.choice(remaining)
+    used.add(key(choice))
+    state["used"] = list(used)
+    _save_scene_state(state, brand)
+    return choice
+
+
+# ─── FIGURES (CAST) ──────────────────────────────────────────
+# A figure used to be a bare description string. It can now also be a dict
+# carrying a display name and a reference image URL:
+#
+#   "a battle-scarred knight in dented plate..."                  (legacy)
+#   {"name": "The Veteran", "desc": "a battle-scarred knight...",
+#    "ref_image": "https://pub-....r2.dev/_figures/veteran.jpg"}  (current)
+#
+# Both shapes are accepted everywhere and normalized on read, so a brand
+# whose scenes.json still holds plain strings keeps working untouched — the
+# name and reference image simply come back empty until it's edited.
+
+def normalize_figure(fig) -> dict:
+    """Coerce either figure shape into {name, desc, ref_image}."""
+    if isinstance(fig, dict):
+        return {
+            "name": (fig.get("name") or "").strip(),
+            "desc": (fig.get("desc") or fig.get("description") or "").strip(),
+            "ref_image": (fig.get("ref_image") or "").strip(),
+        }
+    return {"name": "", "desc": str(fig or "").strip(), "ref_image": ""}
+
+
+def normalize_figures(figures: list) -> list:
+    """Normalize a whole cast list, dropping entries with no description —
+    an empty description would render the prompt as a headless sentence
+    ("  kneels on the muddy battlefield...")."""
+    out = [normalize_figure(f) for f in (figures or [])]
+    return [f for f in out if f["desc"]]
+
+
+def figure_label(fig: dict) -> str:
+    """Short human label for logs and dropdowns."""
+    return fig.get("name") or (fig.get("desc") or "")[:50]
+
+
+def figure_supports_reference(model: str) -> bool:
+    """Whether the configured image model accepts a reference image.
+
+    Verified against each model's Replicate schema: the Nano Banana (Gemini)
+    and Seedream families both take `image_input` as an ARRAY of image URLs,
+    and Flux 2 accepts the same field. Classic Flux 1.1 Pro / Schnell / Dev
+    are text-only — passing a reference to them is silently ignored, so the
+    UI warns instead of pretending it worked."""
+    m = (model or "").lower()
+    return any(k in m for k in ("nano-banana", "seedream", "flux-2"))
 
 
 # ─── BRAND SCENE LOADER ──────────────────────────────────────
@@ -172,20 +284,21 @@ THEME_KEYWORDS = {
 }
 
 FIGURES = [
-    "a battle-scarred knight in dented steel plate armor, torn dark cape, closed scratched helm",
-    "a lone knight in battered grey steel armor, heavy mud-stained cape, weathered closed helm",
-    "a medieval warrior in blackened steel plate, tattered cape in shreds, scarred closed helm",
-    "a weary knight in ancient dulled steel plate, faded torn surcoat, heavy hooded cape, scratched helm",
-    "a solitary knight in tarnished steel armor, stained campaign cape, closed dented helm",
+    {"name": "The Veteran",  "desc": "a battle-scarred knight in dented steel plate armor, torn dark cape, closed scratched helm", "ref_image": ""},
+    {"name": "The Wanderer", "desc": "a lone knight in battered grey steel armor, heavy mud-stained cape, weathered closed helm", "ref_image": ""},
+    {"name": "The Blackened","desc": "a medieval warrior in blackened steel plate, tattered cape in shreds, scarred closed helm", "ref_image": ""},
+    {"name": "The Penitent", "desc": "a weary knight in ancient dulled steel plate, faded torn surcoat, heavy hooded cape, scratched helm", "ref_image": ""},
+    {"name": "The Solitary", "desc": "a solitary knight in tarnished steel armor, stained campaign cape, closed dented helm", "ref_image": ""},
 ]
 
 IMAGE_SUFFIXES = {
     "storm": "Cinematic dark atmosphere, cold blue-grey tones, rain, fog, 9:16 vertical.",
     "fire": "Cinematic dark atmosphere, orange ember glow against darkness, smoke, ash particles, 9:16 vertical.",
-    "dawn": "Cinematic golden hour light, warm amber highlights, cold shadows, fog, 9:16 vertical.",
+    "dawn": "Cinematic golden hour light, warm amber highlights, soft haze, warm glow, 9:16 vertical.",
     "night": "Cinematic moonlit scene, silver-blue cold tones, deep shadows, mist, 9:16 vertical.",
     "grey": "Cinematic overcast atmosphere, muted grey tones, rain, wet surfaces, 9:16 vertical.",
     "battle": "Cinematic dark atmosphere, smoke, distant fire, debris, dramatic lighting, 9:16 vertical.",
+    "daylight": "Cinematic bright daylight, clear vibrant sky, sharp direct sunlight, warm golden tones, no shadows or haze, 9:16 vertical.",
 }
 
 INTENSITY_MODIFIERS = {
@@ -293,7 +406,7 @@ STORY_SEEDS = [
         {"action":"strikes the glowing metal on the anvil with a heavy hammer","setting":"dark forge, sparks flying from the impact, fire blazing in the pit","lighting":"orange sparks from the hammer strike illuminating his helm","atmosphere":"sparks spraying from the anvil","composition":"Extreme close-up on hammer strike","camera":"Close on hammer striking metal","subject":"Hammer strikes the glowing metal","ambient":"Sparks fly from the anvil","pace":"Controlled motion."},
         {"action":"holds the finished sword up, examining the blade in the firelight","setting":"dark forge, fire burning low in the pit, the completed sword in his gauntlet","lighting":"orange firelight on the blade surface","atmosphere":"embers drifting from the dying fire","composition":"Low angle full body","camera":"Low angle looking up at the raised sword","subject":"Knight raises sword slowly, examining the blade","ambient":"Embers drift from the fire","pace":"Slow smooth motion."},
     ]},
-    {"name":"the_desert","themes":["endurance","temptation","patience"],"mood":"fire","clips":[
+    {"name":"the_desert","themes":["endurance","temptation","patience"],"mood":"daylight","clips":[
         {"action":"walks across empty cracked desert ground, sword at his hip","setting":"vast empty desert at high noon, cracked earth stretching in all directions","lighting":"harsh bright sunlight from directly overhead","atmosphere":"heat shimmer on the desert surface","composition":"Wide full-body shot","camera":"Wide locked shot from the front","subject":"Knight walks forward, heavy deliberate steps","ambient":"Heat shimmer distorts the horizon","pace":"Heavy weighted motion."},
         {"action":"kneels on the cracked desert ground, head bowed against the heat","setting":"empty desert, cracked earth, blazing sky above","lighting":"harsh overhead sunlight beating down on his helm","atmosphere":"heat waves rising from the cracked ground","composition":"Overhead downward angle","camera":"Overhead angle tilting down","subject":"Knight bows head low, shoulders slumped","ambient":"Heat shimmer rises from the ground","pace":"Heavy weighted motion."},
         {"action":"stands and walks forward across the desert toward a distant dark shape on the horizon","setting":"empty desert, faint dark shape on the far horizon, blazing sky","lighting":"harsh sunlight from above, dark shape ahead","atmosphere":"heat shimmer between him and the distant shape","composition":"Front-facing medium shot","camera":"Slow push-in from behind","subject":"Knight walks forward, picking up pace","ambient":"Heat shimmer distorts the distant shape","pace":"Steady motion."},
@@ -312,20 +425,39 @@ STORY_SEEDS = [
 
 
 def detect_theme(text: str, theme_keywords: dict = None) -> str:
+    """Score every theme by keyword hits and return the best match. Ties are
+    broken RANDOMLY, not by dict order — `max(scores, key=scores.get)` always
+    returns the first key it encounters among tied top scores, which quietly
+    made "temptation" (or whichever theme sits earliest in THEME_KEYWORDS)
+    win most ties every single time. Since brand persona/voice text often
+    repeats similar vocabulary across scripts (battle, courage, stand...),
+    ties were common — and a fixed tie-break meant the same handful of
+    theme-matched stories (e.g. the storm/rain ones under "courage") kept
+    getting selected far more often than the other themes ever could."""
     kw = theme_keywords or THEME_KEYWORDS
-    scores = {}
-    for theme, keywords in kw.items():
-        scores[theme] = sum(1 for k in keywords if k in text)
-    best = max(scores, key=scores.get)
-    return best if scores[best] > 0 else "random"
+    scores = {theme: sum(1 for k in keywords if k in text) for theme, keywords in kw.items()}
+    top_score = max(scores.values())
+    if top_score == 0:
+        return "random"
+    tied = [theme for theme, score in scores.items() if score == top_score]
+    return random.choice(tied)
 
 
 def default_image_prompt_template() -> str:
-    return "{figure} {action}. {setting}. {composition}. {lighting}. {atmosphere}. {suffix}"
+    # Quality-boost phrase sits between the scene content and the mood
+    # suffix, so the mood text (which ends in "9:16 vertical.") stays the
+    # last thing the model reads — aspect-ratio adherence is more reliable
+    # when it's the final instruction, not buried mid-prompt.
+    return ("{figure} {action}. {setting}. {composition}. {lighting}. {atmosphere}. "
+            "Cinematic film still, ultra-detailed textures, dramatic natural lighting, "
+            "volumetric atmosphere, rich color grading, shallow depth of field, "
+            "photorealistic, award-winning cinematography, 8k detail. {suffix}")
 
 
 def default_motion_prompt_template() -> str:
-    return "{camera}. {subject}. {ambient}. {pace} {tech_suffix}"
+    return ("{camera}. {subject}. {ambient}. {pace} "
+            "Smooth cinematic motion, realistic physics and weight, subtle film grain, "
+            "natural camera micro-movement, professional cinematography. {tech_suffix}")
 
 
 def render_image_prompt(template, figure, action, setting, composition, lighting, atmosphere, suffix) -> str:
@@ -353,6 +485,7 @@ def scene_engine(script: dict, topic: dict) -> list:
 
     # ── LOAD BRAND SCENES ───────────────────────────────────
     figures, theme_keywords, moods, intensity_mods, cameras, stories = get_scene_data()
+    figures = normalize_figures(figures)
 
     if not figures or not stories:
         brand_name = _active_brand_name()
@@ -390,14 +523,14 @@ def scene_engine(script: dict, topic: dict) -> list:
             if mood_match:
                 matching = mood_match
         if matching:
-            story = pick(matching)
+            story = pick_no_repeat(matching)
             log.info(f"   Theme forced: {theme_override} → {story['name']} [{story['mood']}]")
 
     # 3. Mood bias → pick matching story
     if not story and Config.SCENE_MOOD_BIAS != "auto" and Config.SCENE_MOOD_BIAS in moods:
         matching = [s for s in stories if s["mood"] == Config.SCENE_MOOD_BIAS]
         if matching:
-            story = pick(matching)
+            story = pick_no_repeat(matching)
             log.info(f"   Mood forced: {Config.SCENE_MOOD_BIAS} → {story['name']}")
 
     # 4. Auto-detect from script text
@@ -409,14 +542,27 @@ def scene_engine(script: dict, topic: dict) -> list:
             matching = [s for s in stories if theme in s["themes"]]
             if not matching:
                 matching = stories
-        story = pick(matching)
+        story = pick_no_repeat(matching)
         log.info(f"   Auto-detect: {theme} → {story['name']} [{story['mood']}]")
 
     # ── FIGURE SELECTION ────────────────────────────────────
+    # The Settings dropdown sends a truncated label, so match it back to the
+    # real cast entry — otherwise the character's reference image is lost
+    # whenever a figure is forced instead of auto-picked.
     if figure_override and figure_override != "auto":
-        figure = f"a {figure_override}"
+        ov = figure_override.strip()
+        figure_obj = next(
+            (f for f in figures
+             if ov in (f["name"], f["desc"]) or f["desc"].startswith(ov)),
+            None,
+        )
+        if figure_obj is None:
+            figure_obj = {"name": "", "desc": f"a {ov}", "ref_image": ""}
     else:
-        figure = pick(figures)
+        figure_obj = pick_no_repeat(figures)
+
+    figure = figure_obj["desc"]
+    figure_ref = figure_obj.get("ref_image", "")
 
     # ── BUILD CLIPS ─────────────────────────────────────────
     img_suffix = moods.get(story["mood"], list(moods.values())[0] if moods else "9:16 vertical.")
@@ -439,12 +585,19 @@ def scene_engine(script: dict, topic: dict) -> list:
                                             clip['composition'], clip['lighting'], clip['atmosphere'], img_suffix)
         motion_prompt = render_motion_prompt(mot_template, clip['camera'], clip['subject'],
                                               clip['ambient'], clip['pace'], tech_suffix)
-        clips.append({
+        clip_out = {
             "index": i + 1,
             "image_prompt": image_prompt,
             "motion_prompt": motion_prompt,
-        })
+        }
+        # Every clip in a run shares one cast member, so they all carry the
+        # same reference image — that's what finally makes the knight look
+        # like the SAME knight across clips 1, 2 and 3 of one video.
+        if figure_ref:
+            clip_out["ref_image"] = figure_ref
+        clips.append(clip_out)
 
-    log.info(f"   Final: {story['name']} [{story['mood']}] | Figure: {figure[:50]}...")
+    ref_note = " | ref image ✓" if figure_ref else ""
+    log.info(f"   Final: {story['name']} [{story['mood']}] | Figure: {figure_label(figure_obj)}{ref_note}")
     return clips
 
