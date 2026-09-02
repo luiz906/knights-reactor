@@ -137,6 +137,16 @@ select.fin option{background:var(--bg2);color:var(--amb);padding:6px}
 .sc-row{display:flex;gap:10px;align-items:flex-start;padding:.7em 0;border-bottom:1px solid rgba(var(--fg),.04)}
 .sc-row:last-of-type{border-bottom:none}
 .sc-key{width:9em;flex-shrink:0}
+/* CAST member rows — thumbnail + editable fields + actions */
+.sc-fig{display:flex;gap:.8em;align-items:flex-start;padding:.9em 0;border-bottom:1px solid rgba(var(--fg),.04)}
+.sc-fig:last-of-type{border-bottom:none}
+.sc-fig-thumb{width:7em;aspect-ratio:9/16;flex-shrink:0;background:var(--bg);border:1px solid var(--bd2);overflow:hidden;position:relative}
+.sc-fig-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.sc-fig-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:.5em;letter-spacing:.1em;color:var(--txtdd);line-height:1.6;text-transform:uppercase}
+.sc-fig-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:.5em}
+.sc-fig-name{font-family:var(--f1);letter-spacing:.06em}
+.sc-fig-acts{display:flex;flex-wrap:wrap;gap:.4em}
+.sc-fig-st{font-size:.55em;min-height:1.2em;line-height:1.4}
 .sc-col-hd{display:flex;gap:10px;padding:0 0 .5em;font-size:.52em;color:var(--txtdd);letter-spacing:.14em;text-transform:uppercase;font-weight:600}
 .sc-col-hd .sc-key{width:9em;flex-shrink:0}
 .sc-col-hd .sc-desc{flex:1}
@@ -277,6 +287,8 @@ body{overflow:auto}
 .sc-col-hd{display:none}
 .sc-row{flex-direction:column;gap:6px}
 .sc-key{width:100%}
+.sc-fig-thumb{width:5em}
+.sc-fig-acts .btn-sm{flex:1 1 auto}
 .run-body{justify-content:center}
 .run-vid{width:100%;max-width:15em;margin:0 auto}
 
@@ -606,14 +618,11 @@ const STS=[
 {t:"PLATFORMS",f:[{k:"on_tt",l:"TikTok",tp:"toggle",d:true},{k:"on_yt",l:"YouTube",tp:"toggle",d:true},{k:"on_ig",l:"Instagram",tp:"toggle",d:true},{k:"on_fb",l:"Facebook",tp:"toggle",d:true},{k:"on_tw",l:"X/Twitter",tp:"toggle",d:true},{k:"on_th",l:"Threads",tp:"toggle",d:true},{k:"on_pn",l:"Pinterest",tp:"toggle",d:false}]},
 {t:"CHANNELS (BLOTATO IDs)",f:[{k:"ch_instagram",l:"Instagram Account ID",d:""},{k:"ch_tiktok",l:"TikTok Account ID",d:""},{k:"ch_youtube",l:"YouTube Account ID",d:""},{k:"ch_facebook",l:"Facebook Account ID",d:""},{k:"ch_facebook_page",l:"Facebook Page ID",d:""},{k:"ch_twitter",l:"Twitter/X Account ID",d:""},{k:"ch_threads",l:"Threads Account ID",d:""},{k:"ch_pinterest",l:"Pinterest Account ID",d:""},{k:"ch_pinterest_board",l:"Pinterest Board ID",d:""}]},
 {t:"CAPTIONS",f:[{k:"captions_video_prompt",l:"Video Caption Prompt — TikTok/YouTube/Instagram/Facebook (optional override, leave blank for built-in default)",tp:"textarea",rows:10,d:""},{k:"captions_text_prompt",l:"Text-Only Caption Prompt — X/Threads/Pinterest (optional override, leave blank for built-in default)",tp:"textarea",rows:8,d:""}]},
-{t:"VERSE OF THE DAY",note:"All options are free, public-domain translations from the same source (bible-api.com) — no API key or cost. Copyrighted translations like NIV/ESV aren't available without a separate paid license.",f:[{k:"verse_translation",l:"Bible Translation",tp:"select",o:[],d:"kjv"}]},
 {t:"AUTO-POST",f:[{k:"ap_enabled",l:"Enable AutoPost",tp:"toggle",d:false},{k:"ap_caption_prompt",l:"Caption Prompt (optional)",tp:"textarea",d:""}]}
 ];
 let stOpen={};
 const IMG_MODELS={replicate:[{v:"google/nano-banana-2",l:"Nano Banana 2"},{v:"google/nano-banana-pro",l:"Nano Banana Pro"},{v:"google/nano-banana",l:"Nano Banana"},{v:"openai/gpt-image-1.5",l:"GPT Image 1.5"},{v:"xai/grok-imagine-image",l:"Grok Aurora"},{v:"bytedance/seedream-5",l:"Seedream 5"},{v:"bytedance/seedream-4.5",l:"Seedream 4.5"},{v:"black-forest-labs/flux-2-pro",l:"Flux 2 Pro"},{v:"black-forest-labs/flux-1.1-pro",l:"Flux 1.1 Pro"},{v:"black-forest-labs/flux-schnell",l:"Flux Schnell"},{v:"black-forest-labs/flux-dev",l:"Flux Dev"},{v:"ideogram-ai/ideogram-v3-quality",l:"Ideogram v3 Q"},{v:"ideogram-ai/ideogram-v3-turbo",l:"Ideogram v3 T"},{v:"recraft-ai/recraft-v4.1",l:"Recraft V4.1"},{v:"recraft-ai/recraft-v3",l:"Recraft v3"},{v:"stability-ai/stable-diffusion-3.5-large",l:"SD 3.5 L"},{v:"google/imagen-4",l:"Imagen 4"}]};
 const VID_MODELS={replicate:[{v:"bytedance/seedance-2.0",l:"Seedance 2.0"},{v:"bytedance/seedance-1-pro",l:"Seedance Pro"},{v:"bytedance/seedance-1-lite",l:"Seedance Lite"},{v:"kwaivgi/kling-v3-video",l:"Kling v3.0"},{v:"minimax/hailuo-2.3",l:"Hailuo 2.3"},{v:"google/veo-3.1",l:"Veo 3.1"},{v:"luma/ray-3.2",l:"Luma Ray 3.2"},{v:"luma/ray-2-720p",l:"Luma Ray 2"},{v:"luma/ray-flash-2-720p",l:"Luma Flash"},{v:"wan-video/wan-2.5-i2v",l:"Wan 2.5"},{v:"wavespeedai/wan-2.1-i2v-480p",l:"Wan 2.1 480p"},{v:"wavespeedai/wan-2.1-i2v-720p",l:"Wan 2.1 720p"},{v:"xai/grok-imagine-video",l:"Grok Video"},{v:"minimax/video-01-live",l:"Minimax Live"},{v:"minimax/video-01",l:"Minimax v01"}]};
-// Free, public-domain-only translations served by bible-api.com (Verse of the Day source) — no NIV/ESV, those are copyrighted.
-const VERSE_TRANSLATIONS=[{v:"kjv",l:"King James Version (KJV)"},{v:"web",l:"World English Bible (WEB)"},{v:"webbe",l:"World English Bible, British (WEBBE)"},{v:"asv",l:"American Standard Version (ASV)"},{v:"bbe",l:"Bible in Basic English (BBE)"},{v:"darby",l:"Darby Bible"},{v:"dra",l:"Douay-Rheims (DRA)"},{v:"oeb-us",l:"Open English Bible, US"},{v:"oeb-cw",l:"Open English Bible, Commonwealth"},{v:"ylt",l:"Young's Literal Translation (NT only)"}];
 const SVCS=[{n:"OPENAI",d:"GPT-4o + Whisper",k:"openai"},{n:"REPLICATE",d:"Image + Video",k:"replicate"},{n:"ELEVENLABS",d:"Voice Synthesis",k:"elevenlabs"},{n:"SHOTSTACK",d:"Video Render",k:"shotstack"},{n:"R2",d:"Asset Storage",k:"r2"},{n:"BLOTATO",d:"Publishing",k:"blotato"}];
 const titles={pipeline:'⚡ PIPELINE MONITOR',autopost:'◈ AUTO-POST',manual:'◈ MANUAL PIPELINE',topics:'✦ TOPIC DATABASE',scenes:'◈ SCENE ENGINE',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ SETTINGS',health:'◎ SYSTEM STATUS'};
 
@@ -1370,16 +1379,19 @@ function rSt(){
           }else if(f.dynamic==='themes'&&SCENE_DATA.themes){
             Object.keys(SCENE_DATA.themes).forEach(t=>opts.push(t));
           }else if(f.dynamic==='figures'&&SCENE_DATA.figures){
-            SCENE_DATA.figures.forEach((fig,i)=>opts.push(fig.substring(0,60)));
+            // A figure may be a legacy string or a {name,desc,ref_image}
+            // object — calling .substring() straight on it breaks the whole
+            // Settings render for object-form casts.
+            SCENE_DATA.figures.forEach((fig)=>{
+              const lbl=(fig&&typeof fig==='object')?(fig.name||(fig.desc||fig.description||'')):String(fig||'');
+              if(lbl)opts.push(lbl.substring(0,60));
+            });
           }else if(f.dynamic==='moods'&&SCENE_DATA.moods){
             Object.keys(SCENE_DATA.moods).forEach(m=>opts.push(m));
           }
           ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value">${opts.map(o=>`<option${o==v?' selected':''}>${o}</option>`).join('')}</select></div>`;
         }else if(f.dep){
           opts=getModels(f.k);
-          ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value">${opts.map(o=>`<option value="${o.v}"${o.v==v?' selected':''}>${o.l}</option>`).join('')}</select></div>`;
-        }else if(f.k==='verse_translation'){
-          opts=VERSE_TRANSLATIONS;
           ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value">${opts.map(o=>`<option value="${o.v}"${o.v==v?' selected':''}>${o.l}</option>`).join('')}</select></div>`;
         }else if(f.k==='image_provider'||f.k==='video_provider'||f.k==='clip_count'||f.k==='clip_duration'){
           ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value;rSt()">${opts.map(o=>`<option${o==v?' selected':''}>${o}</option>`).join('')}</select></div>`;
@@ -1655,9 +1667,28 @@ function renderScenesEditor(){
   }
 
   h+=`<div class="sec"><div class="sec-h" onclick="scT('fig')"><span class="sec-t">CAST (${figures.length})</span><span class="sec-a">${scOpen.fig?'▾':'▸'}</span></div><div class="sec-b sc-sec${scOpen.fig?'':' shut'}">`;
-  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.7em;line-height:1.5">Who appears in every scene — swap these to reskin the whole brand's look.</div>`;
+  h+=`<div style="font-size:.55em;color:var(--txtdd);margin-bottom:.7em;line-height:1.5">Who appears in every scene — swap these to reskin the whole brand's look. One cast member is picked per run and used for <b>all</b> clips in that video. Give them a reference image to lock their appearance so they look like the same character in every shot.</div>`;
+  if(!scRefModelOK()){
+    h+=`<div style="font-size:.55em;color:var(--amb);border:1px solid var(--bd);background:var(--amblo);padding:.6em .7em;margin-bottom:.8em;line-height:1.5">⚠ Your image model (<b>${escHtml(ST.image_model||'default')}</b>) ignores reference images. Switch to Nano Banana, Seedream, or Flux 2 in Settings for the reference to take effect.</div>`;
+  }
   figures.forEach((f,i)=>{
-    h+=`<div class="sc-row"><textarea class="fin sc-ta" rows="3" style="flex:1" oninput="scGrow(this);SC_DATA.figures[${i}]=this.value">${escHtml(f)}</textarea><button class="btn-sm btn-red" onclick="scRemoveFigure(${i})">✕</button></div>`;
+    const nm=scFigName(f), ds=scFigDesc(f), ref=scFigRef(f);
+    h+=`<div class="sc-fig">
+      <div class="sc-fig-thumb">
+        ${ref?`<img src="${escHtml(ref)}" alt="${escHtml(nm||'reference')}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="sc-fig-ph" style="display:none">image<br>unavailable</div>`:`<div class="sc-fig-ph">no<br>reference</div>`}
+      </div>
+      <div class="sc-fig-body">
+        <input class="fin sc-fig-name" value="${escHtml(nm)}" placeholder="Character name (e.g. The Veteran)" onchange="scSetFig(${i},'name',this.value)">
+        <textarea class="fin sc-ta" rows="3" placeholder="Appearance description used in every image prompt" oninput="scGrow(this);scSetFig(${i},'desc',this.value)">${escHtml(ds)}</textarea>
+        <div class="sc-fig-acts">
+          <button class="btn-sm" onclick="scUploadRef(${i})">⬆ UPLOAD REFERENCE</button>
+          <button class="btn-sm btn-blu" onclick="scGenPortrait(${i})">✦ GENERATE PORTRAIT</button>
+          ${ref?`<button class="btn-sm" onclick="window.open('${escHtml(ref)}','_blank')">VIEW</button><button class="btn-sm btn-red" onclick="scSetFig(${i},'ref_image','');renderScenesEditor()">CLEAR REF</button>`:''}
+          <button class="btn-sm btn-red" onclick="scRemoveFigure(${i})">✕ REMOVE</button>
+        </div>
+        <div id="sc-fig-st-${i}" class="sc-fig-st"></div>
+      </div>
+    </div>`;
   });
   h+=`<button class="btn-sm btn-grn" onclick="scAddFigure()" style="margin-top:${figures.length?'.9em':'0'}">+ ADD CAST MEMBER</button></div></div>`;
 
@@ -1761,7 +1792,75 @@ function renderScenesEditor(){
   scRenderAllPreviews();
 }
 
-function scAddFigure(){scEnsure('figures');SC_DATA.figures.push('a new figure description');renderScenesEditor();}
+/* ── CAST MEMBERS ──────────────────────────────────────────
+   A figure is either a legacy plain string or {name,desc,ref_image}.
+   Read through these accessors so an unmigrated brand pack keeps working;
+   writing through scSetFig() upgrades that one entry to the object form. */
+function scFigName(f){return (f&&typeof f==='object')?(f.name||''):'';}
+function scFigDesc(f){return (f&&typeof f==='object')?(f.desc||f.description||''):(f||'');}
+function scFigRef(f){return (f&&typeof f==='object')?(f.ref_image||''):'';}
+
+function scSetFig(i,key,val){
+  scEnsure('figures');
+  let f=SC_DATA.figures[i];
+  if(typeof f!=='object'||f===null){f={name:'',desc:String(f||''),ref_image:''};}
+  else{f={name:f.name||'',desc:f.desc||f.description||'',ref_image:f.ref_image||''};}
+  f[key]=val;
+  SC_DATA.figures[i]=f;
+}
+
+/* Mirrors figure_supports_reference() in phases/scenes.py — keep in sync. */
+function scRefModelOK(){
+  const m=(ST.image_model||'').toLowerCase();
+  if(!m)return true;
+  return m.includes('nano-banana')||m.includes('seedream')||m.includes('flux-2');
+}
+
+function scFigStatus(i,msg,ok){
+  const el=$('sc-fig-st-'+i);
+  if(!el)return;
+  el.innerHTML=msg?`<span style="color:${ok?'var(--grn)':'var(--red)'}">${msg}</span>`:'';
+}
+
+function scUploadRef(i){
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='image/*';
+  inp.onchange=async()=>{
+    const file=inp.files&&inp.files[0];
+    if(!file)return;
+    scFigStatus(i,'Uploading…',true);
+    try{
+      const fd=new FormData();fd.append('file',file);
+      const r=await fetch('/api/upload',{method:'POST',body:fd});
+      const d=await r.json();
+      if(!r.ok||!d.url){scFigStatus(i,'Upload failed: '+(d.error||r.status),false);return;}
+      scSetFig(i,'ref_image',d.url);
+      renderScenesEditor();
+      scFigStatus(i,'✓ Reference set — remember to SAVE',true);
+    }catch(e){scFigStatus(i,'Upload failed: '+e,false);}
+  };
+  inp.click();
+}
+
+async function scGenPortrait(i){
+  const f=SC_DATA.figures[i];
+  const desc=scFigDesc(f), name=scFigName(f);
+  if(!desc.trim()){scFigStatus(i,'Add a description first',false);return;}
+  scFigStatus(i,'Generating portrait… (this can take up to a minute)',true);
+  try{
+    const r=await fetch('/api/figures/portrait',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({desc:desc,name:name||('figure_'+(i+1))})
+    });
+    const d=await r.json();
+    if(!r.ok||!d.url){scFigStatus(i,'Failed: '+(d.detail||d.error||r.status),false);return;}
+    scSetFig(i,'ref_image',d.url);
+    renderScenesEditor();
+    scFigStatus(i,'✓ Portrait generated — remember to SAVE',true);
+  }catch(e){scFigStatus(i,'Failed: '+e,false);}
+}
+
+function scAddFigure(){scEnsure('figures');SC_DATA.figures.push({name:'',desc:'a new figure description',ref_image:''});renderScenesEditor();}
 function scRemoveFigure(i){SC_DATA.figures.splice(i,1);renderScenesEditor();}
 
 function scAddKey(kind){

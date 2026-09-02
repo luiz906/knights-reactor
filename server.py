@@ -178,7 +178,6 @@ def apply_model_settings():
     elif get_active_brand() != "knights":
         Config.LOGO_ENABLED = False
     if "captions_enabled" in s: Config.CAPTIONS_ENABLED = s["captions_enabled"] in (True, "true", "True")
-    if s.get("verse_translation"): Config.VERSE_TRANSLATION = s["verse_translation"]
     if s.get("logo_position"):  Config.LOGO_POSITION = s["logo_position"]
     if s.get("logo_scale"):     Config.LOGO_SCALE = float(s["logo_scale"])
     if s.get("logo_opacity"):   Config.LOGO_OPACITY = float(s["logo_opacity"])
@@ -929,7 +928,7 @@ async def seed_theme_defaults():
 @app.get("/api/scenes/summary")
 async def scenes_summary():
     """Quick summary of the active brand's scene pack."""
-    from phases.scenes import load_brand_scenes, STORY_SEEDS, FIGURES, THEME_KEYWORDS, GENERIC_THEME_KEYWORDS
+    from phases.scenes import load_brand_scenes, STORY_SEEDS, FIGURES, THEME_KEYWORDS, GENERIC_THEME_KEYWORDS, IMAGE_SUFFIXES
     default_themes = THEME_KEYWORDS if get_active_brand() == "knights" else GENERIC_THEME_KEYWORDS
     data = load_brand_scenes()
     if data:
@@ -947,7 +946,7 @@ async def scenes_summary():
             "source": "default (knights)",
             "stories": len(STORY_SEEDS),
             "figures": len(FIGURES),
-            "moods": ["storm", "fire", "dawn", "night", "grey", "battle"],
+            "moods": list(IMAGE_SUFFIXES.keys()),
             "themes": ["temptation", "endurance", "doubt", "discipline", "courage", "duty", "loss", "patience", "anger", "identity"],
             "story_names": [s["name"] for s in STORY_SEEDS],
         }
@@ -958,6 +957,63 @@ async def scenes_summary():
         "moods": [],
         "themes": list(default_themes.keys()),
         "story_names": [],
+    }
+
+@app.post("/api/figures/portrait")
+async def generate_figure_portrait(req: Request):
+    """Generate a reference portrait for one cast member from its description.
+
+    The result is re-hosted on R2 before being returned: Replicate's own
+    delivery URLs expire after a while, and a reference image is meant to be
+    kept and reused for months, so storing the Replicate URL in scenes.json
+    would quietly break every future run once it lapsed.
+    """
+    from phases.media import replicate_create, replicate_poll
+    from phases.render import upload_to_r2
+    from phases.scenes import figure_supports_reference
+    from config import log
+    import uuid as _uuid
+
+    body = await req.json()
+    desc = (body.get("desc") or "").strip()
+    name = (body.get("name") or "figure").strip()
+    if not desc:
+        raise HTTPException(status_code=400, detail="A cast description is required to generate a portrait.")
+
+    model = Config.IMAGE_MODEL
+    # Full-body, neutral staging: a reference image works best when it shows
+    # the character clearly and carries as little scene/story as possible,
+    # otherwise its setting bleeds into every shot that references it.
+    prompt = (
+        f"{desc}. Full body character reference portrait, standing straight, facing camera, "
+        f"neutral plain grey studio background, even soft lighting, sharp detail on armor and "
+        f"costume texture, no scenery, no action, no dramatic lighting. Photorealistic, 8k detail."
+    )
+
+    params = {"prompt": prompt}
+    m = model.lower()
+    if "gpt-image" in m:
+        params["aspect_ratio"] = "2:3"
+        params["quality"] = getattr(Config, "IMAGE_QUALITY", "high")
+    elif any(k in m for k in ("nano-banana", "seedream", "ideogram", "recraft", "imagen", "grok-imagine")):
+        params["aspect_ratio"] = "9:16"
+    else:
+        params["aspect_ratio"] = "9:16"
+        params["quality"] = getattr(Config, "IMAGE_QUALITY", "high")
+
+    log.info(f"🎭 Generating cast portrait for '{name}' via {model}")
+    poll_url = replicate_create(model, params)
+    replicate_url = replicate_poll(poll_url)
+
+    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)[:30] or "figure"
+    filename = f"{safe}_{_uuid.uuid4().hex[:8]}.jpg"
+    r2_url = upload_to_r2("_figures", filename, replicate_url, "image/jpeg")
+
+    log_entry("Cast portrait", "ok", f"Portrait generated for '{name}' → {filename}")
+    return {
+        "url": r2_url,
+        "model": model,
+        "supports_reference": figure_supports_reference(model),
     }
 
 @app.post("/api/deploy")
@@ -1332,11 +1388,25 @@ async def upload_file(file: UploadFile = File(...)):
         ct = "audio/flac"; ext = "flac"
     elif data[4:8] == b'ftyp' and b'M4A' in data[8:16]:
         ct = "audio/mp4"; ext = "m4a"
+    # Image detection — cast reference portraits come through here, and the
+    # browser's declared content_type can't be trusted for them (phone
+    # galleries hand over "application/octet-stream" often enough that
+    # Replicate would reject the resulting URL).
+    elif data[:8] == b'\x89PNG\r\n\x1a\n':
+        ct = "image/png"; ext = "png"
+    elif data[:3] == b'\xff\xd8\xff':
+        ct = "image/jpeg"; ext = "jpg"
+    elif data[:4] == b'RIFF' and data[8:12] == b'WEBP':
+        ct = "image/webp"; ext = "webp"
+    elif data[:6] in (b'GIF87a', b'GIF89a'):
+        ct = "image/gif"; ext = "gif"
 
-    # Upload to R2
+    # Upload to R2 — reference portraits get their own prefix so they're
+    # easy to find (and safe to keep) apart from one-off media uploads.
     short_id = uuid.uuid4().hex[:8]
     safe_name = file.filename.rsplit(".", 1)[0][:30].replace(" ", "_")
-    key = f"_uploads/{safe_name}_{short_id}.{ext}"
+    prefix = "_figures" if ct.startswith("image/") else "_uploads"
+    key = f"{prefix}/{safe_name}_{short_id}.{ext}"
 
     s3 = get_s3_client()
     s3.put_object(
