@@ -632,11 +632,12 @@ async function openPromptEditor(){
     let h='<div style="font-family:var(--f1);font-size:.7em;letter-spacing:.15em;color:var(--amb);margin-bottom:.5em">EDIT SCENE PROMPTS</div>';
     if(r.script)h+=`<div class="panel" style="font-size:.75em;color:var(--wht);line-height:1.6;margin-bottom:.7em"><b style="color:var(--amb)">Script:</b> ${r.script.script_full||''}</div>`;
     r.clips.forEach(c=>{
-      h+=`<div class="clip-edit" id="ce-${c.index}"><div class="ce-head">SCENE ${c.index}</div><div class="fl">IMAGE PROMPT</div><textarea id="ip-${c.index}" rows="3">${c.image_prompt||''}</textarea><div class="fl" style="margin-top:.4em">MOTION PROMPT</div><textarea id="mp-${c.index}" rows="2">${c.motion_prompt||''}</textarea></div>`;
+      h+=`<div class="clip-edit" id="ce-${c.index}"><div class="ce-head">SCENE ${c.index}</div><div class="fl">IMAGE PROMPT</div><textarea class="fin sc-ta" id="ip-${c.index}" rows="4" oninput="scGrow(this)">${c.image_prompt||''}</textarea><div class="fl" style="margin-top:.4em">MOTION PROMPT</div><textarea class="fin sc-ta" id="mp-${c.index}" rows="3" oninput="scGrow(this)">${c.motion_prompt||''}</textarea></div>`;
     });
     h+=`<div style="display:flex;gap:8px;margin-top:.7em"><button class="btn-sm btn-grn" onclick="savePrompts(${r.clips.length})">SAVE & CONTINUE ▶</button><button class="btn-sm" onclick="rP()">CANCEL</button></div>`;
     // Show in pipeline area
     ['d-pl','m-pl'].forEach(id=>{if($(id))$(id).innerHTML=h;});
+    scGrowAll();
     ['d-stats'].forEach(id=>{if($(id))$(id).innerHTML='';});
   }catch(e){alert('Error loading prompts: '+e);}
 }
@@ -665,12 +666,13 @@ async function openImageReview(){
         <img src="${c.image_url}" style="width:100%;border-radius:var(--r);margin-bottom:.5em;display:block">
         <div style="font-size:.65em;color:var(--txtd);margin-bottom:.3em">Clip ${c.index}</div>
         <div class="fl">IMAGE PROMPT</div>
-        <textarea id="ipe-${c.index}" rows="3" style="width:100%">${escHtml(c.image_prompt||'')}</textarea>
+        <textarea class="fin sc-ta" id="ipe-${c.index}" rows="4" oninput="scGrow(this)">${escHtml(c.image_prompt||'')}</textarea>
         <div class="cr-acts" style="margin-top:.4em"><button class="btn-sm btn-red" onclick="regenImage(${c.index})">♻ REGENERATE</button><span id="irs-${c.index}" style="font-size:.6em;color:var(--txtd)"></span></div>
       </div>`;
     });
     h+=`<div style="display:flex;gap:8px;margin-top:.7em"><button class="btn-sm btn-grn" onclick="approveAllImages()">APPROVE ALL & CONTINUE ▶</button><button class="btn-sm" onclick="rP()">CANCEL</button></div>`;
     ['d-pl','m-pl'].forEach(id=>{if($(id))$(id).innerHTML=h;});
+    scGrowAll();
     ['d-stats'].forEach(id=>{if($(id))$(id).innerHTML='';});
   }catch(e){alert('Error loading images: '+e);}
 }
