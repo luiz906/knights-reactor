@@ -28,12 +28,6 @@ services:
         value: knights-videos
       - key: R2_PUBLIC_URL
         sync: false
-      - key: AIRTABLE_API_KEY
-        sync: false
-      - key: AIRTABLE_BASE_ID
-        value: appNDCADOHinuotY1
-      - key: AIRTABLE_TABLE
-        value: Scripture Topics
       - key: BLOTATO_API_KEY
         sync: false
       - key: BLOTATO_TIKTOK_ID
