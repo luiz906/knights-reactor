@@ -24,6 +24,14 @@ from phases.topics import (
 )
 
 
+class PipelineCancelled(Exception):
+    """Raised from inside progress_cb (by the caller, e.g. server.py) to stop
+    a run at its next phase boundary — not instantly: a phase already in
+    flight (a slow Replicate/Shotstack call) runs to completion first, its
+    result is just discarded instead of being checkpointed."""
+    pass
+
+
 def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
                  manual_clips: list = None, manual_voiceover: str = None,
                  verse_mode: bool = False) -> dict:
@@ -83,8 +91,12 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
 
     def notify(idx, name, status):
         if progress_cb:
-            try: progress_cb(idx, name, status)
-            except: pass
+            try:
+                progress_cb(idx, name, status)
+            except PipelineCancelled:
+                raise
+            except Exception:
+                pass
 
     try:
         # ── Phase 0: Fetch topic ────────────────────────────────
@@ -456,6 +468,15 @@ Return JSON only:
 
         try: os.remove(CHECKPOINT_FILE)
         except: pass
+
+    except PipelineCancelled:
+        result["status"] = "cancelled"
+        result["error"] = None
+        result["failed_phase"] = ckpt.get("_last_phase", 0) + 1 if ckpt.get("_last_phase") is not None else 0
+        log.info(f"\n⏹ Pipeline cancelled at phase {result['failed_phase']}")
+
+        if "topic" in result:
+            update_topic(result["topic"]["id"], {"Status": "Cancelled"})
 
     except Exception as e:
         result["status"] = "failed"

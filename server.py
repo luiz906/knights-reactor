@@ -16,6 +16,7 @@ from pipeline import (
     load_topics, save_topics, add_topic, delete_topic,
     fetch_next_topic, generate_topics_ai, seed_default_topics,
     generate_video_single, generate_image_single,
+    PipelineCancelled,
 )
 import secrets
 import requests as _rq
@@ -263,6 +264,11 @@ except Exception as e:
 RUNS = load_json(RUNS_FILE, []) if RUNS_FILE().exists() else []
 CURRENT_RUN = {"active": False, "result": None, "phase": 0, "phase_name": "", "phases_done": []}
 LOGS = []
+# Bumped on every new run AND by /api/cancel. A background run compares its
+# own captured id against the live value at each phase boundary — a mismatch
+# means it's been superseded (cancelled, or a newer run started), so it stops
+# touching CURRENT_RUN/RUNS and raises PipelineCancelled to actually halt.
+RUN_GEN = {"id": 0}
 
 # Restore last failed run state so Resume works after restart/deploy
 if RUNS:
@@ -278,6 +284,8 @@ def log_entry(phase, level, msg):
 
 def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: list = None, manual_voiceover: str = None, verse_mode: bool = False):
     apply_model_settings()  # Reload model selections before each run
+    RUN_GEN["id"] += 1
+    my_gen = RUN_GEN["id"]
     mode = "verse-of-the-day" if verse_mode else ("full-manual" if (manual_clips and manual_voiceover) else ("manual" if manual_clips else ("resume" if resume_from > 0 else "normal")))
     CURRENT_RUN.update({"active": True, "started": datetime.now().isoformat(), "result": None, "phase": 0, "phase_name": "", "phases_done": []})
     if resume_from == 0:
@@ -285,6 +293,14 @@ def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: l
     log_entry("System", "info", f"Pipeline {mode} mode{' (topic: '+topic_id+')' if topic_id else ''}{' — '+str(len(manual_clips))+' clips' if manual_clips else ''}{' + voiceover' if manual_voiceover else ''}")
 
     def on_phase(phase_index, phase_name, status):
+        if my_gen != RUN_GEN["id"]:
+            # Cancelled (or superseded by a newer run) since this background
+            # task started — stop touching shared state, and actually halt
+            # the pipeline at this phase boundary instead of letting it run
+            # on and silently burn API calls for a run nobody's waiting on.
+            if status == "running":
+                raise PipelineCancelled("Cancelled")
+            return
         if status == "running":
             CURRENT_RUN["phase"] = phase_index
             CURRENT_RUN["phase_name"] = phase_name
@@ -295,6 +311,9 @@ def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: l
             log_entry(phase_name, "ok", f"Complete ✓")
 
     result = run_pipeline(progress_cb=on_phase, resume_from=resume_from, topic_id=topic_id, manual_clips=manual_clips, manual_voiceover=manual_voiceover, verse_mode=verse_mode)
+
+    if my_gen != RUN_GEN["id"]:
+        return  # superseded — /api/cancel (or a newer run) already owns CURRENT_RUN/RUNS now
 
     # Handle gate pauses (pipeline returned early, not finished)
     gate = result.get("gate")
@@ -608,6 +627,28 @@ async def deploy_files(req: Request):
             results[filename] = f"error: {str(e)}"
     
     return {"status": "deployed", "files": results, "message": message}
+
+@app.post("/api/cancel")
+async def cancel_pipeline():
+    """Cancel the active run and reset pipeline state back to idle.
+
+    Immediate: unblocks /api/run (no more "Already running" 409) and clears
+    the active brand's checkpoint, so a stale gate/resume state can't
+    resurface on the next run. Best-effort: a background task that's
+    mid-phase (e.g. polling Replicate) can't be interrupted instantly — it
+    finishes that one call, then stops for real at its next phase boundary
+    instead of checkpointing or touching run history.
+    """
+    was_active = CURRENT_RUN["active"]
+    RUN_GEN["id"] += 1
+    CURRENT_RUN.update({"active": False, "result": None, "phase": 0, "phase_name": "", "phases_done": []})
+    ckpt_path = brand_dir() / "pipeline_checkpoint.json"
+    had_checkpoint = ckpt_path.exists()
+    if had_checkpoint:
+        try: ckpt_path.unlink()
+        except Exception: pass
+    log_entry("System", "info", "⏹ Pipeline cancelled and reset" if was_active else "⏹ System reset")
+    return {"status": "reset", "was_active": was_active, "checkpoint_cleared": had_checkpoint}
 
 @app.post("/api/run")
 async def trigger_run(bg: BackgroundTasks, req: Request):
