@@ -321,14 +321,12 @@ body{overflow:auto}
 </div>
 <div class="sb-nav">
 <button class="sb-i on" onclick="dNav('pipeline',this)"><span class="material-symbols-outlined">bolt</span>PIPELINE</button>
-<button class="sb-i" onclick="dNav('autopost',this)"><span class="material-symbols-outlined">send</span>AUTO-POST</button>
 <button class="sb-i" onclick="dNav('manual',this)"><span class="material-symbols-outlined">play_circle</span>MANUAL</button>
 <button class="sb-i" onclick="dNav('topics',this)"><span class="material-symbols-outlined">auto_awesome</span>TOPICS</button>
 <button class="sb-i" onclick="dNav('scenes',this)"><span class="material-symbols-outlined">theater_comedy</span>SCENES</button>
 <button class="sb-i" onclick="dNav('runs',this)"><span class="material-symbols-outlined">history</span>RUNS</button>
 <button class="sb-i" onclick="dNav('logs',this)"><span class="material-symbols-outlined">terminal</span>LOGS</button>
 <button class="sb-i" onclick="dNav('preview',this)"><span class="material-symbols-outlined">visibility</span>PREVIEW</button>
-<button class="sb-i" onclick="window.location.href='/graphics'"><span class="material-symbols-outlined">palette</span>GRAPHICS</button>
 <button class="sb-i" onclick="dNav('settings',this)"><span class="material-symbols-outlined">settings</span>SETTINGS</button>
 </div>
 <div class="sb-ft">
@@ -359,21 +357,6 @@ body{overflow:auto}
 <div id="d-scr-prompts"></div>
 </div>
 <div class="phgrid" id="d-pl"></div>
-</div>
-
-<div class="dpage" id="dp-autopost">
-<div class="g4" id="d-apst" style="margin-bottom:10px"></div>
-<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding:8px 10px;background:var(--panel);border:1px solid var(--bd2)">
-<div style="flex:1;min-width:0">
-<div style="font-size:.6em;color:var(--txtd);letter-spacing:.1em">WATCH: <span id="d-apfolders" style="color:var(--amb)"></span></div>
-<div style="font-size:.55em;color:var(--txtdd);margin-top:2px">Webhook: <span id="d-apwh" style="color:var(--txtd);word-break:break-all"></span></div>
-<div id="d-apcur" style="font-size:.55em;color:var(--txtd);margin-top:2px"></div>
-</div>
-<button onclick="apTrigger()" style="padding:.5em 1.2em;border:1px solid var(--amb);background:var(--amblo);color:var(--amb);font-family:var(--f1);font-size:.6em;letter-spacing:.1em;white-space:nowrap">⟳ POLL NOW</button>
-</div>
-<div id="d-apenv" style="margin-bottom:8px"></div>
-<div id="d-apactive" style="margin-bottom:8px"></div>
-<div id="d-apboard"></div>
 </div>
 
 <div class="dpage" id="dp-manual">
@@ -494,19 +477,6 @@ body{overflow:auto}
 </div>
 <div id="m-pl"></div></div>
 
-<div class="mpage" id="mp-autopost">
-<div class="g4m" id="m-apst"></div>
-<div style="padding:8px;background:var(--panel);border:1px solid var(--bd2);margin-bottom:8px">
-<div style="font-size:.6em;color:var(--txtd);letter-spacing:.1em">WATCH: <span id="m-apfolders" style="color:var(--amb)"></span></div>
-<div style="font-size:.5em;color:var(--txtdd);margin-top:2px;word-break:break-all">Webhook: <span id="m-apwh" style="color:var(--txtd)"></span></div>
-<div id="m-apcur" style="font-size:.5em;color:var(--txtd);margin-top:2px"></div>
-<button onclick="apTrigger()" style="width:100%;margin-top:6px;padding:.6em;border:1px solid var(--amb);background:var(--amblo);color:var(--amb);font-family:var(--f1);font-size:.55em;letter-spacing:.1em;min-height:2.5em">⟳ POLL NOW</button>
-</div>
-<div id="m-apenv" style="margin-bottom:6px"></div>
-<div id="m-apactive" style="margin-bottom:6px"></div>
-<div id="m-apboard"></div>
-</div>
-
 <div class="mpage" id="mp-manual">
 <div style="margin-bottom:8px">
 <button onclick="manualRun()" style="width:100%;padding:.8em;background:rgba(40,224,96,.1);border:1px solid rgba(40,224,96,.25);color:var(--grn);font-family:var(--f1);font-size:.6em;font-weight:600;letter-spacing:.12em;min-height:2.8em">◈ EXECUTE MANUAL RUN</button>
@@ -588,11 +558,9 @@ body{overflow:auto}
 <!-- Bottom Nav -->
 <nav class="bnav">
 <button class="bnav-i on" onclick="mNav('pipeline',this)"><span class="bnav-icon material-symbols-outlined">bolt</span><span class="bnav-lbl">PIPELINE</span></button>
-<button class="bnav-i" onclick="mNav('autopost',this)"><span class="bnav-icon material-symbols-outlined">send</span><span class="bnav-lbl">AUTO-POST</span></button>
 <button class="bnav-i" onclick="mNav('manual',this)"><span class="bnav-icon material-symbols-outlined">play_circle</span><span class="bnav-lbl">MANUAL</span></button>
 <button class="bnav-i" onclick="mNav('logs',this)"><span class="bnav-icon material-symbols-outlined">terminal</span><span class="bnav-lbl">LOGS</span></button>
 <button class="bnav-i" onclick="mNav('preview',this)"><span class="bnav-icon material-symbols-outlined">visibility</span><span class="bnav-lbl">ASSETS</span></button>
-<button class="bnav-i" onclick="window.location.href='/graphics'"><span class="bnav-icon material-symbols-outlined">palette</span><span class="bnav-lbl">GRAPHICS</span></button>
 <button class="bnav-i" onclick="mNav('settings',this)"><span class="bnav-icon material-symbols-outlined">settings</span><span class="bnav-lbl">SETTINGS</span></button>
 </nav>
 </div>
@@ -617,14 +585,13 @@ const STS=[
 {t:"WATERMARK / LOGO",f:[{k:"logo_enabled",l:"Show Logo",tp:"toggle",d:true},{k:"captions_enabled",l:"Show Captions",tp:"toggle",d:true},{k:"logo_url",l:"Logo URL",d:""},{k:"logo_position",l:"Position",tp:"select",o:["topRight","topLeft","bottomRight","bottomLeft","center"],d:"topRight"},{k:"logo_scale",l:"Scale",d:"0.12"},{k:"logo_opacity",l:"Opacity",d:"0.8"}]},
 {t:"PLATFORMS",f:[{k:"on_tt",l:"TikTok",tp:"toggle",d:true},{k:"on_yt",l:"YouTube",tp:"toggle",d:true},{k:"on_ig",l:"Instagram",tp:"toggle",d:true},{k:"on_fb",l:"Facebook",tp:"toggle",d:true},{k:"on_tw",l:"X/Twitter",tp:"toggle",d:true},{k:"on_th",l:"Threads",tp:"toggle",d:true},{k:"on_pn",l:"Pinterest",tp:"toggle",d:false}]},
 {t:"CHANNELS (BLOTATO IDs)",f:[{k:"ch_instagram",l:"Instagram Account ID",d:""},{k:"ch_tiktok",l:"TikTok Account ID",d:""},{k:"ch_youtube",l:"YouTube Account ID",d:""},{k:"ch_facebook",l:"Facebook Account ID",d:""},{k:"ch_facebook_page",l:"Facebook Page ID",d:""},{k:"ch_twitter",l:"Twitter/X Account ID",d:""},{k:"ch_threads",l:"Threads Account ID",d:""},{k:"ch_pinterest",l:"Pinterest Account ID",d:""},{k:"ch_pinterest_board",l:"Pinterest Board ID",d:""}]},
-{t:"CAPTIONS",f:[{k:"captions_video_prompt",l:"Video Caption Prompt — TikTok/YouTube/Instagram/Facebook (optional override, leave blank for built-in default)",tp:"textarea",rows:10,d:""},{k:"captions_text_prompt",l:"Text-Only Caption Prompt — X/Threads/Pinterest (optional override, leave blank for built-in default)",tp:"textarea",rows:8,d:""}]},
-{t:"AUTO-POST",f:[{k:"ap_enabled",l:"Enable AutoPost",tp:"toggle",d:false},{k:"ap_caption_prompt",l:"Caption Prompt (optional)",tp:"textarea",d:""}]}
+{t:"CAPTIONS",f:[{k:"captions_video_prompt",l:"Video Caption Prompt — TikTok/YouTube/Instagram/Facebook (optional override, leave blank for built-in default)",tp:"textarea",rows:10,d:""},{k:"captions_text_prompt",l:"Text-Only Caption Prompt — X/Threads/Pinterest (optional override, leave blank for built-in default)",tp:"textarea",rows:8,d:""}]}
 ];
 let stOpen={};
 const IMG_MODELS={replicate:[{v:"google/nano-banana-2",l:"Nano Banana 2"},{v:"google/nano-banana-pro",l:"Nano Banana Pro"},{v:"google/nano-banana",l:"Nano Banana"},{v:"openai/gpt-image-1.5",l:"GPT Image 1.5"},{v:"xai/grok-imagine-image",l:"Grok Aurora"},{v:"bytedance/seedream-5",l:"Seedream 5"},{v:"bytedance/seedream-4.5",l:"Seedream 4.5"},{v:"black-forest-labs/flux-2-pro",l:"Flux 2 Pro"},{v:"black-forest-labs/flux-1.1-pro",l:"Flux 1.1 Pro"},{v:"black-forest-labs/flux-schnell",l:"Flux Schnell"},{v:"black-forest-labs/flux-dev",l:"Flux Dev"},{v:"ideogram-ai/ideogram-v3-quality",l:"Ideogram v3 Q"},{v:"ideogram-ai/ideogram-v3-turbo",l:"Ideogram v3 T"},{v:"recraft-ai/recraft-v4.1",l:"Recraft V4.1"},{v:"recraft-ai/recraft-v3",l:"Recraft v3"},{v:"stability-ai/stable-diffusion-3.5-large",l:"SD 3.5 L"},{v:"google/imagen-4",l:"Imagen 4"}]};
 const VID_MODELS={replicate:[{v:"bytedance/seedance-2.0",l:"Seedance 2.0"},{v:"bytedance/seedance-1-pro",l:"Seedance Pro"},{v:"bytedance/seedance-1-lite",l:"Seedance Lite"},{v:"kwaivgi/kling-v3-video",l:"Kling v3.0"},{v:"minimax/hailuo-2.3",l:"Hailuo 2.3"},{v:"google/veo-3.1",l:"Veo 3.1"},{v:"luma/ray-3.2",l:"Luma Ray 3.2"},{v:"luma/ray-2-720p",l:"Luma Ray 2"},{v:"luma/ray-flash-2-720p",l:"Luma Flash"},{v:"wan-video/wan-2.5-i2v",l:"Wan 2.5"},{v:"wavespeedai/wan-2.1-i2v-480p",l:"Wan 2.1 480p"},{v:"wavespeedai/wan-2.1-i2v-720p",l:"Wan 2.1 720p"},{v:"xai/grok-imagine-video",l:"Grok Video"},{v:"minimax/video-01-live",l:"Minimax Live"},{v:"minimax/video-01",l:"Minimax v01"}]};
 const SVCS=[{n:"OPENAI",d:"GPT-4o + Whisper",k:"openai"},{n:"REPLICATE",d:"Image + Video",k:"replicate"},{n:"ELEVENLABS",d:"Voice Synthesis",k:"elevenlabs"},{n:"SHOTSTACK",d:"Video Render",k:"shotstack"},{n:"R2",d:"Asset Storage",k:"r2"},{n:"BLOTATO",d:"Publishing",k:"blotato"}];
-const titles={pipeline:'⚡ PIPELINE MONITOR',autopost:'◈ AUTO-POST',manual:'◈ MANUAL PIPELINE',topics:'✦ TOPIC DATABASE',scenes:'◈ SCENE ENGINE',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ SETTINGS',health:'◎ SYSTEM STATUS'};
+const titles={pipeline:'⚡ PIPELINE MONITOR',manual:'◈ MANUAL PIPELINE',topics:'✦ TOPIC DATABASE',scenes:'◈ SCENE ENGINE',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ SETTINGS',health:'◎ SYSTEM STATUS'};
 
 /* THEME */
 function toggleTheme(){const on=document.documentElement.classList.toggle('light');localStorage.setItem('kr-theme',on?'light':'dark');updThemeBtn();}
@@ -636,8 +603,8 @@ async function go(){const p=$('pw').value;if(!p){$('le').style.display='block';r
 async function autoLogin(){const t=sessionStorage.getItem('kt');if(!t)return;try{const r=await(await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})})).json();if(r.ok){$('L').style.display='none';$('A').classList.remove('hd');init();}}catch(e){}}
 
 /* NAV */
-function dNav(p,btn){document.querySelectorAll('.dpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));$('dp-'+p).classList.add('on');if(btn)btn.classList.add('on');$('d-title').textContent=titles[p]||p;if(p==='topics')loadTopics();if(p==='scenes')loadScenesEditor();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();if(p==='channels')loadChannels();if(p==='autopost'&&typeof apRender==='function')apRender();}
-function mNav(p,btn){document.querySelectorAll('.mpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.bnav-i').forEach(b=>b.classList.remove('on'));$('mp-'+p).classList.add('on');if(btn)btn.classList.add('on');if(p==='topics')loadTopics();if(p==='scenes')loadScenesEditor();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();if(p==='autopost'&&typeof apRender==='function')apRender();}
+function dNav(p,btn){document.querySelectorAll('.dpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));$('dp-'+p).classList.add('on');if(btn)btn.classList.add('on');$('d-title').textContent=titles[p]||p;if(p==='topics')loadTopics();if(p==='scenes')loadScenesEditor();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();if(p==='channels')loadChannels();}
+function mNav(p,btn){document.querySelectorAll('.mpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.bnav-i').forEach(b=>b.classList.remove('on'));$('mp-'+p).classList.add('on');if(btn)btn.classList.add('on');if(p==='topics')loadTopics();if(p==='scenes')loadScenesEditor();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();}
 
 /* ═══ GATE BANNERS ═══ */
 function rGate(){
@@ -2054,5 +2021,4 @@ async function init(){
 }
 autoLogin();
 </script>
-<script src="/static/autopost.js"></script>
 </body></html>
