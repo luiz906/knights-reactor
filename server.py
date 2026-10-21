@@ -125,6 +125,16 @@ _KNIGHTS_BRAND_DEFAULTS = {
     "brand_avoid":   "Warmth or sentimentality, soft encouragement, modern slang, politics, long scripture quotations, hashtags",
 }
 
+# Knights' built-in logo/CTA, captured before any brand's settings touch
+# Config. Config is shared process-wide, so a non-Knights brand blanking
+# these used to stick after switching back to Knights — every Knights video
+# lost its CTA end card and watermark until the next restart.
+_BUILTIN_BRANDING = {
+    "LOGO_URL": Config.LOGO_URL, "LOGO_ENABLED": Config.LOGO_ENABLED,
+    "CTA_URL": Config.CTA_URL, "CTA_ENABLED": Config.CTA_ENABLED,
+    "CTA_DURATION": Config.CTA_DURATION,
+}
+
 def apply_model_settings():
     """Load ALL settings from saved config into Config."""
     s = load_json(SETTINGS_FILE, {})
@@ -164,14 +174,12 @@ def apply_model_settings():
     # are Knights' own shield logo, always on. Any brand that hasn't set its
     # own logo_url gets NO watermark instead of silently inheriting Knights'
     # logo on every video — only "knights" itself keeps the built-in default.
-    if s.get("logo_url"):
-        Config.LOGO_URL = s["logo_url"]
-    elif get_active_brand() != "knights":
-        Config.LOGO_URL = ""
+    is_knights = get_active_brand() == "knights"
+    Config.LOGO_URL = s.get("logo_url") or (_BUILTIN_BRANDING["LOGO_URL"] if is_knights else "")
     if "logo_enabled" in s:
         Config.LOGO_ENABLED = s["logo_enabled"] in (True, "true", "True")
-    elif get_active_brand() != "knights":
-        Config.LOGO_ENABLED = False
+    else:
+        Config.LOGO_ENABLED = _BUILTIN_BRANDING["LOGO_ENABLED"] if is_knights else False
     if "captions_enabled" in s: Config.CAPTIONS_ENABLED = s["captions_enabled"] in (True, "true", "True")
     if s.get("logo_position"):  Config.LOGO_POSITION = s["logo_position"]
     if s.get("logo_scale"):     Config.LOGO_SCALE = float(s["logo_scale"])
@@ -180,15 +188,12 @@ def apply_model_settings():
     # (Config.CTA_URL/CTA_ENABLED) is Knights' own "Christ is King" clip,
     # always on. "cta_enabled"/"cta_url" were never even read from settings
     # before this, so toggling the Settings checkbox did nothing at all.
-    if s.get("cta_url"):
-        Config.CTA_URL = s["cta_url"]
-    elif get_active_brand() != "knights":
-        Config.CTA_URL = ""
+    Config.CTA_URL = s.get("cta_url") or (_BUILTIN_BRANDING["CTA_URL"] if is_knights else "")
     if "cta_enabled" in s:
         Config.CTA_ENABLED = s["cta_enabled"] in (True, "true", "True")
-    elif get_active_brand() != "knights":
-        Config.CTA_ENABLED = False
-    if s.get("cta_duration"):   Config.CTA_DURATION = float(s["cta_duration"])
+    else:
+        Config.CTA_ENABLED = _BUILTIN_BRANDING["CTA_ENABLED"] if is_knights else False
+    Config.CTA_DURATION = float(s["cta_duration"]) if s.get("cta_duration") else _BUILTIN_BRANDING["CTA_DURATION"]
     # Video timeout
     if s.get("video_timeout"):  Config.VIDEO_TIMEOUT = int(s["video_timeout"])
     if s.get("shotstack_env"):  Config.SHOTSTACK_ENV = s["shotstack_env"]
@@ -284,8 +289,20 @@ def log_entry(phase, level, msg):
     LOGS.append({"t": datetime.now().strftime("%H:%M:%S"), "phase": phase, "level": level, "msg": msg})
     if len(LOGS) > 500: LOGS.pop(0)
 
-def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: list = None, manual_voiceover: str = None, verse_mode: bool = False):
+_RUN_CTA_OVERRIDE = {"url": None}  # Manual-tab custom CTA for the current run
+
+def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: list = None, manual_voiceover: str = None, verse_mode: bool = False, cta_override: str = None):
     apply_model_settings()  # Reload model selections before each run
+    # A resume continues the same run, so it keeps that run's custom CTA.
+    if resume_from == 0:
+        _RUN_CTA_OVERRIDE["url"] = cta_override
+    else:
+        cta_override = cta_override or _RUN_CTA_OVERRIDE["url"]
+    if cta_override:
+        # Manual-tab custom CTA: applied after the settings reload so it
+        # isn't overwritten, and only for this run.
+        Config.CTA_URL = cta_override
+        Config.CTA_ENABLED = True
     RUN_GEN["id"] += 1
     my_gen = RUN_GEN["id"]
     mode = "verse-of-the-day" if verse_mode else ("full-manual" if (manual_clips and manual_voiceover) else ("manual" if manual_clips else ("resume" if resume_from > 0 else "normal")))
@@ -693,16 +710,13 @@ async def trigger_manual_run(bg: BackgroundTasks, req: Request):
         return JSONResponse({"error": "No valid clip URLs provided"}, 400)
     # Validate voiceover URL if provided
     vo = voiceover_url if voiceover_url.startswith("http") else None
-    # Override CTA if provided
-    if cta_url and cta_url.startswith("http"):
-        Config.CTA_URL = cta_url
-        Config.CTA_ENABLED = True
     # Full manual = clips + voiceover (skip all AI gen)
     # Partial manual = clips only (still generates script + voiceover via AI)
     mode = "full-manual" if vo else "manual"
     if vo:
         topic_id = None  # Full manual doesn't need a topic
-    bg.add_task(execute_pipeline, 0, topic_id, valid, vo)
+    cta = cta_url if cta_url.startswith("http") else None
+    bg.add_task(execute_pipeline, 0, topic_id, valid, vo, False, cta)
     return {"status": "started", "mode": mode, "clips": len(valid), "voiceover": bool(vo), "cta": bool(cta_url)}
 
 @app.post("/api/script-only")
