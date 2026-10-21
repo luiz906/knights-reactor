@@ -632,6 +632,9 @@ async function openPromptEditor(){
     if(!r.clips||!r.clips.length){alert('No prompts found');return;}
     let h='<div style="font-family:var(--f1);font-size:.7em;letter-spacing:.15em;color:var(--amb);margin-bottom:.5em">EDIT SCENE PROMPTS</div>';
     if(r.script)h+=`<div class="panel" style="font-size:.75em;color:var(--wht);line-height:1.6;margin-bottom:.7em"><b style="color:var(--amb)">Script:</b> ${r.script.script_full||''}</div>`;
+    const c0=r.clips[0]||{};
+    if(c0.scene_source==='ai')h+=`<div class="panel" style="font-size:.7em;color:var(--grn);margin-bottom:.7em">✓ Shots written by AI for this script</div>`;
+    else if(c0.scene_source)h+=`<div class="panel" style="font-size:.7em;color:var(--amb);margin-bottom:.7em">⚠ Pre-written story used (${escHtml(c0.story_name||'')})${c0.scene_note?' — '+escHtml(c0.scene_note):''}</div>`;
     r.clips.forEach(c=>{
       h+=`<div class="clip-edit" id="ce-${c.index}"><div class="ce-head">SCENE ${c.index}</div><div class="fl">IMAGE PROMPT</div><textarea class="fin sc-ta" id="ip-${c.index}" rows="4" oninput="scGrow(this)">${c.image_prompt||''}</textarea><div class="fl" style="margin-top:.4em">MOTION PROMPT</div><textarea class="fin sc-ta" id="mp-${c.index}" rows="3" oninput="scGrow(this)">${c.motion_prompt||''}</textarea></div>`;
     });
