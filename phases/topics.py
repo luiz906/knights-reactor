@@ -74,14 +74,60 @@ def update_topic_status(topic_id, status, extra=None, brand=None):
             break
     save_topics(topics, brand)
 
-def default_topics_prompt(brand_name: str, persona: str, themes: str) -> str:
+def research_topic_landscape(brand_name: str, persona: str, themes: str) -> str:
+    """Ground topic generation in a real web search instead of pure LLM
+    imagination, via OpenAI's hosted web_search tool (the Responses API) —
+    same OPENAI_API_KEY already configured, no new vendor or cost line.
+    Non-fatal: any failure (network, quota, bad response shape) returns ""
+    and generate_topics_ai() proceeds exactly as it did before this existed."""
+    if not getattr(Config, "RESEARCH_ENABLED", True) or not Config.OPENAI_KEY:
+        return ""
+    try:
+        query = (
+            f"What short-form video topics, angles, and story formats are getting real "
+            f"engagement right now for a content channel like \"{brand_name}\"? "
+            f"Brand persona: {persona or 'n/a'}. Core themes: {themes or 'n/a'}. "
+            f"Give specific, current examples, not generic advice."
+        )
+        r = requests.post("https://api.openai.com/v1/responses", headers={
+            "Authorization": f"Bearer {Config.OPENAI_KEY}", "Content-Type": "application/json",
+        }, json={
+            "model": getattr(Config, "SCRIPT_MODEL", "gpt-4o"),
+            "input": query,
+            "tools": [{"type": "web_search"}],
+        }, timeout=40)
+        r.raise_for_status()
+        data = r.json()
+        text = data.get("output_text", "") or ""
+        if not text:
+            # output_text is a convenience field some SDKs add on top of the
+            # raw response; fall back to walking it by hand if it's missing.
+            for item in data.get("output", []):
+                for c in item.get("content", []) or []:
+                    if c.get("type") == "output_text":
+                        text += c.get("text", "")
+        return text.strip()[:3000]
+    except Exception as e:
+        log.warning(f"   Topic research skipped ({e})")
+        return ""
+
+
+def default_topics_prompt(brand_name: str, persona: str, themes: str, research: str = "") -> str:
     """Build the topic-generation prompt. Keeps {count} as a live placeholder
     (filled in per-call by render_topics_prompt) — brand_name/persona/themes
     are baked in directly since they already have their own Settings fields
-    (Brand Name / Character Persona / Core Themes)."""
+    (Brand Name / Character Persona / Core Themes). `research`, when given,
+    is real web-search findings to ground the topics in instead of pure
+    imagination — optional so the Settings 'load default' preview (which
+    has no research to show) still works unchanged."""
+    research_block = (
+        f"\nReal, current research on what's working in this niche right now:\n{research}\n"
+        f"Ground your topics in this — don't ignore it.\n"
+    ) if research else ""
     return (f"Generate {{count}} unique viral short-form video topics for a content channel called {brand_name}. "
             f"Brand persona: {persona or 'A compelling content creator'}. "
             f"Core themes: {themes or 'Real daily struggles and growth'}. "
+            f"{research_block}"
             "CATEGORIES: Shocking Revelations, Shocking Reveal, Behind-the-Scenes, Myths Debunked, Deep Dive Analysis. "
             'Return ONLY a JSON array: [{"idea":"topic title","category":"one category","scripture":"verse ref"}]. '
             "Make them provocative and scroll-stopping. No generic churchy language.")
@@ -104,7 +150,8 @@ def generate_topics_ai(count=10, brand=None):
     brand_persona = getattr(Config, 'BRAND_PERSONA', '')
     brand_themes = getattr(Config, 'BRAND_THEMES', '')
     override = getattr(Config, 'TOPICS_PROMPT_TEMPLATE', '')
-    template = override or default_topics_prompt(brand_name, brand_persona, brand_themes)
+    research = "" if override else research_topic_landscape(brand_name, brand_persona, brand_themes)
+    template = override or default_topics_prompt(brand_name, brand_persona, brand_themes, research)
     prompt = render_topics_prompt(template, count)
     r = requests.post("https://api.openai.com/v1/chat/completions",
         headers={"Authorization": f"Bearer {Config.OPENAI_KEY}", "Content-Type": "application/json"},

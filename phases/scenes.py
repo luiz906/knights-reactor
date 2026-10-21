@@ -5,7 +5,8 @@ The hardcoded knight defaults are ONLY used for the "knights" brand when it has
 no scenes.json yet. Every other brand gets a fully empty pack instead — no
 brand silently inherits Knights content.
 """
-import json, random
+import json, random, re
+import requests
 from pathlib import Path
 from config import Config, DATA_DIR, log
 
@@ -507,11 +508,83 @@ def render_motion_prompt(template, camera, subject, ambient, pace, tech_suffix) 
             .replace("{tech_suffix}", tech_suffix))
 
 
+def generate_ai_scenes(script: dict, topic: dict, figure_desc: str, clip_count: int, mood_pool: dict,
+                        forced_mood: str = None, forced_theme: str = None) -> dict:
+    """Write bespoke shots for THIS script instead of picking from the fixed
+    story library. The library reuses the same ~3 hand-written clips for
+    every script that matches a theme, which is what made scenes feel
+    choppy — visuals disconnected from what's actually being narrated.
+    This asks GPT to stage one continuous scene whose beats follow the
+    script's own hook/build/reveal/command, with the same character and
+    setting carried across every clip.
+
+    Returns {"mood": str, "clips": [...]} in the same clip shape as
+    STORY_SEEDS. Raises on any failure (bad response, wrong clip count,
+    missing fields) — the caller is expected to fall back to the story
+    library rather than ship a broken/empty scene.
+
+    mood_pool: this brand's own mood→suffix dict (from get_scene_data()),
+    NOT the hardcoded Knights IMAGE_SUFFIXES — a brand like Attic Magic has
+    its own mood vocabulary, and the AI must only pick from moods that
+    actually exist for whichever brand is running right now.
+    """
+    mood_options = list(mood_pool.keys()) or ["default"]
+    prompt = f"""You are a cinematographer planning the shots for a short vertical video.
+
+SCRIPT (read start to finish — this is what's being narrated, in order):
+Hook: {script.get('hook','')}
+Build: {script.get('build','')}
+Reveal: {script.get('reveal','')}
+Command: {script.get('command','')}
+Tone: {script.get('tone','')}
+
+TOPIC: {topic.get('idea','')} ({topic.get('category','')})
+
+CHARACTER ON SCREEN — keep this exact character, costume, and gear consistent in every single shot: {figure_desc}
+
+Write exactly {clip_count} shots that tell ONE continuous visual story matching the script's actual progression — shot 1 should visually match the hook, the middle shot(s) the build, and the last shot the reveal/command. Do NOT cut between unrelated scenes or locations unless the script itself describes a real change of place. Pick whatever mood actually fits THIS script's content — don't default to night or storm out of habit; lean toward clear daylight or dawn unless the script specifically calls for something darker or stormier.
+
+Pick exactly one mood from this list: {', '.join(mood_options)}.{f' The mood MUST be "{forced_mood}" (forced by settings).' if forced_mood and forced_mood in mood_options else ''}{f' The scene should fit the theme "{forced_theme}".' if forced_theme else ''}
+
+Return ONLY JSON, no markdown fences, no commentary:
+{{"mood": "<one of the moods above>", "clips": [
+  {{"action": "...", "setting": "...", "lighting": "...", "atmosphere": "...", "composition": "...", "camera": "...", "subject": "...", "ambient": "...", "pace": "..."}}
+]}}
+The "clips" array must have exactly {clip_count} entries."""
+
+    r = requests.post("https://api.openai.com/v1/chat/completions", headers={
+        "Authorization": f"Bearer {Config.OPENAI_KEY}", "Content-Type": "application/json",
+    }, json={
+        "model": getattr(Config, "SCRIPT_MODEL", "gpt-4o"),
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.9,
+        "max_tokens": 1800,
+    }, timeout=45)
+    r.raise_for_status()
+    raw = r.json()["choices"][0]["message"]["content"]
+    raw = re.sub(r'^```json\s*\n?', '', raw, flags=re.IGNORECASE)
+    raw = re.sub(r'\n?```\s*$', '', raw).strip()
+    data = json.loads(raw)
+
+    clips = data.get("clips") or []
+    if len(clips) != clip_count:
+        raise RuntimeError(f"AI scene generation returned {len(clips)} clips, expected {clip_count}")
+    required = {"action", "setting", "lighting", "atmosphere", "composition", "camera", "subject", "ambient", "pace"}
+    for c in clips:
+        missing = required - set(c.keys())
+        if missing:
+            raise RuntimeError(f"AI scene generation clip missing fields: {missing}")
+
+    mood = data.get("mood") if data.get("mood") in mood_options else pick(mood_options)
+    return {"mood": mood, "clips": clips}
+
+
 def scene_engine(script: dict, topic: dict) -> list:
     """Generate clip prompt pairs (image + motion). Scene Engine v8 — per-brand scenes."""
     story_override = getattr(Config, 'SCENE_STORY', 'auto')
     theme_override = getattr(Config, 'SCENE_THEME', 'auto')
     figure_override = getattr(Config, 'SCENE_FIGURE', 'auto')
+    ai_enabled = getattr(Config, 'SCENE_AI_ENABLED', True)
 
     # ── LOAD BRAND SCENES ───────────────────────────────────
     figures, theme_keywords, moods, intensity_mods, cameras, stories = get_scene_data()
@@ -535,15 +608,54 @@ def scene_engine(script: dict, topic: dict) -> list:
         script.get("tone", ""), topic.get("category", ""), topic.get("idea", ""),
     ]).lower()
 
+    # ── FIGURE SELECTION ────────────────────────────────────
+    # Picked before the story/AI branch below — AI-generated scenes need
+    # the character description too, to keep the same figure consistent
+    # across every clip, same as the library path always has.
+    # The Settings dropdown sends a truncated label, so match it back to the
+    # real cast entry — otherwise the character's reference image is lost
+    # whenever a figure is forced instead of auto-picked.
+    if figure_override and figure_override != "auto":
+        ov = figure_override.strip()
+        figure_obj = next(
+            (f for f in figures
+             if ov in (f["name"], f["desc"]) or f["desc"].startswith(ov)),
+            None,
+        )
+        if figure_obj is None:
+            figure_obj = {"name": "", "desc": f"a {ov}", "ref_image": ""}
+    else:
+        figure_obj = pick_no_repeat(figures)
+
+    figure = figure_obj["desc"]
+    figure_ref = figure_obj.get("ref_image", "")
+
     # ── STORY SELECTION ─────────────────────────────────────
     story = None
 
-    # 1. Forced story seed
+    # 1. Forced story seed — an explicit hand-written choice always wins,
+    # AI generation is skipped entirely for it.
     if story_override and story_override != "auto":
         seed_name = story_override.split("—")[0].split(" — ")[0].strip()
         story = next((s for s in stories if s["name"] == seed_name), None)
         if story:
             log.info(f"   Story forced: {story['name']} [{story['mood']}]")
+
+    # 1.5 AI-generated bespoke scene — the new default. Writes shots
+    # tailored to THIS script instead of reusing one of the fixed library
+    # stories, which is what made scenes feel choppy and disconnected from
+    # the actual narration. Any failure (timeout, bad JSON, wrong shape)
+    # falls through to the library picker below instead of breaking the run.
+    if not story and ai_enabled and Config.OPENAI_KEY:
+        forced_mood = Config.SCENE_MOOD_BIAS if Config.SCENE_MOOD_BIAS != "auto" and Config.SCENE_MOOD_BIAS in moods else None
+        forced_theme = theme_override if theme_override and theme_override != "auto" else None
+        try:
+            ai = generate_ai_scenes(script, topic, figure, Config.CLIP_COUNT, moods,
+                                     forced_mood=forced_mood, forced_theme=forced_theme)
+            story = {"name": "ai-generated", "mood": ai["mood"], "clips": ai["clips"]}
+            log.info(f"   AI-generated scene: mood={ai['mood']}")
+        except Exception as e:
+            log.warning(f"   AI scene generation failed ({e}) — falling back to story library")
 
     # 2. Forced theme → pick matching story
     if not story and theme_override and theme_override != "auto":
@@ -574,25 +686,6 @@ def scene_engine(script: dict, topic: dict) -> list:
                 matching = stories
         story = pick_no_repeat(matching)
         log.info(f"   Auto-detect: {theme} → {story['name']} [{story['mood']}]")
-
-    # ── FIGURE SELECTION ────────────────────────────────────
-    # The Settings dropdown sends a truncated label, so match it back to the
-    # real cast entry — otherwise the character's reference image is lost
-    # whenever a figure is forced instead of auto-picked.
-    if figure_override and figure_override != "auto":
-        ov = figure_override.strip()
-        figure_obj = next(
-            (f for f in figures
-             if ov in (f["name"], f["desc"]) or f["desc"].startswith(ov)),
-            None,
-        )
-        if figure_obj is None:
-            figure_obj = {"name": "", "desc": f"a {ov}", "ref_image": ""}
-    else:
-        figure_obj = pick_no_repeat(figures)
-
-    figure = figure_obj["desc"]
-    figure_ref = figure_obj.get("ref_image", "")
 
     # ── BUILD CLIPS ─────────────────────────────────────────
     img_suffix = moods.get(story["mood"], list(moods.values())[0] if moods else "9:16 vertical.")

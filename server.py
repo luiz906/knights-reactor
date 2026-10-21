@@ -143,6 +143,8 @@ def apply_model_settings():
     if s.get("scene_story"):    Config.SCENE_STORY = s["scene_story"]
     if s.get("scene_theme"):    Config.SCENE_THEME = s["scene_theme"]
     if s.get("scene_figure"):   Config.SCENE_FIGURE = s["scene_figure"]
+    if "scene_ai_enabled" in s: Config.SCENE_AI_ENABLED = s["scene_ai_enabled"] in (True, "true", "True")
+    if "research_enabled" in s: Config.RESEARCH_ENABLED = s["research_enabled"] in (True, "true", "True")
     # Voice
     if s.get("voice_model"):    Config.VOICE_MODEL = s["voice_model"]
     if s.get("voice_stability"):Config.VOICE_STABILITY = float(s["voice_stability"])
