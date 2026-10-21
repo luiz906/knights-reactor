@@ -40,8 +40,6 @@ class Config:
     SCENE_FIGURE      = "auto"
     SCENE_AI_ENABLED  = True   # write bespoke shots per script instead of reusing the fixed story library
     RESEARCH_ENABLED  = True   # ground AI-generated topics in a real web search instead of pure imagination
-    CLIP_COUNT        = 3
-    CLIP_DURATION     = 10.0
     VIDEO_TIMEOUT     = 600
     RENDER_FPS        = 30
     RENDER_RES        = "1080"

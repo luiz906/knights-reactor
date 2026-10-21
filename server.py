@@ -23,23 +23,6 @@ import requests as _rq
 
 app = FastAPI(title="Knights Reactor")
 
-# ─── STATIC FILES & SUB-APPS ─────────────────────────────────
-from fastapi.staticfiles import StaticFiles
-import shutil as _shutil
-
-_APP_DIR = Path(__file__).parent
-_static_dir = _APP_DIR / "static"
-_static_dir.mkdir(exist_ok=True)
-
-# If CSS/JS files are at root level (flat repo), copy into static/
-for _fname in ["style.css", "app.js"]:
-    _root = _APP_DIR / _fname
-    _dest = _static_dir / _fname
-    if _root.exists() and (not _dest.exists() or _root.stat().st_mtime > _dest.stat().st_mtime):
-        _shutil.copy2(str(_root), str(_dest))
-
-app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
-
 # Session token (regenerates on restart, lives in memory)
 SESSION_TOKEN = secrets.token_hex(32)
 
@@ -162,9 +145,6 @@ def apply_model_settings():
     if s.get("voice_speed"):    Config.VOICE_SPEED = float(s["voice_speed"])
     if s.get("voice_style"):    Config.VOICE_STYLE = float(s["voice_style"])
     if s.get("voice_id"):       Config.VOICE_ID = s["voice_id"]
-    # Video clips
-    if s.get("clip_count"):     Config.CLIP_COUNT = int(s["clip_count"])
-    if s.get("clip_duration"):  Config.CLIP_DURATION = float(s["clip_duration"])
     # Render
     if s.get("render_fps"):     Config.RENDER_FPS = int(s["render_fps"])
     if s.get("render_res"):     Config.RENDER_RES = s["render_res"]
@@ -351,6 +331,10 @@ def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: l
         "final_video": result.get("final_video"), "captions": result.get("captions"),
         "publish_status": result.get("publish_status"),
     }
+    if result.get("plan"):
+        p = result["plan"]
+        run_entry["plan"] = {"video_seconds": p["video_seconds"], "clips": p["clips"],
+                             "cost_total": p["cost"]["total"]}
     RUNS.insert(0, run_entry)
     save_json(RUNS_FILE, RUNS[:100])
     # Include the actual exception text on failure — without this the Logs
@@ -1223,6 +1207,14 @@ async def get_settings(): return load_json(SETTINGS_FILE, {})
 async def get_last_result():
     """Return the result of the most recent pipeline run for Preview tab."""
     return CURRENT_RUN.get("result") or {}
+
+@app.get("/api/plan-estimate")
+async def plan_estimate():
+    """Expected length, clip count and cost of the next video, from the
+    active brand's script length, models and CTA."""
+    from phases.timing import estimate_plan
+    cta = Config.CTA_DURATION if (Config.CTA_ENABLED and Config.CTA_URL) else 0
+    return estimate_plan(Config.SCRIPT_WORDS, Config.VIDEO_MODEL, Config.IMAGE_MODEL, cta)
 
 @app.post("/api/settings")
 async def save_settings(req: Request):

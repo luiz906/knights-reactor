@@ -5,6 +5,7 @@ Replicate (images, videos), ElevenLabs (voiceover), Whisper (transcribe).
 import time, re
 import requests
 from config import Config, log
+from phases.timing import clip_duration, DEFAULT_CLIP
 
 def replicate_create(model: str, input_data: dict) -> str:
     """Create a Replicate prediction, return the GET URL for polling."""
@@ -215,13 +216,11 @@ def generate_videos(clips: list) -> list:
         # Pass 9:16 where supported
         if "seedance" in model.lower() or "wan" in model.lower():
             params["aspect_ratio"] = "9:16"
-        if "seedance-2" in model.lower():
-            # Seedance 2.0 supports clips up to ~20s and picks its own length
-            # ("intelligent duration") if not told otherwise — pin it to this
-            # brand's configured clip length so switching from 1-Lite/Pro to
-            # 2.0 doesn't silently generate much longer, costlier clips than
-            # the pipeline (and Shotstack render timing) expects.
-            params["duration"] = int(Config.CLIP_DURATION)
+        # Ask for the shortest clip that covers this scene's narration line
+        # (Seedance: 5 or 10 s). Other models make their default length.
+        dur = clip_duration(clip.get("length") or DEFAULT_CLIP, model)
+        if dur:
+            params["duration"] = dur
 
         url = replicate_create(model, params)
         clip["video_poll_url"] = url
@@ -254,8 +253,9 @@ def generate_video_single(clip: dict) -> dict:
         params = {"image": clip["image_url"], "prompt": clip["motion_prompt"]}
     if "seedance" in model.lower() or "wan" in model.lower():
         params["aspect_ratio"] = "9:16"
-    if "seedance-2" in model.lower():
-        params["duration"] = int(Config.CLIP_DURATION)
+    dur = clip_duration(clip.get("length") or DEFAULT_CLIP, model)
+    if dur:
+        params["duration"] = dur
 
     url = replicate_create(model, params)
     clip["video_poll_url"] = url
@@ -319,7 +319,7 @@ def transcribe_voiceover(audio_bytes: bytes) -> dict:
         data={
             "model": "whisper-1",
             "response_format": "verbose_json",
-            "timestamp_granularities[]": "word",
+            "timestamp_granularities[]": ["word", "segment"],  # segments = sentence ends, used to cut scenes on pauses
         },
         timeout=30,
     )

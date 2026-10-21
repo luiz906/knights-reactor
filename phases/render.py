@@ -229,6 +229,19 @@ def create_srt(script_text: str, transcription: dict = None) -> str:
     return "\n".join(srt_lines) if srt_lines else f"1\n00:00:00,000 --> 00:59:59,000\n{caption_case(script_text, is_first_chunk=True)}\n"
 
 
+def _probe_duration(ss_base: str, url: str):
+    """Real length of a media file in seconds via Shotstack's probe, or None."""
+    try:
+        r = requests.get(f"{ss_base}/probe/{requests.utils.quote(url, safe='')}",
+                         headers={"x-api-key": Config.SHOTSTACK_KEY}, timeout=15)
+        if r.status_code == 200:
+            d = float(r.json().get("response", {}).get("metadata", {}).get("format", {}).get("duration", 0))
+            return d or None
+    except Exception as e:
+        log.warning(f"   Probe failed for {url}: {e}")
+    return None
+
+
 def render_video(clips: list, voiceover_url: str, srt_url: str, audio_duration: float = 0) -> str:
     """Render final video via Shotstack. Returns download URL.
     
@@ -241,16 +254,32 @@ def render_video(clips: list, voiceover_url: str, srt_url: str, audio_duration: 
 
     # Build video clips timeline
     video_clips = []
-    cursor = 0.0
-    for clip in clips:
-        dur = Config.CLIP_DURATION
-        video_clips.append({
-            "asset": {"type": "video", "src": clip["r2_url"], "volume": 0, "transcode": True},
-            "start": round(cursor, 3),
-            "length": dur,
-            "fit": "cover",
-        })
-        cursor += dur
+    # Pipeline scenes carry their narration timing (phases/timing.py): each one
+    # sits exactly under the line being spoken and cuts when the line changes.
+    timed = bool(clips) and all("start" in c and "length" in c for c in clips)
+    if timed:
+        for clip in clips:
+            video_clips.append({
+                "asset": {"type": "video", "src": clip["r2_url"], "volume": 0, "transcode": True},
+                "start": round(float(clip["start"]), 3),
+                "length": round(float(clip["length"]), 3),
+                "fit": "cover",
+            })
+        cursor = round(float(clips[-1]["start"]) + float(clips[-1]["length"]), 3)
+        log.info(f"   Timeline: {len(clips)} scenes timed to the narration, {cursor:.1f}s")
+    else:
+        # Manual clips have no narration timing — lay them end to end at their
+        # real length (a fixed slot longer than the clip freezes the picture).
+        cursor = 0.0
+        for clip in clips:
+            dur = _probe_duration(ss_base, clip["r2_url"]) or 5.0
+            video_clips.append({
+                "asset": {"type": "video", "src": clip["r2_url"], "volume": 0, "transcode": True},
+                "start": round(cursor, 3),
+                "length": round(dur, 3),
+                "fit": "cover",
+            })
+            cursor += dur
 
     # CTA clip at end
     cta_dur = 0
@@ -282,9 +311,12 @@ def render_video(clips: list, voiceover_url: str, srt_url: str, audio_duration: 
     total_dur = round(cursor, 3)
 
     # ── AUDIO-DRIVEN TIMING ──────────────────────────────────
-    # Voice dictates video length. Main clips stay natural duration.
-    # If audio runs longer than clips, CTA stretches to fill the gap.
-    if audio_duration and audio_duration > 0:
+    # Timed scenes already follow the voice exactly. For untimed (manual)
+    # clips the voice dictates length: if it runs longer than the clips the
+    # CTA stretches to fill the gap, if shorter the clips are trimmed.
+    if timed:
+        log.info(f"   ⏱️  TIMING: scenes follow the voice | total={total_dur:.1f}s")
+    elif audio_duration and audio_duration > 0:
         audio_needs = round(audio_duration + 1.0, 3)  # voice + 1s padding
         content_dur = round(total_dur - cta_dur, 3)    # just the main clips
 

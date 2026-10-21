@@ -533,7 +533,7 @@ def _ai_scene_style_guide() -> dict:
     }
 
 
-def generate_ai_scenes(script: dict, topic: dict, figure_desc: str, clip_count: int, mood_pool: dict,
+def generate_ai_scenes(script: dict, topic: dict, figure_desc: str, beats: list, mood_pool: dict,
                         camera_style: str = "", intensity_style: str = "",
                         forced_mood: str = None, forced_theme: str = None) -> dict:
     """Have GPT plan and WRITE the finished image + motion prompt for every
@@ -551,6 +551,9 @@ def generate_ai_scenes(script: dict, topic: dict, figure_desc: str, clip_count: 
     "motion_prompt"}]}. Raises on a bad response so the caller can fall
     back to the pre-written story library.
     """
+    clip_count = len(beats)
+    timeline = "\n".join(
+        f'Shot {b["index"]} ({b["length"]:.1f}s): "{b["text"]}"' for b in beats)
     mood_options = list(mood_pool.keys()) or ["default"]
     mood_guide = "\n".join(f"- {k}: {v}" for k, v in mood_pool.items()) or "- default: natural cinematic light"
     guide = _ai_scene_style_guide()
@@ -584,7 +587,10 @@ MOVEMENT INTENSITY setting: {intensity_style or 'measured'}
 STEP 1 — CONCEPT. Find the ONE specific idea this script is about and show it LITERALLY with a concrete visual metaphor built from the script's own words and objects, so a viewer with the sound off could guess the message. Level of specificity wanted (illustrations only, invent your own): {guide['examples']}.
 Do NOT use stock shots: {guide['stock']}. Choose one specific location and time of day for the whole video.
 
-STEP 2 — SHOTS. Write exactly {clip_count} shots that play as ONE continuous scene in that location: shot 1 matches the hook, the middle the build, the last the reveal/command. Every shot shows a DIFFERENT clearly visible action that moves the story forward. Vary framing: one wide establishing shot, one medium shot of the main action, one close-up on a meaningful detail ({guide['detail']}).
+STEP 2 — SHOTS. The video cuts exactly when the narration moves to its next line. There is one shot per line below, and each shot is on screen for exactly the seconds shown while that line is being spoken:
+{timeline}
+
+Write exactly {clip_count} shots, in this order. Each shot must SHOW what its own line is saying at that moment, while all shots play as ONE continuous scene in the concept's location — the same character, place, light, and time of day carried from shot to shot, with each shot picking up where the previous one left off. Every shot shows a DIFFERENT clearly visible action. Vary the framing — wide, medium, and close-up on a meaningful detail ({guide['detail']}) — and never use the same framing twice in a row.
 
 IMAGE PROMPT rules (one paragraph, 60-110 words, natural sentences):
 - Start with the character description exactly as given, then what he/she is doing.
@@ -595,6 +601,7 @@ IMAGE PROMPT rules (one paragraph, 60-110 words, natural sentences):
 
 MOTION PROMPT rules (one paragraph, 30-60 words):
 - How the camera moves, what the character does during the clip, and what else moves in the frame.
+- Keep the motion small enough to happen within that shot's seconds — one action, not a sequence.
 - Follow the CAMERA STYLE and MOVEMENT INTENSITY settings above, and never contradict yourself (don't say "slow" and "dynamic" together).
 - End with: 9:16 vertical.
 
@@ -611,7 +618,7 @@ Return ONLY a JSON object:
             "model": getattr(Config, "SCRIPT_MODEL", "gpt-4o"),
             "messages": messages,
             "temperature": 0.85,
-            "max_tokens": 3000,
+            "max_tokens": 6000,  # ~170 words per shot, up to a dozen shots
             "response_format": {"type": "json_object"},
         }, timeout=75)
         r.raise_for_status()
@@ -655,8 +662,16 @@ Return ONLY a JSON object:
     return {"concept": str(data.get("concept", "")).strip(), "mood": mood, "clips": out}
 
 
-def scene_engine(script: dict, topic: dict) -> list:
-    """Generate clip prompt pairs (image + motion). Scene Engine v8 — per-brand scenes."""
+def scene_engine(script: dict, topic: dict, beats: list = None) -> list:
+    """Generate clip prompt pairs (image + motion), one per narration beat.
+
+    beats: from phases.timing.build_beats() on the real voiceover, so each
+    scene is tied to the line being spoken and lasts exactly that long.
+    Without audio (Script Only previews) beats are estimated from the text."""
+    if not beats:
+        from phases.timing import estimate_beats
+        beats = estimate_beats(script.get("script_full", ""), Config.VIDEO_MODEL, Config.IMAGE_MODEL)
+    clip_count = len(beats)
     story_override = getattr(Config, 'SCENE_STORY', 'auto')
     theme_override = getattr(Config, 'SCENE_THEME', 'auto')
     figure_override = getattr(Config, 'SCENE_FIGURE', 'auto')
@@ -675,7 +690,7 @@ def scene_engine(script: dict, topic: dict) -> list:
             f"falls back to Knights content anymore."
         )
 
-    log.info(f"🎬 Phase 3: Scene Engine v8 | Clips: {Config.CLIP_COUNT} | Intensity: {getattr(Config, 'SCENE_INTENSITY', 'measured')} | Camera: {Config.SCENE_CAMERA}")
+    log.info(f"🎬 Scene Engine | Scenes: {clip_count} (one per narration line) | Intensity: {getattr(Config, 'SCENE_INTENSITY', 'measured')} | Camera: {Config.SCENE_CAMERA}")
     log.info(f"   Overrides — Story: {story_override} | Theme: {theme_override} | Figure: {figure_override}")
     log.info(f"   Brand pack: {len(stories)} stories, {len(figures)} figures, {len(moods)} moods")
 
@@ -738,7 +753,7 @@ def scene_engine(script: dict, topic: dict) -> list:
             cam_text = cameras.get(Config.SCENE_CAMERA, "") if cameras else ""
             int_text = intensity_mods.get(getattr(Config, 'SCENE_INTENSITY', 'measured'), "") if intensity_mods else ""
             try:
-                ai = generate_ai_scenes(script, topic, figure, Config.CLIP_COUNT, moods,
+                ai = generate_ai_scenes(script, topic, figure, beats, moods,
                                          camera_style=cam_text, intensity_style=int_text,
                                          forced_mood=forced_mood, forced_theme=forced_theme)
                 story = {"name": "ai-generated", "mood": ai["mood"], "clips": ai["clips"]}
@@ -786,7 +801,7 @@ def scene_engine(script: dict, topic: dict) -> list:
 
     clips = []
     story_clips = story["clips"]
-    target_count = Config.CLIP_COUNT
+    target_count = clip_count
     while len(story_clips) < target_count:
         story_clips = story_clips + story["clips"]
     story_clips = story_clips[:target_count]
@@ -814,6 +829,11 @@ def scene_engine(script: dict, topic: dict) -> list:
             "scene_note": scene_note if scene_source != "ai" else "",
             "scene_concept": scene_concept,
             "story_name": story["name"],
+            # The narration line this scene plays under, and exactly when.
+            "line": beats[i]["text"],
+            "start": beats[i]["start"],
+            "end": beats[i]["end"],
+            "length": beats[i]["length"],
         }
         # Every clip in a run shares one cast member, so they all carry the
         # same reference image — that's what finally makes the knight look
