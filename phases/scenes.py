@@ -508,102 +508,151 @@ def render_motion_prompt(template, camera, subject, ambient, pace, tech_suffix) 
             .replace("{tech_suffix}", tech_suffix))
 
 
+def _ai_scene_style_guide() -> dict:
+    """Brand-specific examples and banned stock shots for the AI scene
+    writer, so Knights imagery (armor, swords, ridges) never leaks into
+    another brand's scenes. `banned` is also checked against the AI's
+    answer — a hit triggers one rewrite request."""
+    if _active_brand_name() == "knights":
+        return {
+            "examples": ('"debt is a chain" → his gauntlet shackled by an iron chain to a strongbox of coins; '
+                         '"guard your eyes like the city gate" → him heaving a massive oak gate shut against a crowd of shadowy figures; '
+                         '"your sons are watching" → a small boy in a wooden helmet copying his stance in a stable yard'),
+            "stock": ('standing on a hilltop, ridge or cliff, staring at the horizon, kneeling with a sword planted in the ground, '
+                      'a generic empty battlefield, walking slowly toward camera, a generic storm'),
+            "banned": ["hilltop", "hill top", "ridge", "cliff", "horizon", "battlefield"],
+            "detail": "gauntleted hands, an object he holds, the visor of the helm",
+        }
+    return {
+        "examples": ('"a hidden problem is draining your money" → water dripping from a dark attic beam into a bucket full of coins; '
+                     '"most people never look up" → a homeowner on a couch while a thermometer on the ceiling climbs into the red; '
+                     '"the fix is simpler than you think" → one gloved hand pressing a single strip of seal into a glowing gap of light'),
+        "stock": 'a person staring out a window, a generic office or desk, a handshake, a smiling stock-photo pose, a generic city skyline',
+        "banned": ["skyline", "handshake", "stock photo"],
+        "detail": "hands, a tool, an object, a face",
+    }
+
+
 def generate_ai_scenes(script: dict, topic: dict, figure_desc: str, clip_count: int, mood_pool: dict,
+                        camera_style: str = "", intensity_style: str = "",
                         forced_mood: str = None, forced_theme: str = None) -> dict:
-    """Write bespoke shots for THIS script instead of picking from the fixed
-    story library. The library reuses the same ~3 hand-written clips for
-    every script that matches a theme, which is what made scenes feel
-    choppy — visuals disconnected from what's actually being narrated.
-    This asks GPT to stage one continuous scene whose beats follow the
-    script's own hook/build/reveal/command, with the same character and
-    setting carried across every clip.
+    """Have GPT plan and WRITE the finished image + motion prompt for every
+    shot of THIS script.
 
-    Returns {"mood": str, "clips": [...]} in the same clip shape as
-    STORY_SEEDS. Raises on any failure (bad response, wrong clip count,
-    missing fields) — the caller is expected to fall back to the story
-    library rather than ship a broken/empty scene.
+    Earlier versions had GPT fill nine short fields (action, setting,
+    lighting...) that were then glued into a fixed template plus stock
+    boilerplate and a mood suffix. That produced run-on sentences, "..",
+    sound effects inside image prompts, and the same generic wording (and
+    "fog") on every shot of every video. Now the AI writes each prompt as
+    one coherent description, folding in the brand's mood look and the
+    camera/intensity settings itself so nothing contradicts.
 
-    mood_pool: this brand's own mood→suffix dict (from get_scene_data()),
-    NOT the hardcoded Knights IMAGE_SUFFIXES — a brand like Attic Magic has
-    its own mood vocabulary, and the AI must only pick from moods that
-    actually exist for whichever brand is running right now.
+    Returns {"concept": str, "mood": str, "clips": [{"image_prompt",
+    "motion_prompt"}]}. Raises on a bad response so the caller can fall
+    back to the pre-written story library.
     """
     mood_options = list(mood_pool.keys()) or ["default"]
-    # Examples and banned stock shots are brand-specific so Knights imagery
-    # (armor, swords, ridges) never leaks into another brand's scenes.
-    if _active_brand_name() == "knights":
-        examples = ('"debt is a chain" → his gauntlet shackled by an iron chain to a strongbox of coins; '
-                    '"guard your eyes like the city gate" → him swinging a massive gate shut against a crowd of shadowy figures; '
-                    '"your sons are watching" → a small boy in a wooden helmet copying his stance in a courtyard')
-        stock = ('standing on a ridge or cliff staring at the horizon, kneeling with a sword planted in the ground, '
-                 'a generic empty battlefield, walking slowly toward camera, a generic storm')
-        detail = "hands, an object, the helm, a face"
+    mood_guide = "\n".join(f"- {k}: {v}" for k, v in mood_pool.items()) or "- default: natural cinematic light"
+    guide = _ai_scene_style_guide()
+    if forced_mood and forced_mood in mood_options:
+        mood_rule = f'Use the mood "{forced_mood}" (forced by settings).'
     else:
-        examples = ('"a hidden problem is draining your money" → water dripping from a dark attic beam into a bucket full of coins; '
-                    '"most people never look up" → a homeowner on a couch while a thermometer on the ceiling climbs into the red; '
-                    '"the fix is simpler than you think" → one gloved hand pressing a single strip of seal into a glowing gap of light')
-        stock = ('a person staring out a window, a generic office or desk, a handshake, a smiling stock-photo pose, '
-                 'a generic city skyline')
-        detail = "hands, an object, a tool, a face"
-    prompt = f"""You are a cinematographer planning the shots for a short vertical video.
+        mood_rule = ("Pick the ONE mood that fits this script. Lean toward clear daylight or dawn "
+                     "unless the script specifically calls for night, fire, or storm.")
 
-SCRIPT (read start to finish — this is what's being narrated, in order):
+    prompt = f"""You are the director and cinematographer of a short vertical (9:16) video. Plan the shots, then write the exact prompts an AI image model and an AI video model will receive.
+
+SCRIPT (narrated in this order):
 Hook: {script.get('hook','')}
 Build: {script.get('build','')}
 Reveal: {script.get('reveal','')}
 Command: {script.get('command','')}
 Tone: {script.get('tone','')}
+Topic: {topic.get('idea','')} ({topic.get('category','')})
+Scripture: {script.get('scripture') or topic.get('scripture') or 'none'}
+{f'Theme to fit: {forced_theme}' if forced_theme else ''}
 
-TOPIC: {topic.get('idea','')} ({topic.get('category','')})
+CHARACTER (must appear in every shot, looking identical): {figure_desc}
 
-SCRIPTURE (if any): {script.get('scripture') or topic.get('scripture') or 'none'}
+MOOD LOOKS available for this brand (name: look):
+{mood_guide}
+{mood_rule}
 
-CHARACTER ON SCREEN — keep this exact character, costume, and gear consistent in every single shot: {figure_desc}
+CAMERA STYLE setting: {camera_style or 'steady'}
+MOVEMENT INTENSITY setting: {intensity_style or 'measured'}
 
-HOW TO PLAN THE SHOTS:
-1. First find the ONE specific idea this script is about, then show it LITERALLY with a concrete visual metaphor built from the script's own words, objects, and images. Examples of the level of specificity wanted (illustrations only — invent your own for this script): {examples}. A viewer with the sound off should be able to guess what the video is about.
-2. Do NOT use stock shots unless the script literally describes them: {stock}. Those are what every video already looks like.
-3. Keep one character and one location (or a logical progression of places) across all shots so it plays as one continuous scene — but every shot must show a DIFFERENT, clearly visible action that moves the story forward.
-4. Vary the camera: one wide establishing shot, one medium shot of the main action, and one close-up on a meaningful detail ({detail}). Assign the shots in the order that best follows the script.
-5. Shot 1 matches the hook, the middle shot(s) the build, the last shot the reveal/command.
-6. Write only what the camera can see. No abstract words like "resolve", "determination", "inner strength", "symbolizing". Name real objects, materials, places, weather, and light sources.
-7. Pick the mood that actually fits this script — lean toward clear daylight or dawn unless the script specifically calls for night, fire, or storm.
+STEP 1 — CONCEPT. Find the ONE specific idea this script is about and show it LITERALLY with a concrete visual metaphor built from the script's own words and objects, so a viewer with the sound off could guess the message. Level of specificity wanted (illustrations only, invent your own): {guide['examples']}.
+Do NOT use stock shots: {guide['stock']}. Choose one specific location and time of day for the whole video.
 
-Pick exactly one mood from this list: {', '.join(mood_options)}.{f' The mood MUST be "{forced_mood}" (forced by settings).' if forced_mood and forced_mood in mood_options else ''}{f' The scene should fit the theme "{forced_theme}".' if forced_theme else ''}
+STEP 2 — SHOTS. Write exactly {clip_count} shots that play as ONE continuous scene in that location: shot 1 matches the hook, the middle the build, the last the reveal/command. Every shot shows a DIFFERENT clearly visible action that moves the story forward. Vary framing: one wide establishing shot, one medium shot of the main action, one close-up on a meaningful detail ({guide['detail']}).
+
+IMAGE PROMPT rules (one paragraph, 60-110 words, natural sentences):
+- Start with the character description exactly as given, then what he/she is doing.
+- Then the specific setting and the objects in it, the shot size and camera angle, the light source and direction, and the color palette from the chosen mood look.
+- Describe only what a camera sees. No sounds, smells, or feelings. No abstract words ("resolve", "determination", "symbolizing", "emphasize"). No lists of quality buzzwords ("8k", "award-winning", "ultra-detailed").
+- Lighting and atmosphere must agree with each other and with the chosen mood (no fog on a clear, sunny shot).
+- End with: photorealistic cinematic film still, 9:16 vertical.
+
+MOTION PROMPT rules (one paragraph, 30-60 words):
+- How the camera moves, what the character does during the clip, and what else moves in the frame.
+- Follow the CAMERA STYLE and MOVEMENT INTENSITY settings above, and never contradict yourself (don't say "slow" and "dynamic" together).
+- End with: 9:16 vertical.
 
 Return ONLY a JSON object:
-{{"mood": "<one of the moods above>", "clips": [
-  {{"action": "...", "setting": "...", "lighting": "...", "atmosphere": "...", "composition": "...", "camera": "...", "subject": "...", "ambient": "...", "pace": "..."}}
-]}}
-Field meanings: action = what the character physically does in this shot; setting = the specific place and the objects in it; composition = shot size and angle (wide / medium / close-up, low angle, etc.); camera = how the camera moves; subject = the motion of the character during the clip; ambient = other motion in the frame; pace = speed of motion.
-The "clips" array must have exactly {clip_count} entries."""
+{{"concept": "<one sentence: the visual metaphor, location and time of day>", "mood": "<one of: {', '.join(mood_options)}>", "clips": [{{"image_prompt": "...", "motion_prompt": "..."}}]}}
+"clips" must have exactly {clip_count} entries."""
 
-    r = requests.post("https://api.openai.com/v1/chat/completions", headers={
-        "Authorization": f"Bearer {Config.OPENAI_KEY}", "Content-Type": "application/json",
-    }, json={
-        "model": getattr(Config, "SCRIPT_MODEL", "gpt-4o"),
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.9,
-        "max_tokens": 2500,
-        "response_format": {"type": "json_object"},
-    }, timeout=60)
-    r.raise_for_status()
-    raw = r.json()["choices"][0]["message"]["content"]
-    raw = re.sub(r'^```json\s*\n?', '', raw, flags=re.IGNORECASE)
-    raw = re.sub(r'\n?```\s*$', '', raw).strip()
-    data = json.loads(raw)
+    messages = [{"role": "user", "content": prompt}]
+    data = None
+    for attempt in range(2):
+        r = requests.post("https://api.openai.com/v1/chat/completions", headers={
+            "Authorization": f"Bearer {Config.OPENAI_KEY}", "Content-Type": "application/json",
+        }, json={
+            "model": getattr(Config, "SCRIPT_MODEL", "gpt-4o"),
+            "messages": messages,
+            "temperature": 0.85,
+            "max_tokens": 3000,
+            "response_format": {"type": "json_object"},
+        }, timeout=75)
+        r.raise_for_status()
+        raw = r.json()["choices"][0]["message"]["content"]
+        data = json.loads(raw)
+        # One rewrite if the AI fell back on a banned stock shot anyway —
+        # GPT often ignores "don't" rules on the first pass.
+        text = " ".join([data.get("concept", "")] + [c.get("image_prompt", "") for c in (data.get("clips") or [])]).lower()
+        hits = [w for w in guide["banned"] if w in text]
+        if not hits or attempt == 1:
+            if hits:
+                log.warning(f"   AI scenes still use stock imagery after rewrite: {hits}")
+            break
+        log.info(f"   AI scenes used stock imagery {hits} — asking for a rewrite")
+        messages += [
+            {"role": "assistant", "content": raw},
+            {"role": "user", "content": f"Your answer used stock imagery ({', '.join(hits)}). Rewrite the whole thing with a different, more specific location and visual metaphor that comes from the script's own words. Same JSON format."},
+        ]
 
     clips = data.get("clips") or []
     if len(clips) != clip_count:
         raise RuntimeError(f"AI scene generation returned {len(clips)} clips, expected {clip_count}")
-    required = {"action", "setting", "lighting", "atmosphere", "composition", "camera", "subject", "ambient", "pace"}
+    out = []
+    fig_key = figure_desc.lower()[:30]
     for c in clips:
-        missing = required - set(c.keys())
-        if missing:
-            raise RuntimeError(f"AI scene generation clip missing fields: {missing}")
+        ip = str(c.get("image_prompt", "")).strip()
+        mp = str(c.get("motion_prompt", "")).strip()
+        if not ip or not mp:
+            raise RuntimeError("AI scene generation returned an empty prompt")
+        # Character consistency matters more than the AI's phrasing —
+        # make sure the exact cast description is always in the image prompt.
+        if fig_key and fig_key not in ip.lower():
+            ip = f"{figure_desc}. {ip}"
+        if "9:16" not in ip:
+            ip += " 9:16 vertical."
+        if "9:16" not in mp:
+            mp += " 9:16 vertical."
+        out.append({"image_prompt": ip, "motion_prompt": mp})
 
     mood = data.get("mood") if data.get("mood") in mood_options else pick(mood_options)
-    return {"mood": mood, "clips": clips}
+    return {"concept": str(data.get("concept", "")).strip(), "mood": mood, "clips": out}
 
 
 def scene_engine(script: dict, topic: dict) -> list:
@@ -662,7 +711,7 @@ def scene_engine(script: dict, topic: dict) -> list:
     # Shown at the prompt-editing gate, so it's obvious whether this run's
     # shots were written for the script or came from the pre-written library
     # (and why) — a failed AI call used to fall back with no visible trace.
-    scene_source, scene_note = "library", ""
+    scene_source, scene_note, scene_concept = "library", "", ""
 
     # 1. Forced story seed — an explicit hand-written choice always wins,
     # AI generation is skipped entirely for it.
@@ -686,12 +735,15 @@ def scene_engine(script: dict, topic: dict) -> list:
         else:
             forced_mood = Config.SCENE_MOOD_BIAS if Config.SCENE_MOOD_BIAS != "auto" and Config.SCENE_MOOD_BIAS in moods else None
             forced_theme = theme_override if theme_override and theme_override != "auto" else None
+            cam_text = cameras.get(Config.SCENE_CAMERA, "") if cameras else ""
+            int_text = intensity_mods.get(getattr(Config, 'SCENE_INTENSITY', 'measured'), "") if intensity_mods else ""
             try:
                 ai = generate_ai_scenes(script, topic, figure, Config.CLIP_COUNT, moods,
+                                         camera_style=cam_text, intensity_style=int_text,
                                          forced_mood=forced_mood, forced_theme=forced_theme)
                 story = {"name": "ai-generated", "mood": ai["mood"], "clips": ai["clips"]}
-                scene_source = "ai"
-                log.info(f"   AI-generated scene: mood={ai['mood']}")
+                scene_source, scene_concept = "ai", ai["concept"]
+                log.info(f"   AI-generated scene: mood={ai['mood']} | concept: {ai['concept']}")
             except Exception as e:
                 scene_note = f"AI scene writing failed: {e}"
                 log.warning(f"   AI scene generation failed ({e}) — falling back to story library")
@@ -743,16 +795,24 @@ def scene_engine(script: dict, topic: dict) -> list:
     mot_template = getattr(Config, 'SCENE_MOTION_PROMPT_TEMPLATE', '') or default_motion_prompt_template()
 
     for i, clip in enumerate(story_clips):
-        image_prompt = render_image_prompt(img_template, figure, clip['action'], clip['setting'],
-                                            clip['composition'], clip['lighting'], clip['atmosphere'], img_suffix)
-        motion_prompt = render_motion_prompt(mot_template, clip['camera'], clip['subject'],
-                                              clip['ambient'], clip['pace'], tech_suffix)
+        if scene_source == "ai":
+            # The AI already wrote finished prompts with the mood look and
+            # camera/intensity settings folded in — don't re-wrap them in the
+            # library template, which is what added the run-ons, "..", and
+            # repeated stock wording.
+            image_prompt, motion_prompt = clip["image_prompt"], clip["motion_prompt"]
+        else:
+            image_prompt = render_image_prompt(img_template, figure, clip['action'], clip['setting'],
+                                                clip['composition'], clip['lighting'], clip['atmosphere'], img_suffix)
+            motion_prompt = render_motion_prompt(mot_template, clip['camera'], clip['subject'],
+                                                  clip['ambient'], clip['pace'], tech_suffix)
         clip_out = {
             "index": i + 1,
             "image_prompt": image_prompt,
             "motion_prompt": motion_prompt,
             "scene_source": scene_source,
             "scene_note": scene_note if scene_source != "ai" else "",
+            "scene_concept": scene_concept,
             "story_name": story["name"],
         }
         # Every clip in a run shares one cast member, so they all carry the
