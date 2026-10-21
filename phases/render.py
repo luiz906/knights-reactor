@@ -7,7 +7,6 @@ import requests
 import boto3
 from config import Config, log
 
-
 def get_s3_client():
     return boto3.client("s3",
         endpoint_url=Config.R2_ENDPOINT,
@@ -273,7 +272,7 @@ def render_video(clips: list, voiceover_url: str, srt_url: str, audio_duration: 
         # real length (a fixed slot longer than the clip freezes the picture).
         cursor = 0.0
         for clip in clips:
-            dur = _probe_duration(ss_base, clip["r2_url"]) or Config.CLIP_DURATION
+            dur = _probe_duration(ss_base, clip["r2_url"]) or 5.0
             video_clips.append({
                 "asset": {"type": "video", "src": clip["r2_url"], "volume": 0, "transcode": True},
                 "start": round(cursor, 3),

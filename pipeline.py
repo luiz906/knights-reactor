@@ -4,7 +4,7 @@ Phases: Topic → Script → Voice → Transcribe (+ split into beats) → Scene
         [GATE: Edit Prompts] → Images → [GATE: Approve Images] → Videos →
         [GATE: Approve Videos] → Upload → Render → Captions → Publish
 """
-import os, json, time, re, base64, math
+import os, json, time, re, base64
 
 from config import Config, DATA_DIR, log
 
@@ -16,7 +16,7 @@ from phases.scenes import scene_engine
 from phases.media import generate_images, generate_image_single, generate_videos, generate_video_single, generate_voiceover, transcribe_voiceover
 from phases.render import get_s3_client, upload_to_r2, upload_assets, create_srt, render_video
 from phases.publish import generate_captions, publish_everywhere
-from phases.timing import build_beats, scene_limit
+from phases.timing import build_beats, video_plan
 
 # Re-export for server.py imports
 from phases.topics import (
@@ -189,22 +189,22 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
                 topic, script = _derive_from_transcript(transcription["text"], topic, script)
                 result["topic"], result["script"] = topic, script
 
-            count, max_scene = _scene_settings()
-            if verse_mode:
-                # Verses vary from one line to a whole passage, so the clip
-                # count follows the reading (as it always has), not Settings.
-                count = max(1, math.ceil((audio_duration or 0) / max_scene))
-            beats = build_beats(transcription, count, max_scene)
+            beats = build_beats(transcription, Config.VIDEO_MODEL, Config.IMAGE_MODEL)
+            plan = _plan(beats)
             log.info(f"   🎬 {len(beats)} scenes, cut at the narration's sentences: " +
-                     " | ".join(f"{b['length']:.1f}s" for b in beats))
+                     " | ".join(f"{b['length']:.1f}s" for b in beats) +
+                     f" — video {plan['video_seconds']}s, ≈ ${plan['cost']['total']}")
             save_checkpoint(3, {"transcription": transcription, "audio_duration": audio_duration,
-                                "beats": beats, "topic": topic, "script": script})
+                                "beats": beats, "plan": plan, "topic": topic, "script": script})
             done(3, "Transcribe")
         else:
             transcription = ckpt["transcription"]
             audio_duration = ckpt.get("audio_duration") or transcription.get("duration", 0)
-            beats = ckpt.get("beats") or build_beats(transcription, *_scene_settings())
+            beats = ckpt.get("beats") or build_beats(transcription, Config.VIDEO_MODEL, Config.IMAGE_MODEL)
+            plan = ckpt.get("plan") or _plan(beats)
             done(3, "Transcribe")
+        if not manual_clips:   # uploaded clips: nothing generated, nothing to estimate
+            result["plan"] = plan
 
         # ── Phases 4-6: scenes, images, videos ─────────────────
         if manual_clips and resume_from <= 6:
@@ -342,9 +342,10 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
     return result
 
 
-def _scene_settings():
-    """(scene count, longest scene) from Settings → Video Generation."""
-    return int(Config.CLIP_COUNT), scene_limit(Config.VIDEO_MODEL, Config.CLIP_DURATION)
+def _plan(beats: list) -> dict:
+    """Length, clip count and rough cost of this run, for the dashboard."""
+    cta = Config.CTA_DURATION if (Config.CTA_ENABLED and Config.CTA_URL) else 0
+    return video_plan(beats, Config.VIDEO_MODEL, Config.IMAGE_MODEL, cta)
 
 
 def _derive_from_transcript(transcript_text: str, topic: dict, script: dict):

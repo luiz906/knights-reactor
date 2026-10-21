@@ -669,9 +669,8 @@ def scene_engine(script: dict, topic: dict, beats: list = None) -> list:
     scene is tied to the line being spoken and lasts exactly that long.
     Without audio (Script Only previews) beats are estimated from the text."""
     if not beats:
-        from phases.timing import estimate_beats, scene_limit
-        beats = estimate_beats(script.get("script_full", ""), int(Config.CLIP_COUNT),
-                               scene_limit(Config.VIDEO_MODEL, Config.CLIP_DURATION))
+        from phases.timing import estimate_beats
+        beats = estimate_beats(script.get("script_full", ""), Config.VIDEO_MODEL, Config.IMAGE_MODEL)
     clip_count = len(beats)
     story_override = getattr(Config, 'SCENE_STORY', 'auto')
     theme_override = getattr(Config, 'SCENE_THEME', 'auto')

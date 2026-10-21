@@ -5,7 +5,7 @@ Replicate (images, videos), ElevenLabs (voiceover), Whisper (transcribe).
 import time, re
 import requests
 from config import Config, log
-from phases.timing import clip_duration
+from phases.timing import clip_duration, DEFAULT_CLIP
 
 def replicate_create(model: str, input_data: dict) -> str:
     """Create a Replicate prediction, return the GET URL for polling."""
@@ -218,7 +218,7 @@ def generate_videos(clips: list) -> list:
             params["aspect_ratio"] = "9:16"
         # Ask for the shortest clip that covers this scene's narration line
         # (Seedance: 5 or 10 s). Other models make their default length.
-        dur = clip_duration(clip.get("length") or Config.CLIP_DURATION, model, Config.CLIP_DURATION)
+        dur = clip_duration(clip.get("length") or DEFAULT_CLIP, model)
         if dur:
             params["duration"] = dur
 
@@ -253,7 +253,7 @@ def generate_video_single(clip: dict) -> dict:
         params = {"image": clip["image_url"], "prompt": clip["motion_prompt"]}
     if "seedance" in model.lower() or "wan" in model.lower():
         params["aspect_ratio"] = "9:16"
-    dur = clip_duration(clip.get("length") or Config.CLIP_DURATION, model, Config.CLIP_DURATION)
+    dur = clip_duration(clip.get("length") or DEFAULT_CLIP, model)
     if dur:
         params["duration"] = dur
 
