@@ -23,23 +23,6 @@ import requests as _rq
 
 app = FastAPI(title="Knights Reactor")
 
-# ─── STATIC FILES & SUB-APPS ─────────────────────────────────
-from fastapi.staticfiles import StaticFiles
-import shutil as _shutil
-
-_APP_DIR = Path(__file__).parent
-_static_dir = _APP_DIR / "static"
-_static_dir.mkdir(exist_ok=True)
-
-# If CSS/JS files are at root level (flat repo), copy into static/
-for _fname in ["style.css", "app.js"]:
-    _root = _APP_DIR / _fname
-    _dest = _static_dir / _fname
-    if _root.exists() and (not _dest.exists() or _root.stat().st_mtime > _dest.stat().st_mtime):
-        _shutil.copy2(str(_root), str(_dest))
-
-app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
-
 # Session token (regenerates on restart, lives in memory)
 SESSION_TOKEN = secrets.token_hex(32)
 
@@ -163,8 +146,6 @@ def apply_model_settings():
     if s.get("voice_style"):    Config.VOICE_STYLE = float(s["voice_style"])
     if s.get("voice_id"):       Config.VOICE_ID = s["voice_id"]
     # Video clips
-    if s.get("clip_count"):     Config.CLIP_COUNT = int(s["clip_count"])
-    if s.get("clip_duration"):  Config.CLIP_DURATION = float(s["clip_duration"])
     # Render
     if s.get("render_fps"):     Config.RENDER_FPS = int(s["render_fps"])
     if s.get("render_res"):     Config.RENDER_RES = s["render_res"]
