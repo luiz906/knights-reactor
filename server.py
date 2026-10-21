@@ -334,7 +334,9 @@ def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: l
     if result.get("plan"):
         p = result["plan"]
         run_entry["plan"] = {"video_seconds": p["video_seconds"], "clips": p["clips"],
-                             "cost_total": p["cost"]["total"]}
+                             "cost_total": p["cost"]["total"],
+                             "narration_seconds": p.get("narration_seconds"),
+                             "script_words": p.get("script_words"), "target_words": p.get("target_words")}
     RUNS.insert(0, run_entry)
     save_json(RUNS_FILE, RUNS[:100])
     # Include the actual exception text on failure — without this the Logs
@@ -1214,7 +1216,30 @@ async def plan_estimate():
     active brand's script length, models and CTA."""
     from phases.timing import estimate_plan
     cta = Config.CTA_DURATION if (Config.CTA_ENABLED and Config.CTA_URL) else 0
-    return estimate_plan(Config.SCRIPT_WORDS, Config.VIDEO_MODEL, Config.IMAGE_MODEL, cta)
+    # Learn from this brand's last finished videos: how long the voice really
+    # takes per word (slow reads and pauses between sentences included), and
+    # how far the AI's scripts run over or under the word target.
+    words = int(Config.SCRIPT_WORDS)
+    past = []
+    for r in RUNS[:50]:
+        p = r.get("plan") or {}
+        if p.get("narration_seconds") and p.get("script_words"):
+            past.append(p)
+        elif p.get("video_seconds", 0) > cta:   # saved before word counts were kept
+            past.append({"narration_seconds": p["video_seconds"] - cta, "script_words": words})
+    past = past[:5]
+    spw = None
+    if past:
+        spw = sum(p["narration_seconds"] for p in past) / sum(p["script_words"] for p in past)
+        ratios = [p["script_words"] / p["target_words"] for p in past if p.get("target_words")]
+        if ratios:
+            words = round(words * min(1.6, max(0.6, sum(ratios) / len(ratios))))
+    plan = estimate_plan(words, Config.VIDEO_MODEL, Config.IMAGE_MODEL, cta, spw)
+    from phases.scenes import figure_supports_reference
+    plan["target_words"] = int(Config.SCRIPT_WORDS)
+    plan["learned_from"] = len(past)
+    plan["same_character"] = figure_supports_reference(Config.IMAGE_MODEL)
+    return plan
 
 @app.post("/api/settings")
 async def save_settings(req: Request):

@@ -259,10 +259,19 @@ def render_video(clips: list, voiceover_url: str, srt_url: str, audio_duration: 
     timed = bool(clips) and all("start" in c and "length" in c for c in clips)
     if timed:
         for clip in clips:
+            asset = {"type": "video", "src": clip["r2_url"], "volume": 0, "transcode": True}
+            length = round(float(clip["length"]), 3)
+            # A clip shorter than its scene would freeze on its last frame —
+            # play it slightly slower instead so it fills the scene.
+            real = _probe_duration(ss_base, clip["r2_url"])
+            if real and real < length - 0.05:
+                asset["speed"] = round(max(0.6, real / length), 3)
+                log.info(f"   Clip {clip.get('index','')}: {real:.1f}s clip in a {length:.1f}s scene "
+                         f"— played at {asset['speed']}x speed")
             video_clips.append({
-                "asset": {"type": "video", "src": clip["r2_url"], "volume": 0, "transcode": True},
+                "asset": asset,
                 "start": round(float(clip["start"]), 3),
-                "length": round(float(clip["length"]), 3),
+                "length": length,
                 "fit": "cover",
             })
         cursor = round(float(clips[-1]["start"]) + float(clips[-1]["length"]), 3)
