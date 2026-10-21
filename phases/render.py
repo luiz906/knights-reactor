@@ -6,7 +6,7 @@ import time, re
 import requests
 import boto3
 from config import Config, log
-from phases.timing import MAX_SCENE_SECONDS
+
 
 def get_s3_client():
     return boto3.client("s3",
@@ -273,7 +273,7 @@ def render_video(clips: list, voiceover_url: str, srt_url: str, audio_duration: 
         # real length (a fixed slot longer than the clip freezes the picture).
         cursor = 0.0
         for clip in clips:
-            dur = _probe_duration(ss_base, clip["r2_url"]) or MAX_SCENE_SECONDS
+            dur = _probe_duration(ss_base, clip["r2_url"]) or Config.CLIP_DURATION
             video_clips.append({
                 "asset": {"type": "video", "src": clip["r2_url"], "volume": 0, "transcode": True},
                 "start": round(cursor, 3),

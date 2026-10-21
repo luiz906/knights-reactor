@@ -62,6 +62,8 @@ settings = {
     "image_model": "black-forest-labs/flux-1.1-pro",
     "image_quality": "high",
     "video_model": "bytedance/seedance-1-lite",
+    "clip_count": "3",
+    "clip_duration": "10",
 
     # Render
     "render_fps": "30",

@@ -145,7 +145,10 @@ def apply_model_settings():
     if s.get("voice_speed"):    Config.VOICE_SPEED = float(s["voice_speed"])
     if s.get("voice_style"):    Config.VOICE_STYLE = float(s["voice_style"])
     if s.get("voice_id"):       Config.VOICE_ID = s["voice_id"]
-    # Video clips
+    # Video clips — reset to the defaults when unset so one brand's values
+    # never carry over to another brand
+    Config.CLIP_COUNT = int(float(s.get("clip_count") or 3))
+    Config.CLIP_DURATION = float(s.get("clip_duration") or 10)
     # Render
     if s.get("render_fps"):     Config.RENDER_FPS = int(s["render_fps"])
     if s.get("render_res"):     Config.RENDER_RES = s["render_res"]
