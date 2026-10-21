@@ -190,7 +190,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
                 result["topic"], result["script"] = topic, script
 
             beats = build_beats(transcription, Config.VIDEO_MODEL, Config.IMAGE_MODEL)
-            plan = _plan(beats)
+            plan = _plan(beats, script)
             log.info(f"   🎬 {len(beats)} scenes, cut at the narration's sentences: " +
                      " | ".join(f"{b['length']:.1f}s" for b in beats) +
                      f" — video {plan['video_seconds']}s, ≈ ${plan['cost']['total']}")
@@ -201,7 +201,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
             transcription = ckpt["transcription"]
             audio_duration = ckpt.get("audio_duration") or transcription.get("duration", 0)
             beats = ckpt.get("beats") or build_beats(transcription, Config.VIDEO_MODEL, Config.IMAGE_MODEL)
-            plan = ckpt.get("plan") or _plan(beats)
+            plan = ckpt.get("plan") or _plan(beats, script)
             done(3, "Transcribe")
         if not manual_clips:   # uploaded clips: nothing generated, nothing to estimate
             result["plan"] = plan
@@ -342,10 +342,14 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
     return result
 
 
-def _plan(beats: list) -> dict:
-    """Length, clip count and rough cost of this run, for the dashboard."""
+def _plan(beats: list, script: dict) -> dict:
+    """Length, clip count and rough cost of this run, for the dashboard. The
+    word counts let the next-video estimate learn the brand's real pace."""
     cta = Config.CTA_DURATION if (Config.CTA_ENABLED and Config.CTA_URL) else 0
-    return video_plan(beats, Config.VIDEO_MODEL, Config.IMAGE_MODEL, cta)
+    plan = video_plan(beats, Config.VIDEO_MODEL, Config.IMAGE_MODEL, cta)
+    plan["script_words"] = len((script.get("script_full") or "").split())
+    plan["target_words"] = int(Config.SCRIPT_WORDS)
+    return plan
 
 
 def _derive_from_transcript(transcript_text: str, topic: dict, script: dict):

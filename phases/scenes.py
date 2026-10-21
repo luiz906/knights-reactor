@@ -114,13 +114,14 @@ def figure_label(fig: dict) -> str:
 
 
 def figure_supports_reference(model: str) -> bool:
-    """Whether the configured image model accepts a reference image.
-
-    Verified against each model's Replicate schema: the Nano Banana (Gemini)
-    and Seedream families both take `image_input` as an ARRAY of image URLs,
-    and Flux 2 accepts the same field. Classic Flux 1.1 Pro / Schnell / Dev
-    are text-only — passing a reference to them is silently ignored, so the
-    UI warns instead of pretending it worked."""
+    """Whether the image model accepts a reference image — read from its
+    Replicate schema (any model). If Replicate can't be reached: the Nano
+    Banana, Seedream and Flux 2 families do; classic Flux 1.1 Pro / Schnell /
+    Dev are text-only."""
+    from phases.model_info import model_inputs
+    info = model_inputs(model)
+    if info is not None:
+        return bool(info["ref_field"])
     m = (model or "").lower()
     return any(k in m for k in ("nano-banana", "seedream", "flux-2"))
 

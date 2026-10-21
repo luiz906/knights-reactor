@@ -579,18 +579,19 @@ const usd=x=>'$'+Number(x||0).toFixed(2);
 function planCard(p,title){
   if(!p||!p.clips)return '';
   const c=p.cost||{},missing=(c.missing||[]).length>0;
-  const box=(v,l,col)=>`<div style="flex:1;padding:5px;background:var(--bg);border:1px solid var(--bd2);text-align:center"><div style="font-family:var(--f1);font-size:.9em;font-weight:800;color:var(--${col})">${v}</div><div style="font-size:.5em;color:var(--txtdd);letter-spacing:.1em">${l}</div></div>`;
-  const parts=[c.images!=null?`${p.clips} image${p.clips>1?'s':''} ≈ ${usd(c.images)}`:`${p.clips} images (price not on file)`,
-    c.video!=null?`${c.footage_seconds}s of clips ≈ ${usd(c.video)}`:`${c.footage_seconds}s of clips (price not on file)`,
-    `AI writing ≈ ${usd(c.writing)}`];
+  const box=(v,l,col,tip)=>`<div title="${tip||''}" style="flex:1;padding:5px;background:var(--bg);border:1px solid var(--bd2);text-align:center"><div style="font-family:var(--f1);font-size:.9em;font-weight:800;color:var(--${col})">${v}</div><div style="font-size:.5em;color:var(--txtdd);letter-spacing:.1em">${l}</div></div>`;
+  // Cost breakdown lives in the tooltip to keep the card small.
+  const tip=[c.images!=null?`${p.clips} images ≈ ${usd(c.images)}`:'images: price not on file',
+    c.video!=null?`${c.footage_seconds}s of clips ≈ ${usd(c.video)}`:'clips: price not on file',
+    `AI writing ≈ ${usd(c.writing)}`,'Voice and render come from your ElevenLabs and Shotstack plans'].join(' · ');
+  const est=p.estimated?'~':'';
   return `<div style="border:1px solid var(--bd2);padding:10px;background:rgba(227,160,40,.03);margin-bottom:10px">
 <div style="font-family:var(--f1);font-size:.6em;letter-spacing:.15em;color:var(--txtd);margin-bottom:6px">${title}</div>
-<div style="display:flex;gap:8px;margin-bottom:6px">${box('~'+Math.round(p.video_seconds)+'s','LENGTH','grn')}${box(p.clips,p.clips>1?'CLIPS':'CLIP','amb')}${box('≈ '+usd(c.total)+(missing?'+':''),'COST','blu')}</div>
-<div style="font-size:.55em;color:var(--wht);line-height:1.5">${(p.scene_seconds||[]).map(s=>s+'s').join(' · ')}${p.cta_seconds?` + ${p.cta_seconds}s CTA`:''} — each clip plays under its own lines</div>
-<div style="font-size:.5em;color:var(--txtdd);margin-top:3px;line-height:1.5">${parts.join(' · ')}. Voice and render come from your ElevenLabs and Shotstack plans. Regenerating an image or clip adds its cost again. Prices are Replicate's list prices and may change.</div>
+<div style="display:flex;gap:8px;margin-bottom:6px">${box('~'+Math.round(p.video_seconds)+'s','LENGTH','grn')}${box(p.clips,p.clips>1?'CLIPS':'CLIP','amb')}${box('≈ '+usd(c.total)+(missing?'+':''),'COST','blu',tip)}</div>
+<div style="font-size:.55em;color:var(--wht);line-height:1.5">${est}${Math.round(p.narration_seconds)}s of voice${p.script_words?` (${est}${p.script_words} words)`:''} → clips of ${(p.scene_seconds||[]).map(x=>x+'s').join(' · ')}${p.cta_seconds?` + ${p.cta_seconds}s CTA`:''}</div>
 </div>`;
 }
-const estTitle=()=>`NEXT VIDEO · ESTIMATE FOR A ~${(PLAN_EST&&PLAN_EST.script_words)||''}-WORD SCRIPT`;
+const estTitle=()=>'NEXT VIDEO · ESTIMATE';
 async function loadPlanEst(){
   try{PLAN_EST=await(await fetch('/api/plan-estimate')).json();}catch(e){PLAN_EST=null;}
 }
@@ -606,7 +607,7 @@ const STS=[
 {t:"SCENE ENGINE",f:[{k:"scene_ai_enabled",l:"AI-Generate Bespoke Scenes (off = always use the story library below)",tp:"toggle",d:true},{k:"scene_story",l:"Story Seed",tp:"select",o:["auto"],d:"auto",dynamic:"stories"},{k:"scene_theme",l:"Theme Force",tp:"select",o:["auto"],d:"auto",dynamic:"themes"},{k:"scene_figure",l:"Figure",tp:"select",o:["auto"],d:"auto",dynamic:"figures"},{k:"scene_intensity",l:"Intensity",tp:"select",o:["still","measured","dynamic"],d:"measured"},{k:"scene_camera",l:"Camera Style",tp:"select",o:["steady","dynamic","handheld"],d:"steady"},{k:"scene_mood",l:"Mood Lighting",tp:"select",o:["auto"],d:"auto",dynamic:"moods"},{k:"_scene_pack",l:"",tp:"scene_pack"},{k:"scene_image_prompt_template",l:"Image Prompt Template for pre-written JSON-library shots only (optional override, leave blank for built-in default — placeholders: {figure} {action} {setting} {composition} {lighting} {atmosphere} {suffix})",tp:"textarea",rows:3,d:""},{k:"scene_motion_prompt_template",l:"Motion Prompt Template for pre-written JSON-library shots only (optional override, leave blank for built-in default — placeholders: {camera} {subject} {ambient} {pace} {tech_suffix})",tp:"textarea",rows:3,d:""}]},
 {t:"VOICE SYNTH",f:[{k:"voice_id",l:"Voice ID",d:"bwCXcoVxWNYMlC6Esa8u",b:1},{k:"voice_model",l:"Model",tp:"select",o:["eleven_turbo_v2","eleven_multilingual_v2","eleven_monolingual_v1"],d:"eleven_turbo_v2"},{k:"voice_stability",l:"Stability",d:"0.5"},{k:"voice_similarity",l:"Similarity",d:"0.75"},{k:"voice_speed",l:"Speed",d:"1.0"},{k:"voice_style",l:"Style",d:"0.0"}]},
 {t:"IMAGE GENERATION",note:"Character consistency across separate generations (same figure matching from clip to clip): Nano Banana (all 3), GPT Image 1.5, Seedream 4.5/5, and Flux 2 Pro support reference-image identity locking. Flux 1.1 Pro/Schnell/Dev, Ideogram, Recraft, SD 3.5, and Imagen 4 do NOT — each clip's figure can drift. Quick picks: Flux 1.1 Pro = fast realistic single shots, Ideogram = text-heavy graphics/logos, Recraft = vector/brand assets, Imagen 4 = general photorealism, Grok Aurora = fast novelty.",f:[{k:"image_provider",l:"Provider",tp:"select",o:["replicate"],d:"replicate"},{k:"image_model",l:"Model",tp:"select",o:[],d:"black-forest-labs/flux-1.1-pro",dep:"image_provider"},{k:"image_quality",l:"Quality",tp:"select",o:["low","medium","high"],d:"high"}]},
-{t:"VIDEO GENERATION",note:"Character consistency across clips: Kling v3.0 (Subject Binding), Veo 3.1 (Ingredients to Video), Seedance 2.0 (reference packs), and Luma Ray 3.2 can lock a figure's look across separate generations — use one of these if the same character must match across all clips. Seedance Pro/Lite, Hailuo, Wan, Grok, Minimax, and Ray 2/Flash do not. Quick picks: Seedance 2.0 = realistic physics-aware motion, Kling v3.0 = multi-shot narrative + audio, Veo 3.1 = cinematic + native audio, Hailuo 2.3 = expressive close-ups without warping, Seedance/Wan Lite = cheap fast drafts.",f:[{k:"video_provider",l:"Provider",tp:"select",o:["replicate"],d:"replicate"},{k:"video_model",l:"Model",tp:"select",o:[],d:"bytedance/seedance-1-lite",dep:"video_provider"},{k:"cta_enabled",l:"CTA End Card",tp:"toggle",d:true},{k:"cta_url",l:"CTA Video/Image URL (this brand's own end card — leave blank for none)",d:""},{k:"cta_duration",l:"CTA Duration (sec)",tp:"select",o:["3","4","5","6","8"],d:"5"},{k:"_vid_total",l:"",tp:"computed"},{k:"video_timeout",l:"Timeout (sec)",d:"600"}]},
+{t:"VIDEO GENERATION",note:"Character consistency across clips: Kling v3.0 (Subject Binding), Veo 3.1 (Ingredients to Video), Seedance 2.0 (reference packs), and Luma Ray 3.2 can lock a figure's look across separate generations — use one of these if the same character must match across all clips. Seedance Pro/Lite, Hailuo, Wan, Grok, Minimax, and Ray 2/Flash do not. Quick picks: Seedance 2.0 = realistic physics-aware motion, Kling v3.0 = multi-shot narrative + audio, Veo 3.1 = cinematic + native audio, Hailuo 2.3 = expressive close-ups without warping, Seedance/Wan Lite = cheap fast drafts.",f:[{k:"video_provider",l:"Provider",tp:"select",o:["replicate"],d:"replicate"},{k:"video_model",l:"Model",tp:"select",o:[],d:"bytedance/seedance-1-lite",dep:"video_provider"},{k:"cta_enabled",l:"CTA End Card",tp:"toggle",d:true},{k:"cta_url",l:"CTA Video/Image URL (this brand's own end card — leave blank for none)",d:""},{k:"cta_duration",l:"CTA Duration (sec)",tp:"select",o:["3","4","5","6","8"],d:"5"},{k:"video_timeout",l:"Timeout (sec)",d:"600"}]},
 {t:"RENDER OUTPUT",f:[{k:"shotstack_env",l:"Shotstack Mode",tp:"select",o:["stage","v1"],d:"stage"},{k:"render_fps",l:"FPS",tp:"select",o:["24","30","60"],d:"30"},{k:"render_res",l:"Resolution",tp:"select",o:["720","1080"],d:"1080"},{k:"render_aspect",l:"Aspect Ratio",tp:"select",o:["9:16","16:9","1:1"],d:"9:16"},{k:"render_bg",l:"Background Color",d:"#000000"}]},
 {t:"WATERMARK / LOGO",f:[{k:"logo_enabled",l:"Show Logo",tp:"toggle",d:true},{k:"captions_enabled",l:"Show Captions",tp:"toggle",d:true},{k:"logo_url",l:"Logo URL",d:""},{k:"logo_position",l:"Position",tp:"select",o:["topRight","topLeft","bottomRight","bottomLeft","center"],d:"topRight"},{k:"logo_scale",l:"Scale",d:"0.12"},{k:"logo_opacity",l:"Opacity",d:"0.8"}]},
 {t:"PLATFORMS",f:[{k:"on_tt",l:"TikTok",tp:"toggle",d:true},{k:"on_yt",l:"YouTube",tp:"toggle",d:true},{k:"on_ig",l:"Instagram",tp:"toggle",d:true},{k:"on_fb",l:"Facebook",tp:"toggle",d:true},{k:"on_tw",l:"X/Twitter",tp:"toggle",d:true},{k:"on_th",l:"Threads",tp:"toggle",d:true},{k:"on_pn",l:"Pinterest",tp:"toggle",d:false}]},
@@ -1407,8 +1408,6 @@ function rSt(){
         }else{
           ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value">${opts.map(o=>`<option${o==v?' selected':''}>${o}</option>`).join('')}</select></div>`;
         }
-      }else if(f.tp==='computed'){
-        ff+=`<div class="fi w">${planCard(PLAN_EST,estTitle())||'<div style="font-size:.6em;color:var(--txtd)">Save to see the estimate.</div>'}<div style="font-size:.5em;color:var(--txtdd);margin-top:3px">The app picks the clips itself: one per stretch of narration, cut where a sentence ends, never longer than the video model can make. Updates when you save.</div></div>`;
       }else if(f.tp==='slider'){
         const mn=f.min||30,mx=f.max||180,stp=f.step||5,cv=parseInt(v)||f.d,secs=Math.round(cv/3),pct=((cv-mn)/(mx-mn))*100;
         ff+=`<div class="fi w"><div class="fl">${f.l}</div><div style="display:flex;align-items:center;gap:.55em"><input type="range" min="${mn}" max="${mx}" step="${stp}" value="${cv}" class="fin-slider" style="flex:1" oninput="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'" onchange="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'" ontouchmove="ST['${f.k}']=parseInt(this.value);document.getElementById('sl_${f.k}').textContent=this.value+' words ≈ '+Math.round(this.value/3)+'s'"><div id="sl_${f.k}" style="min-width:6em;font-family:var(--f1);font-size:.65em;letter-spacing:1px;color:var(--amb);text-align:right">${cv} words ≈ ${secs}s</div></div></div>`;
@@ -1798,10 +1797,12 @@ function scSetFig(i,key,val){
   SC_DATA.figures[i]=f;
 }
 
-/* Mirrors figure_supports_reference() in phases/scenes.py — keep in sync. */
+/* The server's answer (read from the model's Replicate schema) when it has one;
+   else mirrors the fallback list in figure_supports_reference() in phases/scenes.py. */
 function scRefModelOK(){
   const m=(ST.image_model||'').toLowerCase();
   if(!m)return true;
+  if(PLAN_EST&&PLAN_EST.image_model===ST.image_model&&PLAN_EST.same_character!==undefined)return PLAN_EST.same_character;
   return m.includes('nano-banana')||m.includes('seedream')||m.includes('flux-2');
 }
 

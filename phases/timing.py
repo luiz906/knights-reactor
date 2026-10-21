@@ -14,9 +14,11 @@ clips, a longer one gets more, and money isn't spent on footage nobody sees.
 import math
 
 from phases.costs import planning_prices
+from phases.model_info import model_inputs
 
 IDEAL_SCENE = 6.0           # a scene this long reads well on a short-form video
 DEFAULT_CLIP = 5.0          # clip length assumed for models we can't ask for a length
+MAX_SCENE = 10.0            # longest scene, even on models that can make longer clips
 _PAUSE = 0.25               # a gap this long is a usable mid-sentence break
 _SENTENCE_GAP = 0.45        # a gap this long reads as a sentence break (if Whisper gave no segments)
 _TAIL = 0.4                 # hold after the last word before the CTA / end
@@ -27,9 +29,13 @@ _PER_DOLLAR = 3.0           # how much a dollar of images/footage weighs against
 
 
 def clip_lengths(video_model: str):
-    """Clip lengths (s) the model can be asked for on Replicate, or None if it
-    takes no length setting and makes its own default length.
-    Seedance 1 (Lite/Pro) takes 5 or 10 s; Seedance 2 any whole second."""
+    """Clip lengths (s) the model can be asked for, read from its Replicate
+    schema — or None if it takes no length setting and makes its own default
+    length. Without the schema: Seedance 1 takes 5 or 10 s, Seedance 2 any
+    whole second."""
+    info = model_inputs(video_model)
+    if info is not None:
+        return info["durations"]
     m = (video_model or "").lower()
     if "seedance-2" in m:
         return list(range(5, 11))
@@ -38,10 +44,18 @@ def clip_lengths(video_model: str):
     return None
 
 
+def _default_clip(video_model: str) -> float:
+    """Length the model makes when it can't be asked for one."""
+    info = model_inputs(video_model)
+    return (info or {}).get("default_duration") or DEFAULT_CLIP
+
+
 def scene_limit(video_model: str) -> float:
     """Longest a scene may run on this model without its clip freezing."""
     lengths = clip_lengths(video_model)
-    return float(max(lengths)) if lengths else DEFAULT_CLIP
+    if lengths:
+        return float(min(max(lengths), MAX_SCENE))
+    return min(_default_clip(video_model), MAX_SCENE)
 
 
 def clip_duration(scene_length: float, video_model: str):
@@ -55,7 +69,7 @@ def clip_duration(scene_length: float, video_model: str):
 
 def clip_seconds(scene_length: float, video_model: str) -> float:
     """Seconds of clip that get generated (and paid for) for a scene."""
-    return clip_duration(scene_length, video_model) or DEFAULT_CLIP
+    return clip_duration(scene_length, video_model) or _default_clip(video_model)
 
 
 def _plan(words: list, sentence_end: list, video_model: str, image_model: str) -> list:
@@ -140,15 +154,25 @@ def estimate_beats(text: str, video_model: str = "", image_model: str = "",
                    words_per_sec: float = 2.8) -> list:
     """Approximate beats from script text alone (no audio yet) — used by
     Script Only previews and as a fallback if Whisper returns no words."""
+    words, sentence_end = _synthetic_words(text, words_per_sec)
+    return _to_beats(_plan(words, sentence_end, video_model, image_model))
+
+
+def _synthetic_words(text: str, words_per_sec: float, seconds: float = None):
+    """Word timings for text that hasn't been spoken yet: a pause after each
+    sentence and comma, stretched to `seconds` of narration if given."""
     toks = (text or "").split() or [""]
     words, sentence_end, t = [], [], 0.0
     for tok in toks:
-        words.append({"word": tok, "start": round(t, 3), "end": round(t + 1 / words_per_sec, 3)})
+        words.append({"word": tok, "start": t, "end": t + 1 / words_per_sec})
         t += 1 / words_per_sec
         end = tok.endswith((".", "!", "?"))
         sentence_end.append(end)
         t += 0.45 if end else (0.25 if tok.endswith((",", ";", ":", "—")) else 0)
-    return _to_beats(_plan(words, sentence_end, video_model, image_model))
+    scale = seconds / words[-1]["end"] if seconds else 1.0
+    for w in words:
+        w["start"], w["end"] = round(w["start"] * scale, 3), round(w["end"] * scale, 3)
+    return words, sentence_end
 
 
 def video_plan(beats: list, video_model: str, image_model: str, cta_seconds: float = 0.0) -> dict:
@@ -168,9 +192,12 @@ def video_plan(beats: list, video_model: str, image_model: str, cta_seconds: flo
     }
 
 
-def estimate_plan(script_words: int, video_model: str, image_model: str, cta_seconds: float = 0.0) -> dict:
+def estimate_plan(script_words: int, video_model: str, image_model: str, cta_seconds: float = 0.0,
+                  seconds_per_word: float = None) -> dict:
     """Plan for a script of about script_words words (before one exists),
-    with a typical mix of sentence lengths."""
+    with a typical mix of sentence lengths. seconds_per_word is the brand's
+    real reading pace (pauses included) measured from past videos; without
+    it a standard 3 words/sec is assumed."""
     words, toks, k = max(1, int(script_words or 0)), [], 0
     pattern = [8, 12, 10, 14, 6, 11]
     while len(toks) < words:
@@ -178,8 +205,9 @@ def estimate_plan(script_words: int, video_model: str, image_model: str, cta_sec
         toks += ["word"] * (n - 1) + ["word."]
         k += 1
     text = " ".join(toks)
-    plan = video_plan(estimate_beats(text, video_model, image_model, words_per_sec=3.0),
-                      video_model, image_model, cta_seconds)
+    seconds = words * seconds_per_word if seconds_per_word else None
+    tw, ends = _synthetic_words(text, 3.0, seconds)
+    plan = video_plan(_to_beats(_plan(tw, ends, video_model, image_model)), video_model, image_model, cta_seconds)
     plan["estimated"] = True
     plan["script_words"] = words
     return plan

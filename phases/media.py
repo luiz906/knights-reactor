@@ -6,6 +6,8 @@ import time, re
 import requests
 from config import Config, log
 from phases.timing import clip_duration, DEFAULT_CLIP
+from phases.model_info import model_inputs, pick_aspect
+from phases.scenes import figure_supports_reference
 
 def replicate_create(model: str, input_data: dict) -> str:
     """Create a Replicate prediction, return the GET URL for polling."""
@@ -53,79 +55,76 @@ def replicate_poll(get_url: str, timeout: int = 300) -> str:
     raise TimeoutError("Replicate prediction timed out")
 
 
-def _apply_reference_image(params: dict, clip: dict, model: str):
-    """Attach the cast member's reference image so the same character shows
-    up across every clip, instead of a differently-armored knight each time.
+_SAME_CHARACTER = ("\nKeep the character exactly as in the reference image — same armor, helm, cape, "
+                   "face and build. Use the reference only for the character; the setting, pose, "
+                   "lighting and camera follow this description.")
 
-    `image_input` is an ARRAY of image URLs — verified against the Replicate
-    schemas for the Nano Banana (Gemini) and Seedream families; Flux 2 takes
-    the same field. Classic Flux 1.1 Pro / Schnell / Dev are text-only and
-    would silently ignore it, so the reference is skipped (with a warning)
-    rather than sent into the void."""
-    ref = (clip.get("ref_image") or "").strip()
-    if not ref:
-        return
-    from phases.scenes import figure_supports_reference
-    if not figure_supports_reference(model):
-        log.warning(
-            f"   ⚠️  Clip {clip.get('index','')}: cast reference image set, but "
-            f"{model} does not accept reference images — generating from text only. "
-            f"Switch to Nano Banana, Seedream, or Flux 2 in Settings to use it."
-        )
-        return
-    params["image_input"] = [ref]
-    log.info(f"   Clip {clip.get('index','')}: using cast reference image")
+
+def _image_input(clip: dict, model: str, ref: str = "") -> dict:
+    """Replicate input for one scene image. Built from the model's own schema
+    when Replicate can describe it (any model), else from built-in guesses.
+    ref: an image the character must match (a cast photo or scene 1)."""
+    quality = getattr(Config, 'IMAGE_QUALITY', 'high')
+    params = {"prompt": clip["image_prompt"] + (_SAME_CHARACTER if ref else "")}
+    info = model_inputs(model)
+    if info is not None:
+        ar = pick_aspect(info, Config.RENDER_ASPECT)
+        if ar:
+            params["aspect_ratio"] = ar
+        if "quality" in info["inputs"] and quality in info["enums"].get("quality", [quality]):
+            params["quality"] = quality
+        if ref and info["ref_field"]:
+            params[info["ref_field"]] = [ref] if info["ref_is_list"] else ref
+        return params
+
+    # Built-in guesses (Replicate unreachable)
+    if ref and figure_supports_reference(model):
+        params["image_input"] = [ref]
+    if "gpt-image" in model:
+        # GPT Image only accepts 1:1 / 3:2 / 2:3 — 2:3 is the closest portrait.
+        params["aspect_ratio"] = "2:3"
+        params["quality"] = quality
+    elif any(k in model for k in ("grok-imagine", "nano-banana", "seedream", "ideogram", "recraft", "imagen")):
+        params["aspect_ratio"] = "9:16"
+    else:
+        params["aspect_ratio"] = "9:16"
+        params["quality"] = quality
+    return params
+
+
+def _character_ref(clip: dict, model: str) -> str:
+    """The image this scene's character must match — the cast photo if one is
+    set, else scene 1's image — if the image model can take a reference."""
+    ref = (clip.get("ref_image") or clip.get("character_ref") or "").strip()
+    if ref and not figure_supports_reference(model):
+        log.warning(f"   ⚠️  Clip {clip.get('index','')}: {model} can't take a reference image — "
+                    f"the character may look different from scene to scene.")
+        return ""
+    return ref
 
 
 def generate_images(clips: list) -> list:
-    """Generate cinematic images via Replicate (all models support 9:16)."""
+    """Generate the scene images. So the character looks the same in every
+    scene, scene 1 is made first and used as the reference for the rest
+    (when no cast photo is set and the model can take a reference)."""
     model = Config.IMAGE_MODEL
-    quality = getattr(Config, 'IMAGE_QUALITY', 'high')
-    log.info(f"🖼️  Phase 4: Generating images via Replicate ({model}) | Quality: {quality} | Aspect: 9:16")
+    log.info(f"🖼️  Phase 4: Generating images via Replicate ({model}) | Aspect: {Config.RENDER_ASPECT}")
 
-    for clip in clips:
-        params = {"prompt": clip["image_prompt"]}
-        _apply_reference_image(params, clip, model)
+    rest = clips
+    if len(clips) > 1 and not any(c.get("ref_image") for c in clips) and figure_supports_reference(model):
+        first = clips[0]
+        first["image_url"] = replicate_poll(replicate_create(model, _image_input(first, model)))
+        log.info(f"   Clip {first['index']}: image ready ✓ — the reference for the other scenes")
+        for c in clips[1:]:
+            c["character_ref"] = first["image_url"]
+        rest = clips[1:]
 
-        # Model-specific parameter mapping
-        if "grok-imagine" in model:
-            # xAI Grok Aurora — uses prompt + aspect_ratio
-            params["aspect_ratio"] = "9:16"
-        elif "nano-banana" in model:
-            # Google Nano Banana / Pro — uses aspect_ratio
-            params["aspect_ratio"] = "9:16"
-        elif "seedream" in model:
-            # ByteDance Seedream — uses aspect_ratio
-            params["aspect_ratio"] = "9:16"
-        elif "ideogram" in model:
-            # Ideogram v3 — uses aspect_ratio
-            params["aspect_ratio"] = "9:16"
-        elif "recraft" in model:
-            # Recraft v3 — uses aspect_ratio (no quality param)
-            params["aspect_ratio"] = "9:16"
-        elif "imagen" in model:
-            # Google Imagen — uses aspect_ratio
-            params["aspect_ratio"] = "9:16"
-        elif "gpt-image" in model:
-            # OpenAI GPT Image (via Replicate) only accepts aspect_ratio
-            # "1:1", "3:2", or "2:3" — NOT arbitrary ratios like "9:16".
-            # Sending "9:16" gets a 422 Unprocessable Entity before the
-            # request even reaches the model. "2:3" is the closest
-            # supported portrait option. quality ("low"/"medium"/"high")
-            # is accepted as-is, same values this app already uses.
-            params["aspect_ratio"] = "2:3"
-            params["quality"] = quality
-        else:
-            # Flux, SD, and most others
-            params["aspect_ratio"] = "9:16"
-            params["quality"] = quality
-
-        url = replicate_create(model, params)
-        clip["image_poll_url"] = url
+    for clip in rest:
+        clip["image_poll_url"] = replicate_create(model, _image_input(clip, model, _character_ref(clip, model)))
         log.info(f"   Clip {clip['index']}: submitted")
         time.sleep(8)  # Avoid 429 rate limits
 
-    for clip in clips:
+    for clip in rest:
         clip["image_url"] = replicate_poll(clip["image_poll_url"])
         log.info(f"   Clip {clip['index']}: image ready ✓")
 
@@ -141,32 +140,8 @@ def generate_image_single(clip: dict) -> dict:
     gate — lets one image be redone (after editing its prompt, or just to
     reroll) without regenerating the whole batch."""
     model = Config.IMAGE_MODEL
-    quality = getattr(Config, 'IMAGE_QUALITY', 'high')
     log.info(f"🖼️  Regenerating image for clip {clip.get('index','')} via {model}...")
-
-    params = {"prompt": clip["image_prompt"]}
-    _apply_reference_image(params, clip, model)
-    if "grok-imagine" in model:
-        params["aspect_ratio"] = "9:16"
-    elif "nano-banana" in model:
-        params["aspect_ratio"] = "9:16"
-    elif "seedream" in model:
-        params["aspect_ratio"] = "9:16"
-    elif "ideogram" in model:
-        params["aspect_ratio"] = "9:16"
-    elif "recraft" in model:
-        params["aspect_ratio"] = "9:16"
-    elif "imagen" in model:
-        params["aspect_ratio"] = "9:16"
-    elif "gpt-image" in model:
-        # See generate_images() above — GPT Image only accepts 1:1/3:2/2:3.
-        params["aspect_ratio"] = "2:3"
-        params["quality"] = quality
-    else:
-        params["aspect_ratio"] = "9:16"
-        params["quality"] = quality
-
-    url = replicate_create(model, params)
+    url = replicate_create(model, _image_input(clip, model, _character_ref(clip, model)))
     clip["image_poll_url"] = url
     clip["image_url"] = replicate_poll(url)
     log.info(f"   Clip {clip.get('index','')}: image regenerated ✓")
@@ -174,56 +149,49 @@ def generate_image_single(clip: dict) -> dict:
 
 
 # ══════════════════════════════════════════════════════════════
-# PHASE 5: GENERATE VIDEOS (Replicate → Seedance-1-Lite)
+# PHASE 5: GENERATE VIDEOS (Replicate)
 # ══════════════════════════════════════════════════════════════
 
+def _video_input(clip: dict, model: str) -> dict:
+    """Replicate input for one clip: the scene image as the start frame, the
+    motion prompt, the video's aspect ratio, and the shortest clip length
+    that covers the scene. Built from the model's own schema when Replicate
+    can describe it (any model), else from built-in guesses."""
+    dur = clip_duration(clip.get("length") or DEFAULT_CLIP, model)
+    info = model_inputs(model)
+    if info is not None:
+        params = {info["image_field"] or "image": clip["image_url"], "prompt": clip["motion_prompt"]}
+        ar = pick_aspect(info, Config.RENDER_ASPECT)
+        if ar:
+            params["aspect_ratio"] = ar
+        if dur:
+            params["duration"] = dur
+        return params
+
+    # Built-in guesses (Replicate unreachable)
+    m = model.lower()
+    if "grok-imagine" in m:
+        params = {"image_url": clip["image_url"], "prompt": clip["motion_prompt"], "mode": "normal"}
+    elif "minimax" in m or "hailuo" in m:
+        params = {"first_frame_image": clip["image_url"], "prompt": clip["motion_prompt"]}
+    elif "kling" in m or "luma" in m or "ray-" in m:
+        params = {"start_image": clip["image_url"], "prompt": clip["motion_prompt"]}
+    else:
+        params = {"image": clip["image_url"], "prompt": clip["motion_prompt"]}
+    if "seedance" in m or "wan" in m:
+        params["aspect_ratio"] = "9:16"
+    if dur:
+        params["duration"] = dur
+    return params
+
+
 def generate_videos(clips: list) -> list:
-    """Animate images into videos via configured provider."""
+    """Animate each scene image into a clip."""
     model = Config.VIDEO_MODEL
     log.info(f"🎥 Phase 5: Generating videos via {model}...")
 
-    # Build params based on model (different models accept different params)
     for clip in clips:
-        if "grok-imagine" in model.lower():
-            # xAI Grok Imagine Video — uses image_url, mode, prompt
-            params = {
-                "image_url": clip["image_url"],
-                "prompt": clip["motion_prompt"],
-                "mode": "normal",
-            }
-        elif "minimax" in model.lower() or "hailuo" in model.lower():
-            # Minimax / Hailuo — uses first_frame_image
-            params = {
-                "first_frame_image": clip["image_url"],
-                "prompt": clip["motion_prompt"],
-            }
-        elif "kling" in model.lower() or "luma" in model.lower() or "ray-" in model.lower():
-            # Kling (v3+) and Luma Ray both take the starting frame as
-            # "start_image", not the plain "image" field the other models
-            # below use — verified against each model's own Replicate API
-            # schema. Sending "image" here silently gets ignored and the
-            # model runs on no image input at all.
-            params = {
-                "start_image": clip["image_url"],
-                "prompt": clip["motion_prompt"],
-            }
-        else:
-            # Most other models: Seedance, Wan, Veo
-            params = {
-                "image": clip["image_url"],
-                "prompt": clip["motion_prompt"],
-            }
-        # Pass 9:16 where supported
-        if "seedance" in model.lower() or "wan" in model.lower():
-            params["aspect_ratio"] = "9:16"
-        # Ask for the shortest clip that covers this scene's narration line
-        # (Seedance: 5 or 10 s). Other models make their default length.
-        dur = clip_duration(clip.get("length") or DEFAULT_CLIP, model)
-        if dur:
-            params["duration"] = dur
-
-        url = replicate_create(model, params)
-        clip["video_poll_url"] = url
+        clip["video_poll_url"] = replicate_create(model, _video_input(clip, model))
         log.info(f"   Clip {clip['index']}: submitted")
         time.sleep(3)
 
@@ -242,22 +210,7 @@ def generate_video_single(clip: dict) -> dict:
     """Regenerate a single video clip. Used by video approval gate."""
     model = Config.VIDEO_MODEL
     log.info(f"🎥 Regenerating clip {clip.get('index','')} via {model}...")
-
-    if "grok-imagine" in model.lower():
-        params = {"image_url": clip["image_url"], "prompt": clip["motion_prompt"], "mode": "normal"}
-    elif "minimax" in model.lower() or "hailuo" in model.lower():
-        params = {"first_frame_image": clip["image_url"], "prompt": clip["motion_prompt"]}
-    elif "kling" in model.lower() or "luma" in model.lower() or "ray-" in model.lower():
-        params = {"start_image": clip["image_url"], "prompt": clip["motion_prompt"]}
-    else:
-        params = {"image": clip["image_url"], "prompt": clip["motion_prompt"]}
-    if "seedance" in model.lower() or "wan" in model.lower():
-        params["aspect_ratio"] = "9:16"
-    dur = clip_duration(clip.get("length") or DEFAULT_CLIP, model)
-    if dur:
-        params["duration"] = dur
-
-    url = replicate_create(model, params)
+    url = replicate_create(model, _video_input(clip, model))
     clip["video_poll_url"] = url
     clip["video_url"] = replicate_poll(url, timeout=600)
     log.info(f"   Clip {clip.get('index','')}: video regenerated ✓")
