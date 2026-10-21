@@ -529,6 +529,22 @@ def generate_ai_scenes(script: dict, topic: dict, figure_desc: str, clip_count: 
     actually exist for whichever brand is running right now.
     """
     mood_options = list(mood_pool.keys()) or ["default"]
+    # Examples and banned stock shots are brand-specific so Knights imagery
+    # (armor, swords, ridges) never leaks into another brand's scenes.
+    if _active_brand_name() == "knights":
+        examples = ('"debt is a chain" → his gauntlet shackled by an iron chain to a strongbox of coins; '
+                    '"guard your eyes like the city gate" → him swinging a massive gate shut against a crowd of shadowy figures; '
+                    '"your sons are watching" → a small boy in a wooden helmet copying his stance in a courtyard')
+        stock = ('standing on a ridge or cliff staring at the horizon, kneeling with a sword planted in the ground, '
+                 'a generic empty battlefield, walking slowly toward camera, a generic storm')
+        detail = "hands, an object, the helm, a face"
+    else:
+        examples = ('"a hidden problem is draining your money" → water dripping from a dark attic beam into a bucket full of coins; '
+                    '"most people never look up" → a homeowner on a couch while a thermometer on the ceiling climbs into the red; '
+                    '"the fix is simpler than you think" → one gloved hand pressing a single strip of seal into a glowing gap of light')
+        stock = ('a person staring out a window, a generic office or desk, a handshake, a smiling stock-photo pose, '
+                 'a generic city skyline')
+        detail = "hands, an object, a tool, a face"
     prompt = f"""You are a cinematographer planning the shots for a short vertical video.
 
 SCRIPT (read start to finish — this is what's being narrated, in order):
@@ -540,16 +556,26 @@ Tone: {script.get('tone','')}
 
 TOPIC: {topic.get('idea','')} ({topic.get('category','')})
 
+SCRIPTURE (if any): {script.get('scripture') or topic.get('scripture') or 'none'}
+
 CHARACTER ON SCREEN — keep this exact character, costume, and gear consistent in every single shot: {figure_desc}
 
-Write exactly {clip_count} shots that tell ONE continuous visual story matching the script's actual progression — shot 1 should visually match the hook, the middle shot(s) the build, and the last shot the reveal/command. Do NOT cut between unrelated scenes or locations unless the script itself describes a real change of place. Pick whatever mood actually fits THIS script's content — don't default to night or storm out of habit; lean toward clear daylight or dawn unless the script specifically calls for something darker or stormier.
+HOW TO PLAN THE SHOTS:
+1. First find the ONE specific idea this script is about, then show it LITERALLY with a concrete visual metaphor built from the script's own words, objects, and images. Examples of the level of specificity wanted (illustrations only — invent your own for this script): {examples}. A viewer with the sound off should be able to guess what the video is about.
+2. Do NOT use stock shots unless the script literally describes them: {stock}. Those are what every video already looks like.
+3. Keep one character and one location (or a logical progression of places) across all shots so it plays as one continuous scene — but every shot must show a DIFFERENT, clearly visible action that moves the story forward.
+4. Vary the camera: one wide establishing shot, one medium shot of the main action, and one close-up on a meaningful detail ({detail}). Assign the shots in the order that best follows the script.
+5. Shot 1 matches the hook, the middle shot(s) the build, the last shot the reveal/command.
+6. Write only what the camera can see. No abstract words like "resolve", "determination", "inner strength", "symbolizing". Name real objects, materials, places, weather, and light sources.
+7. Pick the mood that actually fits this script — lean toward clear daylight or dawn unless the script specifically calls for night, fire, or storm.
 
 Pick exactly one mood from this list: {', '.join(mood_options)}.{f' The mood MUST be "{forced_mood}" (forced by settings).' if forced_mood and forced_mood in mood_options else ''}{f' The scene should fit the theme "{forced_theme}".' if forced_theme else ''}
 
-Return ONLY JSON, no markdown fences, no commentary:
+Return ONLY a JSON object:
 {{"mood": "<one of the moods above>", "clips": [
   {{"action": "...", "setting": "...", "lighting": "...", "atmosphere": "...", "composition": "...", "camera": "...", "subject": "...", "ambient": "...", "pace": "..."}}
 ]}}
+Field meanings: action = what the character physically does in this shot; setting = the specific place and the objects in it; composition = shot size and angle (wide / medium / close-up, low angle, etc.); camera = how the camera moves; subject = the motion of the character during the clip; ambient = other motion in the frame; pace = speed of motion.
 The "clips" array must have exactly {clip_count} entries."""
 
     r = requests.post("https://api.openai.com/v1/chat/completions", headers={
@@ -558,8 +584,9 @@ The "clips" array must have exactly {clip_count} entries."""
         "model": getattr(Config, "SCRIPT_MODEL", "gpt-4o"),
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.9,
-        "max_tokens": 1800,
-    }, timeout=45)
+        "max_tokens": 2500,
+        "response_format": {"type": "json_object"},
+    }, timeout=60)
     r.raise_for_status()
     raw = r.json()["choices"][0]["message"]["content"]
     raw = re.sub(r'^```json\s*\n?', '', raw, flags=re.IGNORECASE)
@@ -632,6 +659,10 @@ def scene_engine(script: dict, topic: dict) -> list:
 
     # ── STORY SELECTION ─────────────────────────────────────
     story = None
+    # Shown at the prompt-editing gate, so it's obvious whether this run's
+    # shots were written for the script or came from the pre-written library
+    # (and why) — a failed AI call used to fall back with no visible trace.
+    scene_source, scene_note = "library", ""
 
     # 1. Forced story seed — an explicit hand-written choice always wins,
     # AI generation is skipped entirely for it.
@@ -639,6 +670,7 @@ def scene_engine(script: dict, topic: dict) -> list:
         seed_name = story_override.split("—")[0].split(" — ")[0].strip()
         story = next((s for s in stories if s["name"] == seed_name), None)
         if story:
+            scene_note = "Story Seed is set to a specific story in Settings"
             log.info(f"   Story forced: {story['name']} [{story['mood']}]")
 
     # 1.5 AI-generated bespoke scene — the new default. Writes shots
@@ -646,16 +678,23 @@ def scene_engine(script: dict, topic: dict) -> list:
     # stories, which is what made scenes feel choppy and disconnected from
     # the actual narration. Any failure (timeout, bad JSON, wrong shape)
     # falls through to the library picker below instead of breaking the run.
-    if not story and ai_enabled and Config.OPENAI_KEY:
-        forced_mood = Config.SCENE_MOOD_BIAS if Config.SCENE_MOOD_BIAS != "auto" and Config.SCENE_MOOD_BIAS in moods else None
-        forced_theme = theme_override if theme_override and theme_override != "auto" else None
-        try:
-            ai = generate_ai_scenes(script, topic, figure, Config.CLIP_COUNT, moods,
-                                     forced_mood=forced_mood, forced_theme=forced_theme)
-            story = {"name": "ai-generated", "mood": ai["mood"], "clips": ai["clips"]}
-            log.info(f"   AI-generated scene: mood={ai['mood']}")
-        except Exception as e:
-            log.warning(f"   AI scene generation failed ({e}) — falling back to story library")
+    if not story:
+        if not ai_enabled:
+            scene_note = "AI scenes are turned off in Settings"
+        elif not Config.OPENAI_KEY:
+            scene_note = "no OpenAI key is set"
+        else:
+            forced_mood = Config.SCENE_MOOD_BIAS if Config.SCENE_MOOD_BIAS != "auto" and Config.SCENE_MOOD_BIAS in moods else None
+            forced_theme = theme_override if theme_override and theme_override != "auto" else None
+            try:
+                ai = generate_ai_scenes(script, topic, figure, Config.CLIP_COUNT, moods,
+                                         forced_mood=forced_mood, forced_theme=forced_theme)
+                story = {"name": "ai-generated", "mood": ai["mood"], "clips": ai["clips"]}
+                scene_source = "ai"
+                log.info(f"   AI-generated scene: mood={ai['mood']}")
+            except Exception as e:
+                scene_note = f"AI scene writing failed: {e}"
+                log.warning(f"   AI scene generation failed ({e}) — falling back to story library")
 
     # 2. Forced theme → pick matching story
     if not story and theme_override and theme_override != "auto":
@@ -712,6 +751,9 @@ def scene_engine(script: dict, topic: dict) -> list:
             "index": i + 1,
             "image_prompt": image_prompt,
             "motion_prompt": motion_prompt,
+            "scene_source": scene_source,
+            "scene_note": scene_note if scene_source != "ai" else "",
+            "story_name": story["name"],
         }
         # Every clip in a run shares one cast member, so they all carry the
         # same reference image — that's what finally makes the knight look

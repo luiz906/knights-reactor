@@ -805,9 +805,20 @@ async def save_prompts(req: Request):
     if not ckpt_path.exists():
         return JSONResponse({"error": "No checkpoint"}, 400)
     ckpt = json.loads(ckpt_path.read_text())
-    ckpt["clips_edited"] = edited_clips
+    # The editor only sends back index + the two prompt texts. Merge those
+    # onto the original clips instead of replacing them, or every other
+    # field — notably ref_image, the cast member's reference portrait that
+    # keeps the character looking the same across shots — is silently lost
+    # on every run, since this gate is always passed through.
+    originals = {c.get("index"): c for c in ckpt.get("clips", [])}
+    merged = []
+    for ec in edited_clips:
+        base = dict(originals.get(ec.get("index"), {}))
+        base.update({k: v for k, v in ec.items() if k in ("index", "image_prompt", "motion_prompt")})
+        merged.append(base)
+    ckpt["clips_edited"] = merged
     ckpt_path.write_text(json.dumps(ckpt))
-    return {"status": "saved", "clips": len(edited_clips)}
+    return {"status": "saved", "clips": len(merged)}
 
 # ─── IMAGE APPROVAL GATE ─────────────────────────────────────
 # These images are the base frame every video clip animates from. Pausing
