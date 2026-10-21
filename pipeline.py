@@ -16,7 +16,7 @@ from phases.scenes import scene_engine
 from phases.media import generate_images, generate_image_single, generate_videos, generate_video_single, generate_voiceover, transcribe_voiceover
 from phases.render import get_s3_client, upload_to_r2, upload_assets, create_srt, render_video
 from phases.publish import generate_captions, publish_everywhere
-from phases.timing import build_beats
+from phases.timing import build_beats, clip_plan
 
 # Re-export for server.py imports
 from phases.topics import (
@@ -189,7 +189,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
                 topic, script = _derive_from_transcript(transcription["text"], topic, script)
                 result["topic"], result["script"] = topic, script
 
-            beats = build_beats(transcription)
+            beats = build_beats(transcription, clip_plan(Config.VIDEO_MODEL)["max_scene"])
             log.info(f"   🎬 {len(beats)} scenes, one per narration line: " +
                      " | ".join(f"{b['length']:.1f}s" for b in beats))
             save_checkpoint(3, {"transcription": transcription, "audio_duration": audio_duration,
@@ -198,7 +198,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
         else:
             transcription = ckpt["transcription"]
             audio_duration = ckpt.get("audio_duration") or transcription.get("duration", 0)
-            beats = ckpt.get("beats") or build_beats(transcription)
+            beats = ckpt.get("beats") or build_beats(transcription, clip_plan(Config.VIDEO_MODEL)["max_scene"])
             done(3, "Transcribe")
 
         # ── Phases 4-6: scenes, images, videos ─────────────────

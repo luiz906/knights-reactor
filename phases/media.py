@@ -5,7 +5,7 @@ Replicate (images, videos), ElevenLabs (voiceover), Whisper (transcribe).
 import time, re
 import requests
 from config import Config, log
-from phases.timing import MAX_SCENE_SECONDS
+from phases.timing import clip_duration
 
 def replicate_create(model: str, input_data: dict) -> str:
     """Create a Replicate prediction, return the GET URL for polling."""
@@ -216,11 +216,11 @@ def generate_videos(clips: list) -> list:
         # Pass 9:16 where supported
         if "seedance" in model.lower() or "wan" in model.lower():
             params["aspect_ratio"] = "9:16"
-        if "seedance-2" in model.lower():
-            # Seedance 2.0 picks its own length ("intelligent duration") if not
-            # told otherwise — pin it to the scene maximum so clips aren't
-            # longer (and costlier) than any scene can use.
-            params["duration"] = int(MAX_SCENE_SECONDS)
+        # Ask for the shortest clip that covers this scene's narration line
+        # (Seedance: 5 or 10 s). Other models make their default length.
+        dur = clip_duration(clip.get("length") or 5, model)
+        if dur:
+            params["duration"] = dur
 
         url = replicate_create(model, params)
         clip["video_poll_url"] = url
@@ -253,8 +253,9 @@ def generate_video_single(clip: dict) -> dict:
         params = {"image": clip["image_url"], "prompt": clip["motion_prompt"]}
     if "seedance" in model.lower() or "wan" in model.lower():
         params["aspect_ratio"] = "9:16"
-    if "seedance-2" in model.lower():
-        params["duration"] = int(MAX_SCENE_SECONDS)
+    dur = clip_duration(clip.get("length") or 5, model)
+    if dur:
+        params["duration"] = dur
 
     url = replicate_create(model, params)
     clip["video_poll_url"] = url

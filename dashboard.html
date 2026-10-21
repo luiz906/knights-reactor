@@ -1381,14 +1381,16 @@ function rSt(){
           ff+=`<div class="fi"><div class="fl">${f.l}</div><select class="fin" onchange="ST['${f.k}']=this.value">${opts.map(o=>`<option${o==v?' selected':''}>${o}</option>`).join('')}</select></div>`;
         }
       }else if(f.tp==='computed'){
-        // Scenes are timed to the narration: one per line, each up to 5s.
+        // Scenes are timed to the narration: one per line, each up to the clip
+        // length the video model can make (Seedance 10s, others 5s).
         const words=parseInt(ST.script_words)||90,voEst=Math.round(words/2.8);
-        const scenes=Math.max(1,Math.round(voEst/4.2));
+        const longClips=/seedance/i.test(ST.video_model||'');
+        const scenes=Math.max(1,Math.round(voEst/(longClips?6:3.6)));
         const ctaOn=ST.cta_enabled===true||ST.cta_enabled==='true';
         const ctaDur=ctaOn?parseFloat(ST.cta_duration||4):0;
         ff+=`<div class="fi w" style="border:1px solid var(--bd2);padding:10px;background:rgba(227,160,40,.03)">
 <div style="font-family:var(--f1);font-size:.6em;letter-spacing:.15em;color:var(--txtd);margin-bottom:6px">ESTIMATED VIDEO</div>
-<div style="font-size:.7em;color:var(--wht);line-height:1.6">~${voEst}s of narration (${words} words) → about <b style="color:var(--amb)">${scenes} scenes</b>, each timed to its line${ctaDur>0?` + ${ctaDur}s CTA`:''}.</div>
+<div style="font-size:.7em;color:var(--wht);line-height:1.6">~${voEst}s of narration (${words} words) → about <b style="color:var(--amb)">${scenes} scenes</b>, each timed to its line, up to ${longClips?10:5}s long${ctaDur>0?` + ${ctaDur}s CTA`:''}.</div>
 <div style="font-size:.5em;color:var(--txtdd);margin-top:3px">The voice is recorded first; every scene is cut to the exact line it plays under, so the video never freezes or drifts out of sync.</div>
 </div>`;
       }else if(f.tp==='slider'){
