@@ -536,6 +536,13 @@ async def seed_topics():
         "total": after, "added": after - before,
     }
 
+@app.post("/api/topics/episodes")
+async def add_episodes():
+    """Queue The Last Watch episodes at the front of the topic list, in order."""
+    from phases.topics import add_episode_topics
+    added = add_episode_topics()
+    return {"status": "added" if added else "skipped", "added": added, "total": len(load_topics())}
+
 # ─── PROMPT EDITING GATE ─────────────────────────────────────
 
 @app.get("/api/prompts")

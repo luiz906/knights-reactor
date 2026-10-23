@@ -151,8 +151,8 @@ The siege breaks. The truth reaches the young king: Varric sold the pass. The fi
 
 ---
 
-## How the App Would Use This (next step, after you approve the story)
-- **The World, Look and Places** feed the AI scene writer, so every video is filmed in Dunmarch, not a random hill.
-- **Each knight's profile** feeds the scene writer when that knight is cast, so he keeps his look, object and struggle.
-- **Episodes become topics**, run in order. Each episode's battle gives the script its lesson.
-- The scene writer stays inside the episode's moment and the season's weather.
+## How the App Uses This
+The app reads **story/story.json** (the same story as this page, in a form the app can read). If you change the story here, the JSON needs the same change.
+- **Topics → 📜 STORY EPISODES** queues the Season 1 episodes at the top of your topics, so they run next, in order.
+- **Script:** for an episode, the writer opens inside the episode's moment (it may name the knight once), then turns it to the viewer's own battle and ends with one action for today.
+- **Scenes:** every video, episode or not, is filmed in this world's look and places. The right knight is cast, carrying his signature object. For an episode, the scenes film exactly that moment, in its place and season.

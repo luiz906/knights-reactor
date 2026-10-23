@@ -7,6 +7,7 @@ import json, random, re
 import requests
 from pathlib import Path
 from config import Config, BRAND_DIR, log
+from phases.story import cast_profile, scene_story_block
 
 pick = lambda arr: random.choice(arr)
 
@@ -442,7 +443,7 @@ def _ai_scene_style_guide() -> dict:
 
 def generate_ai_scenes(script: dict, topic: dict, figure_desc: str, beats: list, mood_pool: dict,
                         camera_style: str = "", intensity_style: str = "",
-                        forced_mood: str = None, forced_theme: str = None) -> dict:
+                        forced_mood: str = None, forced_theme: str = None, figure_name: str = "") -> dict:
     """Have GPT plan and WRITE the finished image + motion prompt for every
     shot of THIS script.
 
@@ -483,7 +484,7 @@ Scripture: {script.get('scripture') or topic.get('scripture') or 'none'}
 {f'Theme to fit: {forced_theme}' if forced_theme else ''}
 
 CHARACTER (must appear in every shot, looking identical): {figure_desc}
-
+{scene_story_block(topic, figure_name)}
 MOOD LOOKS available for this brand (name: look):
 {mood_guide}
 {mood_rule}
@@ -608,7 +609,11 @@ def scene_engine(script: dict, topic: dict, beats: list = None) -> list:
     # The Settings dropdown sends a truncated label, so match it back to the
     # real cast entry — otherwise the character's reference image is lost
     # whenever a figure is forced instead of auto-picked.
-    if figure_override and figure_override != "auto":
+    episode = topic.get("episode") or {}
+    if episode.get("knight") and any(f["name"] == episode["knight"] for f in figures):
+        # An episode of The Last Watch is always about its own knight.
+        figure_obj = next(f for f in figures if f["name"] == episode["knight"])
+    elif figure_override and figure_override != "auto":
         ov = figure_override.strip()
         figure_obj = next(
             (f for f in figures
@@ -622,6 +627,11 @@ def scene_engine(script: dict, topic: dict, beats: list = None) -> list:
 
     figure = figure_obj["desc"]
     figure_ref = figure_obj.get("ref_image", "")
+    # His signature object from the story bible goes into every description,
+    # so it shows up the same way in every shot.
+    profile = cast_profile(figure_obj.get("name", ""))
+    if profile.get("object") and profile["object"].lower() not in figure.lower():
+        figure = f"{figure}, {profile['object']}"
 
     # ── STORY SELECTION ─────────────────────────────────────
     story = None
@@ -657,7 +667,8 @@ def scene_engine(script: dict, topic: dict, beats: list = None) -> list:
             try:
                 ai = generate_ai_scenes(script, topic, figure, beats, moods,
                                          camera_style=cam_text, intensity_style=int_text,
-                                         forced_mood=forced_mood, forced_theme=forced_theme)
+                                         forced_mood=forced_mood, forced_theme=forced_theme,
+                                         figure_name=figure_obj.get("name", ""))
                 story = {"name": "ai-generated", "mood": ai["mood"], "clips": ai["clips"]}
                 scene_source, scene_concept = "ai", ai["concept"]
                 log.info(f"   AI-generated scene: mood={ai['mood']} | concept: {ai['concept']}")

@@ -4,6 +4,7 @@ Knights Reactor — Script Generation (GPT-4o)
 import json, re
 import requests
 from config import Config, log
+from phases.story import script_story_block
 
 
 # Note: this used to say "Wears the Armor of God (Ephesians 6) symbolically"
@@ -22,6 +23,20 @@ KNIGHTS_PERSONA = (
     "- Wears the Armor of God symbolically\n"
     "- Unwavering allegiance: Christ is King"
 )
+KNIGHTS_VOICE = (
+    "- Low, controlled, resonant\n"
+    "- Calm intensity; authoritative without shouting\n"
+    "- Short, declarative sentences\n"
+    "- Measured pacing\n"
+    "- Dark, mysterious presence—disciplined resolve\n"
+    "- Masculine and grounded\n"
+    "- NO hype. NO motivational fluff."
+)
+KNIGHTS_THEMES = (
+    "Address real daily battles: Finances, family leadership, temptation, fatigue, doubt, lust, anger, responsibility, endurance, obedience.\n\n"
+    "Core themes: Discipline over comfort. Duty over desire. Endurance over escape. Faith over fear. Action over emotion."
+)
+KNIGHTS_AVOID = "Warmth or sentimentality, soft encouragement, modern slang, politics, long scripture quotations, hashtags."
 
 CATEGORY_CONFIG = {
     "Shocking Revelations": {
@@ -181,6 +196,7 @@ def generate_script(topic: dict) -> dict:
     angle = config["angle"]
 
     prompt = render_script_prompt(build_script_prompt(), topic["idea"], cat, angle, topic.get("scripture", ""))
+    prompt += script_story_block(topic)   # episode of The Last Watch, if this topic is one
 
     r = requests.post("https://api.openai.com/v1/chat/completions", headers={
         "Authorization": f"Bearer {Config.OPENAI_KEY}", "Content-Type": "application/json",

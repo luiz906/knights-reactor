@@ -337,6 +337,7 @@ body{overflow:auto}
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7em">
 <span class="ptitle" style="margin:0">TOPIC DATABASE</span>
 <div style="display:flex;gap:6px">
+<button class="btn-sm btn-grn" onclick="addEpisodes()" title="Queue The Last Watch episodes so they run next, in order">📜 STORY EPISODES</button>
 <button class="btn-sm" onclick="seedTopics()">SEED DEFAULTS</button>
 <button class="btn-sm btn-blu" onclick="generateTopicsAI()">✦ AI GENERATE</button>
 </div>
@@ -426,6 +427,7 @@ body{overflow:auto}
 
 <div class="mpage" id="mp-topics">
 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.5em">
+<button class="btn-sm btn-grn" onclick="addEpisodes()">📜 EPISODES</button>
 <button class="btn-sm" onclick="seedTopics()">SEED</button>
 <button class="btn-sm btn-blu" onclick="generateTopicsAI()">✦ AI GEN</button>
 </div>
@@ -860,6 +862,15 @@ async function seedTopics(){
     }else{
       alert('Seeded '+(r.added||0)+' topics.');
     }
+  }catch(e){alert('Failed: '+e);}
+  loadTopics();
+}
+
+async function addEpisodes(){
+  if(!confirm('Queue the story episodes (The Last Watch) at the top of your topics, so they run next in order?'))return;
+  try{
+    const r=await(await fetch('/api/topics/episodes',{method:'POST'})).json();
+    alert(r.added?`Queued ${r.added} episodes — they run next, in order.`:'The episodes are already in your topic list.');
   }catch(e){alert('Failed: '+e);}
   loadTopics();
 }
