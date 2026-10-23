@@ -2,7 +2,7 @@
 Knights Reactor — Render & Storage
 R2 upload, Shotstack video render, SRT generation.
 """
-import time, re
+import json, time, re
 import requests
 import boto3
 from config import Config, log

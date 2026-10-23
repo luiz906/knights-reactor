@@ -26,12 +26,33 @@ def load_topics():
 def save_topics(topics):
     _topics_file().write_text(json.dumps(topics, indent=2))
 
+def _new_topic(idea, category, scripture=""):
+    return {"id": f"t_{int(time.time()*1000)}_{random.randint(100,999)}", "idea": idea.strip(),
+            "category": category.strip(), "scripture": scripture.strip(), "status": "new",
+            "created": datetime.now().isoformat()}
+
 def add_topic(idea, category, scripture=""):
     topics = load_topics()
-    t = {"id": f"t_{int(time.time()*1000)}_{random.randint(100,999)}", "idea": idea.strip(),
-         "category": category.strip(), "scripture": scripture.strip(), "status": "new",
-         "created": datetime.now().isoformat()}
+    t = _new_topic(idea, category, scripture)
     topics.append(t); save_topics(topics); return t
+
+def add_episode_topics():
+    """Put the story's episodes at the FRONT of the topic list, in order, so
+    they run next. Episodes already in the list are skipped. Returns how
+    many were added."""
+    from phases.story import episode_topics
+    topics = load_topics()
+    have = {(t.get("episode") or {}).get("code") for t in topics}
+    new = []
+    for idea, category, scripture, episode in episode_topics():
+        if episode["code"] in have:
+            continue
+        t = _new_topic(idea, category, scripture)
+        t["id"] += f"_{episode['code']}"
+        t["episode"] = episode
+        new.append(t)
+    save_topics(new + topics)
+    return len(new)
 
 def delete_topic(topic_id):
     topics = load_topics()
