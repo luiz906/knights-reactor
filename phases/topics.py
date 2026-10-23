@@ -7,72 +7,60 @@ from datetime import datetime
 
 import requests
 
-from config import Config, DATA_DIR, log
+from config import Config, BRAND_DIR, log
 
-BRANDS_DIR = DATA_DIR / "brands"
 
-def _topics_file(brand=None):
-    """Get topics file for `brand`. If brand isn't given, falls back to reading
-    whatever the CURRENTLY active brand is right now — which is only safe for a
-    quick, synchronous call. Anything that spans a slow network call (AI topic
-    generation, etc.) must resolve the brand ONCE up front and pass it through
-    explicitly, otherwise a brand switch that happens while that call is still
-    in flight silently redirects the result to the wrong brand's folder."""
-    if brand is None:
-        ab_file = DATA_DIR / "active_brand.txt"
-        brand = ab_file.read_text().strip() if ab_file.exists() else "knights"
-    bd = BRANDS_DIR / brand
-    bd.mkdir(exist_ok=True)
-    return bd / "topics.json"
+def _topics_file():
+    return BRAND_DIR / "topics.json"
 
 CATEGORIES = ["Shocking Revelations","Shocking Reveal","Behind-the-Scenes","Myths Debunked","Deep Dive Analysis"]
 
 
-def load_topics(brand=None):
-    f = _topics_file(brand)
+def load_topics():
+    f = _topics_file()
     if f.exists():
         try: return json.loads(f.read_text())
         except: pass
     return []
 
-def save_topics(topics, brand=None):
-    _topics_file(brand).write_text(json.dumps(topics, indent=2))
+def save_topics(topics):
+    _topics_file().write_text(json.dumps(topics, indent=2))
 
-def add_topic(idea, category, scripture="", brand=None):
-    topics = load_topics(brand)
+def add_topic(idea, category, scripture=""):
+    topics = load_topics()
     t = {"id": f"t_{int(time.time()*1000)}_{random.randint(100,999)}", "idea": idea.strip(),
          "category": category.strip(), "scripture": scripture.strip(), "status": "new",
          "created": datetime.now().isoformat()}
-    topics.append(t); save_topics(topics, brand); return t
+    topics.append(t); save_topics(topics); return t
 
-def delete_topic(topic_id, brand=None):
-    topics = load_topics(brand)
+def delete_topic(topic_id):
+    topics = load_topics()
     remaining = [t for t in topics if t.get("id") != topic_id]
     found = len(remaining) != len(topics)
-    save_topics(remaining, brand)
+    save_topics(remaining)
     return found
 
-def fetch_next_topic(topic_id=None, brand=None):
+def fetch_next_topic(topic_id=None):
     """Get next new topic, or specific one by ID."""
-    topics = load_topics(brand)
+    topics = load_topics()
     if topic_id:
         for t in topics:
             if t.get("id") == topic_id:
-                t["status"] = "processing"; save_topics(topics, brand); return t
+                t["status"] = "processing"; save_topics(topics); return t
         raise RuntimeError(f"Topic {topic_id} not found")
     for t in topics:
         if t.get("status") == "new":
-            t["status"] = "processing"; save_topics(topics, brand); return t
+            t["status"] = "processing"; save_topics(topics); return t
     raise RuntimeError("No new topics - add topics or generate with AI")
 
-def update_topic_status(topic_id, status, extra=None, brand=None):
-    topics = load_topics(brand)
+def update_topic_status(topic_id, status, extra=None):
+    topics = load_topics()
     for t in topics:
         if t.get("id") == topic_id:
             t["status"] = status
             if extra: t.update(extra)
             break
-    save_topics(topics, brand)
+    save_topics(topics)
 
 def research_topic_landscape(brand_name: str, persona: str, themes: str) -> str:
     """Ground topic generation in a real web search instead of pure LLM
@@ -140,11 +128,8 @@ def render_topics_prompt(template: str, count) -> str:
     return template.replace("{count}", str(count))
 
 
-def generate_topics_ai(count=10, brand=None):
-    """Generate topics via GPT-4o. `brand` should be captured by the CALLER
-    before this runs (it makes a network call that can take several seconds) —
-    every generated topic is saved to that pinned brand, never re-resolved from
-    the active-brand file after the call returns."""
+def generate_topics_ai(count=10):
+    """Generate topics via GPT-4o and add them to the topic list."""
     log.info(f"Generating {count} topics via GPT-4o...")
     brand_name = getattr(Config, 'BRAND_NAME', 'Content Channel')
     brand_persona = getattr(Config, 'BRAND_PERSONA', '')
@@ -165,7 +150,7 @@ def generate_topics_ai(count=10, brand=None):
     added = []
     for item in items:
         if isinstance(item, dict) and item.get("idea"):
-            added.append(add_topic(item["idea"], item.get("category", random.choice(CATEGORIES)), item.get("scripture", ""), brand=brand))
+            added.append(add_topic(item["idea"], item.get("category", random.choice(CATEGORIES)), item.get("scripture", "")))
     log.info(f"   Generated {len(added)} topics")
     return added
 
@@ -274,38 +259,13 @@ KNIGHTS_DEFAULT_TOPICS = [
     ]
 
 
-def seed_default_topics(brand=None):
-    """Seed the 100 built-in demo topics — 'knights' brand only. Every other
-    brand gets nothing seeded here (there's no generic topic list that makes
-    sense for an arbitrary business) — use AI Generate instead, which builds
-    topics from that brand's own persona/themes, or add topics manually."""
-    if load_topics(brand): return
-    active = brand
-    if active is None:
-        ab_file = DATA_DIR / "active_brand.txt"
-        active = ab_file.read_text().strip() if ab_file.exists() else "knights"
-    if active != "knights":
-        log.info(f"Skipping default topic seed for brand '{active}' — those 100 topics are Knights-specific demo content. Use AI Generate or add topics manually instead.")
-        return
+def seed_default_topics():
+    """Seed the 100 built-in demo topics (only into an empty topic list)."""
+    if load_topics(): return
     log.info("Seeding 100 default topics...")
     for idea, cat, scripture in KNIGHTS_DEFAULT_TOPICS:
-        add_topic(idea, cat, scripture, brand=brand)
+        add_topic(idea, cat, scripture)
     log.info(f"   Seeded {len(KNIGHTS_DEFAULT_TOPICS)} topics")
-
-
-def purge_default_topics(brand=None):
-    """Remove any of the built-in Knights demo topics from `brand`'s topic
-    list, matched by exact (idea, category) pair — cleans up a brand that
-    had them seeded onto it before this was made brand-aware. Anything the
-    user actually added themselves is left untouched. Returns how many were
-    removed."""
-    topics = load_topics(brand)
-    knights_pairs = {(idea, cat) for idea, cat, _ in KNIGHTS_DEFAULT_TOPICS}
-    remaining = [t for t in topics if (t.get("idea"), t.get("category")) not in knights_pairs]
-    removed = len(topics) - len(remaining)
-    if removed:
-        save_topics(remaining, brand)
-    return removed
 
 
 

@@ -1,14 +1,12 @@
 """
-Content Reactor — Scene Engine v8
-Per-brand scene packs: each brand has its own figures, stories, moods, themes.
-The hardcoded knight defaults are ONLY used for the "knights" brand when it has
-no scenes.json yet. Every other brand gets a fully empty pack instead — no
-brand silently inherits Knights content.
+Knights Reactor — Scene Engine
+The scene pack (figures, stories, moods, themes) comes from scenes.json, or
+the built-in Knights defaults when there isn't one yet.
 """
 import json, random, re
 import requests
 from pathlib import Path
-from config import Config, DATA_DIR, log
+from config import Config, BRAND_DIR, log
 
 pick = lambda arr: random.choice(arr)
 
@@ -21,17 +19,12 @@ pick = lambda arr: random.choice(arr)
 # the cycle-without-repeat approach phases/verse.py already uses for Bible
 # references: track which names have been used recently for THIS pool, pick
 # from whatever's left, and only reset once the whole pool is exhausted.
-def _scene_state_file(brand=None):
-    if brand is None:
-        ab_file = DATA_DIR / "active_brand.txt"
-        brand = ab_file.read_text().strip() if ab_file.exists() else _active_brand_name()
-    bd = DATA_DIR / "brands" / brand
-    bd.mkdir(parents=True, exist_ok=True)
-    return bd / "scene_state.json"
+def _scene_state_file():
+    return BRAND_DIR / "scene_state.json"
 
 
-def _load_scene_state(brand=None):
-    f = _scene_state_file(brand)
+def _load_scene_state():
+    f = _scene_state_file()
     if f.exists():
         try:
             return json.loads(f.read_text())
@@ -40,8 +33,8 @@ def _load_scene_state(brand=None):
     return {"used": []}
 
 
-def _save_scene_state(state, brand=None):
-    _scene_state_file(brand).write_text(json.dumps(state, indent=2))
+def _save_scene_state(state):
+    _scene_state_file().write_text(json.dumps(state, indent=2))
 
 
 def _pool_key(c) -> str:
@@ -55,14 +48,14 @@ def _pool_key(c) -> str:
     return str(c)
 
 
-def pick_no_repeat(candidates: list, brand=None):
+def pick_no_repeat(candidates: list):
     """Pick one item (a story or a figure dict/string) from `candidates`
     without repeating until every item in THIS pool has come up once. Only
     the names relevant to the current pool are ever cleared on reset, so
     cycling progress on other themes' pools isn't disturbed."""
     if len(candidates) <= 1:
         return candidates[0]
-    state = _load_scene_state(brand)
+    state = _load_scene_state()
     used = set(state.get("used", []))
     key = _pool_key
     names = {key(c) for c in candidates}
@@ -73,7 +66,7 @@ def pick_no_repeat(candidates: list, brand=None):
     choice = random.choice(remaining)
     used.add(key(choice))
     state["used"] = list(used)
-    _save_scene_state(state, brand)
+    _save_scene_state(state)
     return choice
 
 
@@ -129,13 +122,11 @@ def figure_supports_reference(model: str) -> bool:
 # ─── BRAND SCENE LOADER ──────────────────────────────────────
 
 def _brand_scenes_path() -> Path:
-    """Get the scenes.json path for the active brand."""
-    from server import brand_dir
-    return brand_dir() / "scenes.json"
+    return BRAND_DIR / "scenes.json"
 
 
 def load_brand_scenes() -> dict | None:
-    """Load scenes.json for the active brand. Returns None if not found."""
+    """Load scenes.json. Returns None if not found."""
     path = _brand_scenes_path()
     if path.exists():
         try:
@@ -148,14 +139,14 @@ def load_brand_scenes() -> dict | None:
 
 
 def save_brand_scenes(data: dict):
-    """Save scenes.json for the active brand."""
+    """Save scenes.json."""
     path = _brand_scenes_path()
     path.write_text(json.dumps(data, indent=2))
     log.info(f"   Scenes saved to {path}")
 
 
 def export_default_scenes() -> dict:
-    """Export the hardcoded knight scene data as a dict (for seeding new brands)."""
+    """The built-in Knights scene data as a dict (for seeding scenes.json)."""
     return {
         "figures": list(FIGURES),
         "themes": dict(THEME_KEYWORDS),
@@ -166,37 +157,8 @@ def export_default_scenes() -> dict:
     }
 
 
-def _active_brand_name() -> str:
-    """Get the active brand id — used to scope the hardcoded knight defaults
-    to the 'knights' brand only."""
-    try:
-        from server import get_active_brand
-        return get_active_brand()
-    except Exception:
-        return "knights"
-
-
-def empty_scenes() -> dict:
-    """A fully empty scene pack. Used for any brand other than 'knights' that
-    doesn't have its own scenes.json yet — deliberately has NO figures, moods,
-    cameras, intensity, or stories, so no brand inherits Knights content.
-    "themes" always gets filled in with a starting tag vocabulary so auto-
-    detection has something to match against — but it's GENERIC_THEME_KEYWORDS
-    here, not the Knights-flavored THEME_KEYWORDS (see get_scene_data below)."""
-    return {
-        "figures": [],
-        "themes": dict(GENERIC_THEME_KEYWORDS),
-        "moods": {},
-        "intensity": {},
-        "cameras": {},
-        "stories": [],
-    }
-
-
-# Generic, brand-neutral camera/motion descriptions — no Knights-specific
-# wording (no armor, capes, combat). Any brand can seed these to get sensible
-# starting text for the 3 fixed Camera/Intensity keys the Settings dropdowns
-# depend on, without pulling in any Knights creative content.
+# Standard camera/motion starting text for the 3 fixed Camera/Intensity keys
+# the Settings dropdowns depend on.
 STANDARD_CAMERA_STYLES = {
     "steady": "Steady, locked-off camera.",
     "dynamic": "Dynamic, energetic camera movement.",
@@ -211,66 +173,21 @@ STANDARD_INTENSITY_MODIFIERS = {
 
 
 def standard_motion_defaults() -> dict:
-    """Brand-neutral camera + intensity starting text, usable by any brand."""
+    """Standard camera + intensity starting text."""
     return {
         "cameras": dict(STANDARD_CAMERA_STYLES),
         "intensity": dict(STANDARD_INTENSITY_MODIFIERS),
     }
 
 
-# Generic, brand-neutral theme/tag vocabulary — no faith, combat, or knight
-# wording (no "armor of god", "warrior", "anointed", "crown", etc.). This is
-# what any brand other than "knights" gets by default, so a story's Theme
-# Tags don't carry Knights' voice into an unrelated brand. Story auto-
-# selection still works the same way: script text is scanned for these
-# keywords to guess which tag (and therefore which story) best matches.
-GENERIC_THEME_KEYWORDS = {
-    "excitement": ["exciting", "thrill", "amazing", "incredible", "energy", "bold", "electric", "rush", "wow"],
-    "calm": ["calm", "peaceful", "quiet", "gentle", "soft", "serene", "still", "relax", "ease"],
-    "confidence": ["confident", "strong", "sure", "bold", "assured", "powerful", "capable", "command"],
-    "connection": ["together", "community", "family", "friend", "relationship", "team", "trust", "belong"],
-    "growth": ["grow", "improve", "learn", "progress", "better", "develop", "change", "evolve", "level up"],
-    "challenge": ["challenge", "hard", "difficult", "struggle", "overcome", "push", "obstacle", "grind"],
-    "joy": ["joy", "happy", "fun", "delight", "smile", "laugh", "celebrate", "playful"],
-    "focus": ["focus", "clarity", "clear", "precise", "sharp", "intentional", "purpose", "discipline"],
-}
-
-
-def standard_theme_defaults() -> dict:
-    """Generic, brand-neutral starting theme/tag vocabulary — usable by any
-    brand as a reset target if it's stuck with old Knights-flavored tags from
-    before this existed."""
-    return dict(GENERIC_THEME_KEYWORDS)
-
-
 def get_scene_data() -> tuple:
-    """Get scene data for the active brand.
-    Returns (figures, themes, moods, intensity, cameras, stories).
-    Tries the brand's own scenes.json first. If a brand pack exists but is
-    missing a key, that piece is empty (never silently backfilled from the
-    Knights defaults). If no scenes.json exists at all, the hardcoded knight
-    defaults are used ONLY for the "knights" brand — every other brand gets
-    a fully empty pack until it builds/generates its own.
-    """
-    brand = load_brand_scenes()
-    if brand:
-        figures   = brand.get("figures", [])
-        default_themes = dict(THEME_KEYWORDS) if _active_brand_name() == "knights" else dict(GENERIC_THEME_KEYWORDS)
-        themes    = brand.get("themes") or default_themes
-        moods     = brand.get("moods", {})
-        intensity = brand.get("intensity", {})
-        cameras   = brand.get("cameras", {})
-        stories   = brand.get("stories", [])
-        return figures, themes, moods, intensity, cameras, stories
-
-    if _active_brand_name() == "knights":
-        # Fallback: hardcoded knight defaults — knights brand only
-        return FIGURES, THEME_KEYWORDS, IMAGE_SUFFIXES, INTENSITY_MODIFIERS, CAMERA_STYLES, STORY_SEEDS
-
-    # Any other brand with no scenes.json yet: empty, never Knights content.
-    # Themes are the one shared piece (see empty_scenes() note above).
-    e = empty_scenes()
-    return e["figures"], e["themes"], e["moods"], e["intensity"], e["cameras"], e["stories"]
+    """(figures, themes, moods, intensity, cameras, stories) from scenes.json,
+    or the built-in Knights defaults when there isn't one yet."""
+    pack = load_brand_scenes()
+    if pack:
+        return (pack.get("figures", []), pack.get("themes") or THEME_KEYWORDS, pack.get("moods", {}),
+                pack.get("intensity", {}), pack.get("cameras", {}), pack.get("stories", []))
+    return FIGURES, THEME_KEYWORDS, IMAGE_SUFFIXES, INTENSITY_MODIFIERS, CAMERA_STYLES, STORY_SEEDS
 
 THEME_KEYWORDS = {
     "temptation": ["tempt","lust","desire","flesh","crave","hunger","pull","urge","resist","want","pleasure","indulge","forbidden"],
@@ -510,27 +427,16 @@ def render_motion_prompt(template, camera, subject, ambient, pace, tech_suffix) 
 
 
 def _ai_scene_style_guide() -> dict:
-    """Brand-specific examples and banned stock shots for the AI scene
-    writer, so Knights imagery (armor, swords, ridges) never leaks into
-    another brand's scenes. `banned` is also checked against the AI's
-    answer — a hit triggers one rewrite request."""
-    if _active_brand_name() == "knights":
-        return {
-            "examples": ('"debt is a chain" → his gauntlet shackled by an iron chain to a strongbox of coins; '
-                         '"guard your eyes like the city gate" → him heaving a massive oak gate shut against a crowd of shadowy figures; '
-                         '"your sons are watching" → a small boy in a wooden helmet copying his stance in a stable yard'),
-            "stock": ('standing on a hilltop, ridge or cliff, staring at the horizon, kneeling with a sword planted in the ground, '
-                      'a generic empty battlefield, walking slowly toward camera, a generic storm'),
-            "banned": ["hilltop", "hill top", "ridge", "cliff", "horizon", "battlefield"],
-            "detail": "gauntleted hands, an object he holds, the visor of the helm",
-        }
+    """Examples and banned stock shots for the AI scene writer. `banned` is
+    also checked against the AI's answer — a hit triggers one rewrite request."""
     return {
-        "examples": ('"a hidden problem is draining your money" → water dripping from a dark attic beam into a bucket full of coins; '
-                     '"most people never look up" → a homeowner on a couch while a thermometer on the ceiling climbs into the red; '
-                     '"the fix is simpler than you think" → one gloved hand pressing a single strip of seal into a glowing gap of light'),
-        "stock": 'a person staring out a window, a generic office or desk, a handshake, a smiling stock-photo pose, a generic city skyline',
-        "banned": ["skyline", "handshake", "stock photo"],
-        "detail": "hands, a tool, an object, a face",
+        "examples": ('"debt is a chain" → his gauntlet shackled by an iron chain to a strongbox of coins; '
+                     '"guard your eyes like the city gate" → him heaving a massive oak gate shut against a crowd of shadowy figures; '
+                     '"your sons are watching" → a small boy in a wooden helmet copying his stance in a stable yard'),
+        "stock": ('standing on a hilltop, ridge or cliff, staring at the horizon, kneeling with a sword planted in the ground, '
+                  'a generic empty battlefield, walking slowly toward camera, a generic storm'),
+        "banned": ["hilltop", "hill top", "ridge", "cliff", "horizon", "battlefield"],
+        "detail": "gauntleted hands, an object he holds, the visor of the helm",
     }
 
 
@@ -683,13 +589,8 @@ def scene_engine(script: dict, topic: dict, beats: list = None) -> list:
     figures = normalize_figures(figures)
 
     if not figures or not stories:
-        brand_name = _active_brand_name()
-        raise RuntimeError(
-            f"Scene Engine: brand '{brand_name}' has no scene pack configured "
-            f"(no figures/stories). Open the Scene Engine tab and build one for "
-            f"this brand, or switch to a brand that already has one — no brand "
-            f"falls back to Knights content anymore."
-        )
+        raise RuntimeError("Scene Engine: the scene pack has no figures or stories — "
+                           "add some in the Scene Engine tab (or load the defaults).")
 
     log.info(f"🎬 Scene Engine | Scenes: {clip_count} (one per narration line) | Intensity: {getattr(Config, 'SCENE_INTENSITY', 'measured')} | Camera: {Config.SCENE_CAMERA}")
     log.info(f"   Overrides — Story: {story_override} | Theme: {theme_override} | Figure: {figure_override}")

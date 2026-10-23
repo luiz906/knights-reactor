@@ -96,34 +96,10 @@ def upload_assets(folder: str, clips: list, audio: bytes, srt: str) -> dict:
 # PHASE 9: FINAL RENDER (Shotstack)
 # ══════════════════════════════════════════════════════════════
 
-def _active_brand_name() -> str:
-    """Get the active brand id — used to scope the all-lowercase-with-
-    Bible-proper-nouns caption style to the 'knights' brand only."""
-    try:
-        from server import get_active_brand
-        return get_active_brand()
-    except Exception:
-        return "knights"
-
-
 def caption_case(text: str, is_first_chunk: bool = False) -> str:
-    """Style burnt-in captions. For every brand except 'knights', this just
-    strips periods and fixes capitalization after ?/! — it does NOT force
-    the text to lowercase. For 'knights' specifically, it applies that
-    brand's original stylistic choice: lowercase everything except a fixed
-    list of biblical/military proper nouns (God, Jesus, Ephesians, King,
-    Knight, ...). That list is Knights' own vocabulary — applying it to
-    another brand would both lowercase that brand's own proper nouns (a
-    city name, a product name) AND capitalize Bible words that have nothing
-    to do with it, so it's gated to 'knights' only.
+    """Style burnt-in captions: lowercase everything except a fixed list of
+    biblical/military proper nouns (God, Jesus, Ephesians, King, Knight, ...).
     """
-    if _active_brand_name() != "knights":
-        result = text.replace(".", "")
-        if is_first_chunk and result:
-            result = result[0].upper() + result[1:]
-        result = re.sub(r'([?!])\s+([a-z])', lambda m: m.group(1) + ' ' + m.group(2).upper(), result)
-        return result
-
     PROPER = {
         "god", "jesus", "christ", "lord", "holy", "spirit", "bible", "scripture",
         "father", "son", "ephesians", "psalms", "proverbs", "romans", "matthew",
@@ -242,12 +218,9 @@ def _probe_duration(ss_base: str, url: str):
     return None
 
 
-def render_video(clips: list, voiceover_url: str, srt_url: str, audio_duration: float = 0) -> str:
-    """Render final video via Shotstack. Returns download URL.
-    
-    audio_duration: actual voiceover length in seconds (from Whisper).
-                    If provided, the timeline auto-adjusts so audio never gets cut off.
-    """
+def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
+    """Render final video via Shotstack. Returns download URL. Each clip
+    carries its scene timing (start/length) from the narration."""
     ss_env = getattr(Config, 'SHOTSTACK_ENV', 'v1')
     ss_base = f"https://api.shotstack.io/edit/{ss_env}"
     log.info(f"🎞️  Phase 9: Rendering final video via Shotstack ({ss_env}) | {Config.RENDER_RES}p {Config.RENDER_ASPECT} {Config.RENDER_FPS}fps")
@@ -256,39 +229,24 @@ def render_video(clips: list, voiceover_url: str, srt_url: str, audio_duration: 
     video_clips = []
     # Pipeline scenes carry their narration timing (phases/timing.py): each one
     # sits exactly under the line being spoken and cuts when the line changes.
-    timed = bool(clips) and all("start" in c and "length" in c for c in clips)
-    if timed:
-        for clip in clips:
-            asset = {"type": "video", "src": clip["r2_url"], "volume": 0, "transcode": True}
-            length = round(float(clip["length"]), 3)
-            # A clip shorter than its scene would freeze on its last frame —
-            # play it slightly slower instead so it fills the scene.
-            real = _probe_duration(ss_base, clip["r2_url"])
-            if real and real < length - 0.05:
-                asset["speed"] = round(max(0.6, real / length), 3)
-                log.info(f"   Clip {clip.get('index','')}: {real:.1f}s clip in a {length:.1f}s scene "
-                         f"— played at {asset['speed']}x speed")
-            video_clips.append({
-                "asset": asset,
-                "start": round(float(clip["start"]), 3),
-                "length": length,
-                "fit": "cover",
-            })
-        cursor = round(float(clips[-1]["start"]) + float(clips[-1]["length"]), 3)
-        log.info(f"   Timeline: {len(clips)} scenes timed to the narration, {cursor:.1f}s")
-    else:
-        # Manual clips have no narration timing — lay them end to end at their
-        # real length (a fixed slot longer than the clip freezes the picture).
-        cursor = 0.0
-        for clip in clips:
-            dur = _probe_duration(ss_base, clip["r2_url"]) or 5.0
-            video_clips.append({
-                "asset": {"type": "video", "src": clip["r2_url"], "volume": 0, "transcode": True},
-                "start": round(cursor, 3),
-                "length": round(dur, 3),
-                "fit": "cover",
-            })
-            cursor += dur
+    for clip in clips:
+        asset = {"type": "video", "src": clip["r2_url"], "volume": 0, "transcode": True}
+        length = round(float(clip["length"]), 3)
+        # A clip shorter than its scene would freeze on its last frame —
+        # play it slightly slower instead so it fills the scene.
+        real = _probe_duration(ss_base, clip["r2_url"])
+        if real and real < length - 0.05:
+            asset["speed"] = round(max(0.6, real / length), 3)
+            log.info(f"   Clip {clip.get('index','')}: {real:.1f}s clip in a {length:.1f}s scene "
+                     f"— played at {asset['speed']}x speed")
+        video_clips.append({
+            "asset": asset,
+            "start": round(float(clip["start"]), 3),
+            "length": length,
+            "fit": "cover",
+        })
+    cursor = round(float(clips[-1]["start"]) + float(clips[-1]["length"]), 3)
+    log.info(f"   Timeline: {len(clips)} scenes timed to the narration, {cursor:.1f}s")
 
     # CTA clip at end
     cta_dur = 0
@@ -318,86 +276,7 @@ def render_video(clips: list, voiceover_url: str, srt_url: str, audio_duration: 
         log.info(f"   CTA clip: {cta_dur}s from {cta_url}")
 
     total_dur = round(cursor, 3)
-
-    # ── AUDIO-DRIVEN TIMING ──────────────────────────────────
-    # Timed scenes already follow the voice exactly. For untimed (manual)
-    # clips the voice dictates length: if it runs longer than the clips the
-    # CTA stretches to fill the gap, if shorter the clips are trimmed.
-    if timed:
-        log.info(f"   ⏱️  TIMING: scenes follow the voice | total={total_dur:.1f}s")
-    elif audio_duration and audio_duration > 0:
-        audio_needs = round(audio_duration + 1.0, 3)  # voice + 1s padding
-        content_dur = round(total_dur - cta_dur, 3)    # just the main clips
-
-        log.info(f"   ⏱️  TIMING: audio={audio_duration:.1f}s | content={content_dur:.1f}s | cta={cta_dur:.1f}s")
-
-        if audio_needs > content_dur and cta_dur > 0:
-            # Voice runs past clips. If the overflow is bigger than the
-            # CTA's own designed length, stretch the CTA to cover it. If the
-            # overflow is SMALLER than the CTA's designed length, don't
-            # shrink the CTA below its intended size just to land exactly on
-            # audio_needs — the CTA doesn't need to end the instant the
-            # voice does, so keep it at full length and let the video run a
-            # little past the voice instead. (Previously this always set
-            # length = overflow with no floor, which could truncate a 4s CTA
-            # down to ~2s for a small overflow — cutting off its message.)
-            overflow = round(audio_needs - content_dur, 3)
-            new_cta_dur = max(cta_dur, overflow)
-            cta_clip = video_clips[-1]  # CTA is always last
-            old_cta = cta_clip["length"]
-            cta_clip["length"] = new_cta_dur
-            cta_clip["start"] = round(content_dur, 3)
-            total_dur = round(content_dur + new_cta_dur, 3)
-            if new_cta_dur > old_cta:
-                log.info(f"   ⏱️  CTA stretched: {old_cta}s → {new_cta_dur}s | total={total_dur:.1f}s")
-            else:
-                log.info(f"   ⏱️  CTA kept at full {new_cta_dur}s (voice overflow was only {overflow}s) | total={total_dur:.1f}s")
-        elif audio_needs > total_dur:
-            # No CTA but voice is longer — just set total to audio length
-            total_dur = audio_needs
-            log.info(f"   ⏱️  No CTA to stretch — total set to audio: {total_dur:.1f}s")
-        elif audio_needs < content_dur:
-            # Voice is SHORTER than the generated clips (e.g. a short Verse
-            # of the Day reading vs a full 3x10s clip set). Previously this
-            # branch only shrank the `total_dur` bookkeeping variable used
-            # for the audio track/logo length — it never touched the actual
-            # video clips, which kept their full original length. Shotstack
-            # renders the timeline out to its LONGEST track regardless, so
-            # the video track (still full length) would play on in total
-            # silence (no voice, no logo) for however long was left after
-            # the audio and logo cut off, with the CTA still sitting at its
-            # original far-later start time. Trim the main clips down to
-            # match the audio instead, so the video ends when the reading
-            # does (plus the CTA), not whenever the raw clips happen to run out.
-            main_clips = video_clips[:-1] if cta_dur > 0 else video_clips
-            kept = []
-            for c in main_clips:
-                if c["start"] >= audio_needs:
-                    break  # this clip starts after the audio already ended
-                max_len = round(audio_needs - c["start"], 3)
-                if c["length"] > max_len:
-                    c["length"] = max_len
-                kept.append(c)
-                if round(c["start"] + c["length"], 3) >= audio_needs:
-                    break
-            if not kept and main_clips:
-                main_clips[0]["length"] = round(audio_needs, 3)
-                kept = [main_clips[0]]
-            content_dur_trimmed = round(kept[-1]["start"] + kept[-1]["length"], 3) if kept else 0
-            if cta_dur > 0:
-                cta_clip = video_clips[-1]
-                cta_clip["start"] = content_dur_trimmed
-                video_clips[:] = kept + [cta_clip]
-            else:
-                video_clips[:] = kept
-            total_dur = round(content_dur_trimmed + cta_dur, 3)
-            log.info(f"   ⏱️  Clips trimmed to match short audio: {len(kept)} clip(s), {content_dur_trimmed:.1f}s content + {cta_dur:.1f}s CTA = {total_dur:.1f}s total")
-        else:
-            # Clips and audio line up closely enough as-is
-            total_dur = round(audio_needs + cta_dur, 3)
-            log.info(f"   ⏱️  TIMING OK — total={total_dur:.1f}s")
-    else:
-        log.info(f"   ⏱️  No audio duration provided — using fixed clip timing ({total_dur}s)")
+    log.info(f"   ⏱️  TIMING: scenes follow the voice | total={total_dur:.1f}s")
 
     caption_track = None
     # Subtitle overlay — built first, inserted as top (front) layer

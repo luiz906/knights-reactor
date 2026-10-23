@@ -20,6 +20,7 @@ from pipeline import (
 )
 import secrets
 import requests as _rq
+from config import BRAND_DIR
 
 app = FastAPI(title="Knights Reactor")
 
@@ -29,37 +30,11 @@ SESSION_TOKEN = secrets.token_hex(32)
 # ─── PERSISTENT STORAGE ──────────────────────────────────────
 DATA_DIR = Path("/var/data") if Path("/var/data").exists() else Path(__file__).parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
-BRANDS_DIR = DATA_DIR / "brands"
-BRANDS_DIR.mkdir(exist_ok=True)
 
-# ─── BRAND SYSTEM ─────────────────────────────────────────────
-ACTIVE_BRAND_FILE = DATA_DIR / "active_brand.txt"
 
-def get_active_brand() -> str:
-    if ACTIVE_BRAND_FILE.exists():
-        return ACTIVE_BRAND_FILE.read_text().strip() or "knights"
-    return "knights"
-
-def set_active_brand(name: str):
-    ACTIVE_BRAND_FILE.write_text(name)
-
-def brand_dir(name: str = None) -> Path:
-    name = name or get_active_brand()
-    d = BRANDS_DIR / name
-    d.mkdir(exist_ok=True)
-    return d
-
-def migrate_legacy_data():
-    """Move existing flat files into default 'knights' brand folder."""
-    bd = brand_dir("knights")
-    for fname in ["credentials.json", "settings.json", "runs.json", "topics.json", "pipeline_checkpoint.json"]:
-        src = DATA_DIR / fname
-        dst = bd / fname
-        if src.exists() and not dst.exists():
-            import shutil
-            shutil.move(str(src), str(dst))
-
-migrate_legacy_data()
+def brand_dir() -> Path:
+    """The app's data folder (config.BRAND_DIR)."""
+    return BRAND_DIR
 
 def CREDS_FILE():  return brand_dir() / "credentials.json"
 def SETTINGS_FILE(): return brand_dir() / "settings.json"
@@ -94,24 +69,8 @@ def apply_credentials():
     Config.R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL", "")
     Config.BLOTATO_KEY = os.getenv("BLOTATO_API_KEY", "")
 
-# Exact text of the built-in Knights brand-identity defaults from the
-# Settings UI (dashboard.html's BRAND section `d:` values). Used by
-# apply_model_settings() to detect when the dashboard's settings-load
-# backfill wrote Knights' own persona/voice/themes/avoid into another
-# brand's settings.json instead of that brand's real (or blank) values.
-_KNIGHTS_BRAND_DEFAULTS = {
-    "brand_name":    "Knights Reactor",
-    "brand_tagline": "Biblical content for men of faith",
-    "brand_persona": "A battle-hardened Christian knight: Strong, disciplined, capable, calm. Not cruel, not cold—firm and compassionate. Protector of faith, family, duty, truth. Lives in peace but ready for war. Wears the Armor of God symbolically. Unwavering allegiance: Christ is King.",
-    "brand_voice":   "Low, controlled, resonant. Calm intensity; authoritative without shouting. Short, declarative sentences. Measured pacing. Dark, mysterious presence—disciplined resolve. Masculine and grounded. NO hype. NO motivational fluff.",
-    "brand_themes":  "Address real daily battles: Finances, family leadership, temptation, fatigue, doubt, lust, anger, responsibility, endurance, obedience. Discipline over comfort. Duty over desire. Endurance over escape. Faith over fear. Action over emotion.",
-    "brand_avoid":   "Warmth or sentimentality, soft encouragement, modern slang, politics, long scripture quotations, hashtags",
-}
-
-# Knights' built-in logo/CTA, captured before any brand's settings touch
-# Config. Config is shared process-wide, so a non-Knights brand blanking
-# these used to stick after switching back to Knights — every Knights video
-# lost its CTA end card and watermark until the next restart.
+# Built-in logo/CTA, captured before settings touch Config, so clearing a
+# setting brings the default back.
 _BUILTIN_BRANDING = {
     "LOGO_URL": Config.LOGO_URL, "LOGO_ENABLED": Config.LOGO_ENABLED,
     "CTA_URL": Config.CTA_URL, "CTA_ENABLED": Config.CTA_ENABLED,
@@ -150,29 +109,22 @@ def apply_model_settings():
     if s.get("render_res"):     Config.RENDER_RES = s["render_res"]
     if s.get("render_aspect"):  Config.RENDER_ASPECT = s["render_aspect"]
     if s.get("render_bg"):      Config.RENDER_BG = s["render_bg"]
-    # Logo/Watermark — the class-level defaults (Config.LOGO_URL, LOGO_ENABLED)
-    # are Knights' own shield logo, always on. Any brand that hasn't set its
-    # own logo_url gets NO watermark instead of silently inheriting Knights'
-    # logo on every video — only "knights" itself keeps the built-in default.
-    is_knights = get_active_brand() == "knights"
-    Config.LOGO_URL = s.get("logo_url") or (_BUILTIN_BRANDING["LOGO_URL"] if is_knights else "")
+    # Logo/Watermark — blank in Settings = the built-in Knights shield logo
+    Config.LOGO_URL = s.get("logo_url") or _BUILTIN_BRANDING["LOGO_URL"]
     if "logo_enabled" in s:
         Config.LOGO_ENABLED = s["logo_enabled"] in (True, "true", "True")
     else:
-        Config.LOGO_ENABLED = _BUILTIN_BRANDING["LOGO_ENABLED"] if is_knights else False
+        Config.LOGO_ENABLED = _BUILTIN_BRANDING["LOGO_ENABLED"]
     if "captions_enabled" in s: Config.CAPTIONS_ENABLED = s["captions_enabled"] in (True, "true", "True")
     if s.get("logo_position"):  Config.LOGO_POSITION = s["logo_position"]
     if s.get("logo_scale"):     Config.LOGO_SCALE = float(s["logo_scale"])
     if s.get("logo_opacity"):   Config.LOGO_OPACITY = float(s["logo_opacity"])
-    # CTA end-card — same issue as the logo: the class-level default
-    # (Config.CTA_URL/CTA_ENABLED) is Knights' own "Christ is King" clip,
-    # always on. "cta_enabled"/"cta_url" were never even read from settings
-    # before this, so toggling the Settings checkbox did nothing at all.
-    Config.CTA_URL = s.get("cta_url") or (_BUILTIN_BRANDING["CTA_URL"] if is_knights else "")
+    # CTA end card — blank in Settings = the built-in "Christ is King" clip
+    Config.CTA_URL = s.get("cta_url") or _BUILTIN_BRANDING["CTA_URL"]
     if "cta_enabled" in s:
         Config.CTA_ENABLED = s["cta_enabled"] in (True, "true", "True")
     else:
-        Config.CTA_ENABLED = _BUILTIN_BRANDING["CTA_ENABLED"] if is_knights else False
+        Config.CTA_ENABLED = _BUILTIN_BRANDING["CTA_ENABLED"]
     Config.CTA_DURATION = float(s["cta_duration"]) if s.get("cta_duration") else _BUILTIN_BRANDING["CTA_DURATION"]
     # Video timeout
     if s.get("video_timeout"):  Config.VIDEO_TIMEOUT = int(s["video_timeout"])
@@ -180,40 +132,12 @@ def apply_model_settings():
     # Platforms
     for pk in ["on_tt","on_yt","on_ig","on_fb","on_tw","on_th","on_pn"]:
         if pk in s: setattr(Config, pk.upper(), s[pk] in (True, "true", "True"))
-    # Brand / Persona — THE ACTUAL SOURCE of the "battles/suffer/demand"
-    # military voice leaking into non-Knights scripts and captions. The
-    # Settings UI backfills any brand-identity field the current brand
-    # hasn't explicitly saved with the built-in Knights template text (so
-    # the form isn't blank) — see _KNIGHTS_BRAND_DEFAULTS below. That
-    # backfilled text then gets POSTed and saved to settings.json the next
-    # time ANY setting is saved for that brand (even an unrelated one, like
-    # clip duration), which permanently writes Knights' own persona/voice/
-    # themes/avoid into that brand's Config.BRAND_* — overriding the blank
-    # class-level defaults and silently out-competing script.py's brand-
-    # neutral GENERIC_* fallback, since an explicit override always wins.
-    # Reject the value here if it's exactly that Knights template text and
-    # this isn't the knights brand, so it's treated as never having been set.
-    not_knights = get_active_brand() != "knights"
-    def _brand_field(key):
-        val = s.get(key, "")
-        if not_knights and val and val.strip() == _KNIGHTS_BRAND_DEFAULTS.get(key, "\0"):
-            return ""
-        return val
-    bn = _brand_field("brand_name")
-    if bn:            Config.BRAND_NAME = bn
-    elif not_knights: Config.BRAND_NAME = get_active_brand().replace("_", " ").replace("-", " ").title()
-    bp = _brand_field("brand_persona")
-    if bp:            Config.BRAND_PERSONA = bp
-    elif not_knights: Config.BRAND_PERSONA = ""
-    bv = _brand_field("brand_voice")
-    if bv:            Config.BRAND_VOICE = bv
-    elif not_knights: Config.BRAND_VOICE = ""
-    bt = _brand_field("brand_themes")
-    if bt:            Config.BRAND_THEMES = bt
-    elif not_knights: Config.BRAND_THEMES = ""
-    ba = _brand_field("brand_avoid")
-    if ba:            Config.BRAND_AVOID = ba
-    elif not_knights: Config.BRAND_AVOID = ""
+    # Brand / Persona
+    if s.get("brand_name"):     Config.BRAND_NAME = s["brand_name"]
+    if s.get("brand_persona"):  Config.BRAND_PERSONA = s["brand_persona"]
+    if s.get("brand_voice"):    Config.BRAND_VOICE = s["brand_voice"]
+    if s.get("brand_themes"):   Config.BRAND_THEMES = s["brand_themes"]
+    if s.get("brand_avoid"):    Config.BRAND_AVOID = s["brand_avoid"]
     # Captions — optional full-prompt overrides for Phase 10 (blank = built-in default)
     if s.get("captions_video_prompt"): Config.CAPTIONS_VIDEO_PROMPT = s["captions_video_prompt"]
     if s.get("captions_text_prompt"):  Config.CAPTIONS_TEXT_PROMPT = s["captions_text_prompt"]
@@ -241,12 +165,6 @@ def apply_model_settings():
 apply_credentials()
 apply_model_settings()
 
-# One-time brand seeds (safe to re-run, won't overwrite existing data)
-try:
-    import seed_attic_magic
-except Exception as e:
-    print(f"Brand seed note: {e}")
-
 # ─── STATE ────────────────────────────────────────────────────
 RUNS = load_json(RUNS_FILE, []) if RUNS_FILE().exists() else []
 CURRENT_RUN = {"active": False, "result": None, "phase": 0, "phase_name": "", "phases_done": []}
@@ -269,27 +187,15 @@ def log_entry(phase, level, msg):
     LOGS.append({"t": datetime.now().strftime("%H:%M:%S"), "phase": phase, "level": level, "msg": msg})
     if len(LOGS) > 500: LOGS.pop(0)
 
-_RUN_CTA_OVERRIDE = {"url": None}  # Manual-tab custom CTA for the current run
-
-def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: list = None, manual_voiceover: str = None, verse_mode: bool = False, cta_override: str = None):
+def execute_pipeline(resume_from: int = 0, topic_id: str = None, verse_mode: bool = False):
     apply_model_settings()  # Reload model selections before each run
-    # A resume continues the same run, so it keeps that run's custom CTA.
-    if resume_from == 0:
-        _RUN_CTA_OVERRIDE["url"] = cta_override
-    else:
-        cta_override = cta_override or _RUN_CTA_OVERRIDE["url"]
-    if cta_override:
-        # Manual-tab custom CTA: applied after the settings reload so it
-        # isn't overwritten, and only for this run.
-        Config.CTA_URL = cta_override
-        Config.CTA_ENABLED = True
     RUN_GEN["id"] += 1
     my_gen = RUN_GEN["id"]
-    mode = "verse-of-the-day" if verse_mode else ("full-manual" if (manual_clips and manual_voiceover) else ("manual" if manual_clips else ("resume" if resume_from > 0 else "normal")))
+    mode = "verse-of-the-day" if verse_mode else ("resume" if resume_from > 0 else "normal")
     CURRENT_RUN.update({"active": True, "started": datetime.now().isoformat(), "result": None, "phase": 0, "phase_name": "", "phases_done": []})
     if resume_from == 0:
         LOGS.clear()
-    log_entry("System", "info", f"Pipeline {mode} mode{' (topic: '+topic_id+')' if topic_id else ''}{' — '+str(len(manual_clips))+' clips' if manual_clips else ''}{' + voiceover' if manual_voiceover else ''}")
+    log_entry("System", "info", f"Pipeline {mode} mode{' (topic: '+topic_id+')' if topic_id else ''}")
 
     def on_phase(phase_index, phase_name, status):
         if my_gen != RUN_GEN["id"]:
@@ -309,7 +215,7 @@ def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: l
                 CURRENT_RUN["phases_done"].append(phase_index)
             log_entry(phase_name, "ok", f"Complete ✓")
 
-    result = run_pipeline(progress_cb=on_phase, resume_from=resume_from, topic_id=topic_id, manual_clips=manual_clips, manual_voiceover=manual_voiceover, verse_mode=verse_mode)
+    result = run_pipeline(progress_cb=on_phase, resume_from=resume_from, topic_id=topic_id, verse_mode=verse_mode)
 
     if my_gen != RUN_GEN["id"]:
         return  # superseded — /api/cancel (or a newer run) already owns CURRENT_RUN/RUNS now
@@ -351,95 +257,22 @@ def execute_pipeline(resume_from: int = 0, topic_id: str = None, manual_clips: l
 
 # ─── GITHUB AUTO-DEPLOY ──────────────────────────────────────
 # ─── BRAND API ────────────────────────────────────────────────
-@app.get("/api/brands")
-async def list_brands():
-    """List all brands and active brand."""
-    brands = []
-    for d in sorted(BRANDS_DIR.iterdir()):
-        if d.is_dir():
-            s = load_json(d / "settings.json", {})
-            brands.append({
-                "id": d.name,
-                "display_name": s.get("brand_name", d.name.replace("_"," ").title()),
-                "topics": len(load_json(d / "topics.json", [])),
-                "runs": len(load_json(d / "runs.json", [])),
-            })
-    if not brands:
-        # Create default brand
-        brand_dir("knights")
-        brands = [{"id": "knights", "display_name": "Knights Reactor", "topics": 0, "runs": 0}]
-    return {"brands": brands, "active": get_active_brand()}
-
-@app.post("/api/brands/switch")
-async def switch_brand(req: Request):
-    """Switch active brand. Reloads all config."""
-    global RUNS, CURRENT_RUN
-    body = await req.json()
-    name = body.get("brand", "").strip().lower().replace(" ", "_")
-    if not name:
-        return JSONResponse({"error": "Brand name required"}, 400)
-    bd = brand_dir(name)
-    set_active_brand(name)
-    # Reload everything for new brand
-    apply_credentials()
-    apply_model_settings()
-    RUNS = load_json(RUNS_FILE, []) if RUNS_FILE().exists() else []
-    CURRENT_RUN = {"active": False, "result": None, "phase": 0, "phase_name": "", "phases_done": []}
-    return {"status": "switched", "brand": name}
-
-@app.post("/api/brands/create")
-async def create_brand(req: Request):
-    """Create a new brand."""
-    body = await req.json()
-    name = body.get("name", "").strip().lower().replace(" ", "_")
-    display = body.get("display_name", name.replace("_"," ").title())
-    if not name or not name.replace("_","").isalnum():
-        return JSONResponse({"error": "Invalid brand name (letters, numbers, underscores only)"}, 400)
-    bd = brand_dir(name)
-    # Save initial settings with brand name
-    s = load_json(bd / "settings.json", {})
-    s["brand_name"] = display
-    save_json(bd / "settings.json", s)
-    return {"status": "created", "brand": name, "display_name": display}
-
-@app.post("/api/brands/delete")
-async def delete_brand(req: Request):
-    """Delete a brand (cannot delete active brand)."""
-    body = await req.json()
-    name = body.get("brand", "").strip()
-    if name == get_active_brand():
-        return JSONResponse({"error": "Cannot delete active brand. Switch first."}, 400)
-    bd = BRANDS_DIR / name
-    if bd.exists() and bd.is_dir():
-        import shutil
-        shutil.rmtree(bd)
-    return {"status": "deleted", "brand": name}
-
 # ─── SCENE PACK API ──────────────────────────────────────────
 
 @app.get("/api/scenes")
 async def get_scenes():
-    """Get scene pack for the active brand. The hardcoded knight defaults are
-    only ever shown for the 'knights' brand — every other brand gets an empty
-    pack when it hasn't built its own yet, so brands never inherit Knights
-    content. "themes" always gets filled in even for an otherwise-empty pack
-    (auto-detection needs something to match against), but which vocabulary
-    it uses depends on the brand: Knights' own faith/combat-flavored tags for
-    the 'knights' brand, a generic brand-neutral set for everyone else."""
-    from phases.scenes import load_brand_scenes, export_default_scenes, empty_scenes, THEME_KEYWORDS, GENERIC_THEME_KEYWORDS
-    default_themes = dict(THEME_KEYWORDS) if get_active_brand() == "knights" else dict(GENERIC_THEME_KEYWORDS)
+    """The scene pack: the saved one, or the built-in Knights defaults."""
+    from phases.scenes import load_brand_scenes, export_default_scenes, THEME_KEYWORDS
     data = load_brand_scenes()
     if data:
         if not data.get("themes"):
-            data["themes"] = default_themes
+            data["themes"] = dict(THEME_KEYWORDS)
         return {"source": "brand", "data": data}
-    if get_active_brand() == "knights":
-        return {"source": "default", "data": export_default_scenes()}
-    return {"source": "empty", "data": empty_scenes()}
+    return {"source": "default", "data": export_default_scenes()}
 
 @app.post("/api/scenes")
 async def save_scenes(req: Request):
-    """Save scene pack for the active brand."""
+    """Save the scene pack."""
     from phases.scenes import save_brand_scenes
     body = await req.json()
     save_brand_scenes(body)
@@ -447,11 +280,7 @@ async def save_scenes(req: Request):
 
 @app.post("/api/scenes/seed-defaults")
 async def seed_default_scenes():
-    """Copy the hardcoded knight defaults into the active brand's scenes.json.
-    Knights-only — seeding another brand with Knights content is exactly the
-    cross-brand leakage this was built to prevent."""
-    if get_active_brand() != "knights":
-        raise HTTPException(status_code=400, detail="Seeding the Knights defaults is only available for the 'knights' brand. Build this brand's scene pack from scratch in the Scene Engine tab instead.")
+    """Copy the built-in Knights defaults into scenes.json."""
     from phases.scenes import export_default_scenes, save_brand_scenes
     data = export_default_scenes()
     save_brand_scenes(data)
@@ -459,40 +288,20 @@ async def seed_default_scenes():
 
 @app.post("/api/scenes/seed-motion-defaults")
 async def seed_motion_defaults():
-    """Fill in generic, brand-neutral Camera + Intensity text (no Knights-specific
-    wording — no armor, capes, combat). Available to ANY brand, unlike
-    seed-defaults: these are just standard cinematography terms for the 3 fixed
-    keys the Settings dropdowns depend on, not creative brand content, so using
-    them doesn't reintroduce the cross-brand leakage problem."""
-    from phases.scenes import load_brand_scenes, save_brand_scenes, standard_motion_defaults, empty_scenes
-    data = load_brand_scenes() or empty_scenes()
+    """Fill in standard Camera + Intensity text for the 3 fixed keys the
+    Settings dropdowns depend on."""
+    from phases.scenes import load_brand_scenes, save_brand_scenes, standard_motion_defaults, export_default_scenes
+    data = load_brand_scenes() or export_default_scenes()
     defaults = standard_motion_defaults()
     data["cameras"] = defaults["cameras"]
     data["intensity"] = defaults["intensity"]
     save_brand_scenes(data)
     return {"status": "seeded", "cameras": list(data["cameras"].keys()), "intensity": list(data["intensity"].keys())}
 
-@app.post("/api/scenes/seed-theme-defaults")
-async def seed_theme_defaults():
-    """Reset the active brand's Theme Tags to the generic, brand-neutral set.
-    Mainly for a brand whose scenes.json still has the old Knights-flavored
-    tags baked in from before that vocabulary was split by brand — this wipes
-    them back to something any type of business can use. Not offered for the
-    'knights' brand itself, since its faith/combat-tuned tags are intentional
-    there."""
-    if get_active_brand() == "knights":
-        raise HTTPException(status_code=400, detail="The 'knights' brand keeps its own tuned theme tags — this reset is for other brands only.")
-    from phases.scenes import load_brand_scenes, save_brand_scenes, standard_theme_defaults, empty_scenes
-    data = load_brand_scenes() or empty_scenes()
-    data["themes"] = standard_theme_defaults()
-    save_brand_scenes(data)
-    return {"status": "seeded", "themes": list(data["themes"].keys())}
-
 @app.get("/api/scenes/summary")
 async def scenes_summary():
-    """Quick summary of the active brand's scene pack."""
-    from phases.scenes import load_brand_scenes, STORY_SEEDS, FIGURES, THEME_KEYWORDS, GENERIC_THEME_KEYWORDS, IMAGE_SUFFIXES
-    default_themes = THEME_KEYWORDS if get_active_brand() == "knights" else GENERIC_THEME_KEYWORDS
+    """Quick summary of the scene pack."""
+    from phases.scenes import load_brand_scenes, STORY_SEEDS, FIGURES, THEME_KEYWORDS, IMAGE_SUFFIXES
     data = load_brand_scenes()
     if data:
         stories = data.get("stories", [])
@@ -501,25 +310,16 @@ async def scenes_summary():
             "stories": len(stories),
             "figures": len(data.get("figures", [])),
             "moods": list(data.get("moods", {}).keys()),
-            "themes": list(data.get("themes") or default_themes.keys()),
+            "themes": list(data.get("themes") or THEME_KEYWORDS.keys()),
             "story_names": [s["name"] for s in stories],
         }
-    if get_active_brand() == "knights":
-        return {
-            "source": "default (knights)",
-            "stories": len(STORY_SEEDS),
-            "figures": len(FIGURES),
-            "moods": list(IMAGE_SUFFIXES.keys()),
-            "themes": ["temptation", "endurance", "doubt", "discipline", "courage", "duty", "loss", "patience", "anger", "identity"],
-            "story_names": [s["name"] for s in STORY_SEEDS],
-        }
     return {
-        "source": "empty",
-        "stories": 0,
-        "figures": 0,
-        "moods": [],
-        "themes": list(default_themes.keys()),
-        "story_names": [],
+        "source": "default (knights)",
+        "stories": len(STORY_SEEDS),
+        "figures": len(FIGURES),
+        "moods": list(IMAGE_SUFFIXES.keys()),
+        "themes": list(THEME_KEYWORDS.keys()),
+        "story_names": [s["name"] for s in STORY_SEEDS],
     }
 
 @app.post("/api/figures/portrait")
@@ -638,7 +438,7 @@ async def cancel_pipeline():
     """Cancel the active run and reset pipeline state back to idle.
 
     Immediate: unblocks /api/run (no more "Already running" 409) and clears
-    the active brand's checkpoint, so a stale gate/resume state can't
+    the checkpoint, so a stale gate/resume state can't
     resurface on the next run. Best-effort: a background task that's
     mid-phase (e.g. polling Replicate) can't be interrupted instantly — it
     finishes that one call, then stops for real at its next phase boundary
@@ -663,7 +463,7 @@ async def trigger_run(bg: BackgroundTasks, req: Request):
     except: pass
     topic_id = body.get("topic_id")
     verse_mode = bool(body.get("verse_mode"))
-    bg.add_task(execute_pipeline, 0, topic_id, None, None, verse_mode)
+    bg.add_task(execute_pipeline, 0, topic_id, verse_mode)
     return {"status": "started", "topic_id": topic_id, "verse_mode": verse_mode}
 
 @app.post("/api/resume")
@@ -678,32 +478,6 @@ async def trigger_resume(bg: BackgroundTasks):
         return JSONResponse({"error": "No checkpoint found — run fresh pipeline instead"}, 400)
     bg.add_task(execute_pipeline, resume_phase)
     return {"status": "resuming", "from_phase": resume_phase}
-
-@app.post("/api/manual-run")
-async def trigger_manual_run(bg: BackgroundTasks, req: Request):
-    """Run pipeline with user-provided video clips and optional voiceover."""
-    if CURRENT_RUN["active"]: return JSONResponse({"error": "Already running"}, 409)
-    body = await req.json()
-    clip_urls = body.get("clips", [])
-    voiceover_url = body.get("voiceover", "").strip()
-    cta_url = body.get("cta_url", "").strip()
-    topic_id = body.get("topic_id")
-    if not clip_urls or len(clip_urls) < 1:
-        return JSONResponse({"error": "Provide at least 1 clip URL"}, 400)
-    # Validate clip URLs
-    valid = [u.strip() for u in clip_urls if u and u.strip().startswith("http")]
-    if not valid:
-        return JSONResponse({"error": "No valid clip URLs provided"}, 400)
-    # Validate voiceover URL if provided
-    vo = voiceover_url if voiceover_url.startswith("http") else None
-    # Full manual = clips + voiceover (skip all AI gen)
-    # Partial manual = clips only (still generates script + voiceover via AI)
-    mode = "full-manual" if vo else "manual"
-    if vo:
-        topic_id = None  # Full manual doesn't need a topic
-    cta = cta_url if cta_url.startswith("http") else None
-    bg.add_task(execute_pipeline, 0, topic_id, valid, vo, False, cta)
-    return {"status": "started", "mode": mode, "clips": len(valid), "voiceover": bool(vo), "cta": bool(cta_url)}
 
 @app.post("/api/script-only")
 async def generate_script_only(req: Request):
@@ -726,61 +500,41 @@ async def generate_script_only(req: Request):
 
 @app.get("/api/topics")
 async def get_topics():
-    brand = get_active_brand()
-    topics = load_topics(brand)
+    topics = load_topics()
     return {"topics": topics, "total": len(topics), "new": sum(1 for t in topics if t.get("status") == "new")}
 
 @app.post("/api/topics")
 async def create_topic(req: Request):
-    brand = get_active_brand()
     body = await req.json()
-    t = add_topic(body.get("idea",""), body.get("category","Shocking Revelations"), body.get("scripture",""), brand=brand)
+    t = add_topic(body.get("idea",""), body.get("category","Shocking Revelations"), body.get("scripture",""))
     return {"status": "created", "topic": t}
 
 @app.delete("/api/topics/{topic_id}")
 async def remove_topic(topic_id: str):
-    brand = get_active_brand()
-    ok = delete_topic(topic_id, brand=brand)
+    ok = delete_topic(topic_id)
     return {"status": "deleted" if ok else "not_found"}
 
 @app.post("/api/topics/generate")
 async def gen_topics(req: Request, bg: BackgroundTasks):
-    # Pin the brand BEFORE the GPT-4o call (which can take several seconds) so
-    # that switching brands elsewhere while this is in flight can't redirect
-    # the generated topics into the wrong brand's folder.
-    brand = get_active_brand()
     body = {}
     try: body = await req.json()
     except: pass
     count = body.get("count", 10)
     try:
-        new_topics = generate_topics_ai(count, brand=brand)
+        new_topics = generate_topics_ai(count)
         return {"status": "generated", "count": len(new_topics), "topics": new_topics}
     except Exception as e:
         return JSONResponse({"error": str(e)}, 500)
 
 @app.post("/api/topics/seed")
 async def seed_topics():
-    brand = get_active_brand()
-    before = len(load_topics(brand))
-    seed_default_topics(brand=brand)
-    after = len(load_topics(brand))
+    before = len(load_topics())
+    seed_default_topics()
+    after = len(load_topics())
     return {
         "status": "seeded" if after > before else "skipped",
         "total": after, "added": after - before,
-        "is_knights": brand == "knights",
     }
-
-@app.post("/api/topics/purge-seeded")
-async def purge_seeded_topics():
-    """Remove the built-in Knights demo topics from the active brand's topic
-    list — for cleaning up a brand that had them seeded onto it before
-    seeding was made brand-aware. Only removes exact matches against the
-    fixed demo list; anything the user added themselves is untouched."""
-    from phases.topics import purge_default_topics
-    brand = get_active_brand()
-    removed = purge_default_topics(brand=brand)
-    return {"status": "purged", "removed": removed, "total": len(load_topics(brand))}
 
 # ─── PROMPT EDITING GATE ─────────────────────────────────────
 
@@ -1013,36 +767,6 @@ async def upload_file(file: UploadFile = File(...)):
     log_entry("Upload", "ok", f"Uploaded {file.filename} → {key} ({len(data)//1024}KB)")
     return {"url": url, "filename": file.filename, "size": len(data), "content_type": ct}
 
-@app.post("/api/probe")
-async def probe_media(req: Request):
-    """Probe a video/audio URL via Shotstack to get duration."""
-    body = await req.json()
-    url = body.get("url", "").strip()
-    if not url:
-        return JSONResponse({"error": "No URL"}, 400)
-    import requests as rq
-    from urllib.parse import quote
-    try:
-        ss_env = getattr(Config, 'SHOTSTACK_ENV', 'stage')
-        encoded = quote(url, safe='')
-        probe_url = f"https://api.shotstack.io/{ss_env}/probe/{encoded}"
-        r = rq.get(probe_url, headers={"x-api-key": Config.SHOTSTACK_KEY}, timeout=15)
-        if r.status_code == 200:
-            data = r.json().get("response", {}).get("metadata", {})
-            duration = float(data.get("format", {}).get("duration", 0))
-            streams = data.get("streams", [])
-            # Get resolution from first video stream
-            width = height = 0
-            for s in streams:
-                if s.get("codec_type") == "video":
-                    width = s.get("width", 0)
-                    height = s.get("height", 0)
-                    break
-            return {"duration": round(duration, 2), "width": width, "height": height}
-        return JSONResponse({"error": f"Probe failed ({r.status_code})"}, 400)
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, 500)
-
 @app.get("/api/status")
 async def get_status():
     return {"running": CURRENT_RUN["active"], "phase": CURRENT_RUN.get("phase", 0),
@@ -1059,8 +783,8 @@ async def get_caption_defaults():
 
 @app.get("/api/script/defaults")
 async def get_script_defaults():
-    """Live-computed default script prompt (brand-aware — reflects the
-    active brand's persona/voice/themes right now) for the Settings >
+    """Live-computed default script prompt (reflects the brand
+    persona/voice/themes right now) for the Settings >
     Script 'load default' helper."""
     from phases.script import default_script_prompt
     return {"script_prompt_template": default_script_prompt()}
@@ -1213,10 +937,10 @@ async def get_last_result():
 @app.get("/api/plan-estimate")
 async def plan_estimate():
     """Expected length, clip count and cost of the next video, from the
-    active brand's script length, models and CTA."""
+    script length, models and CTA."""
     from phases.timing import estimate_plan
     cta = Config.CTA_DURATION if (Config.CTA_ENABLED and Config.CTA_URL) else 0
-    # Learn from this brand's last finished videos: how long the voice really
+    # Learn from the last finished videos: how long the voice really
     # takes per word (slow reads and pauses between sentences included), and
     # how far the AI's scripts run over or under the word target.
     words = int(Config.SCRIPT_WORDS)

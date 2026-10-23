@@ -12,22 +12,14 @@ is authoritative and this module stays tiny. Only REFERENCES live here.
 import json, random, time
 import requests
 
-from config import Config, DATA_DIR, log
-
-BRANDS_DIR = DATA_DIR / "brands"
+from config import Config, BRAND_DIR, log
 
 
-def _verse_state_file(brand=None):
-    """Per-brand file tracking which references have already been used, so
-    Verse of the Day cycles through the whole pool before repeating — same
-    idea as topics.py's "new"/"processing" status, just for a fixed list
-    instead of a growing topic database."""
-    if brand is None:
-        ab_file = DATA_DIR / "active_brand.txt"
-        brand = ab_file.read_text().strip() if ab_file.exists() else "knights"
-    bd = BRANDS_DIR / brand
-    bd.mkdir(exist_ok=True)
-    return bd / "verse_state.json"
+
+def _verse_state_file():
+    """Tracks which references have already been used, so Verse of the Day
+    cycles through the whole pool before repeating."""
+    return BRAND_DIR / "verse_state.json"
 
 
 # Curated pool of well-known KJV references — picked for clarity when read
@@ -132,8 +124,8 @@ def fetch_verse_text(reference: str, translation: str = None) -> str:
     )
 
 
-def _load_state(brand=None):
-    f = _verse_state_file(brand)
+def _load_state():
+    f = _verse_state_file()
     if f.exists():
         try:
             return json.loads(f.read_text())
@@ -142,15 +134,15 @@ def _load_state(brand=None):
     return {"used": []}
 
 
-def _save_state(state, brand=None):
-    _verse_state_file(brand).write_text(json.dumps(state, indent=2))
+def _save_state(state):
+    _verse_state_file().write_text(json.dumps(state, indent=2))
 
 
-def pick_next_reference(brand=None) -> str:
+def pick_next_reference() -> str:
     """Cycle through VERSE_REFS without repeating until the whole pool has
     been used once, then reset and start over — so 100 consecutive runs
     give 100 different verses before anything repeats."""
-    state = _load_state(brand)
+    state = _load_state()
     used = set(state.get("used", []))
     remaining = [r for r in VERSE_REFS if r not in used]
     if not remaining:
@@ -159,17 +151,17 @@ def pick_next_reference(brand=None) -> str:
     ref = random.choice(remaining)
     used.add(ref)
     state["used"] = list(used)
-    _save_state(state, brand)
+    _save_state(state)
     return ref
 
 
-def build_verse_topic(brand=None) -> dict:
+def build_verse_topic() -> dict:
     """Build a topic-shaped dict for Verse of the Day mode. Shaped just like
     a normal phases.topics topic (id/idea/category/scripture) so nothing
     downstream (Scene Engine, captions, Airtable-replacement topic status)
     needs to know this didn't come from the topic database — plus a
     verse_text field the script step reads directly instead of re-fetching."""
-    reference = pick_next_reference(brand)
+    reference = pick_next_reference()
     translation = (getattr(Config, "VERSE_TRANSLATION", "kjv") or "kjv").lower()
     log.info(f"📖 Verse of the Day: {reference} ({translation.upper()})")
     verse_text = fetch_verse_text(reference, translation)
