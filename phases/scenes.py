@@ -7,7 +7,7 @@ import json, random, re
 import requests
 from pathlib import Path
 from config import Config, BRAND_DIR, log
-from phases.story import cast_profile, scene_story_block
+from phases.story import cast_profile, current_episode, scene_story_block
 
 pick = lambda arr: random.choice(arr)
 
@@ -609,7 +609,7 @@ def scene_engine(script: dict, topic: dict, beats: list = None) -> list:
     # The Settings dropdown sends a truncated label, so match it back to the
     # real cast entry — otherwise the character's reference image is lost
     # whenever a figure is forced instead of auto-picked.
-    episode = topic.get("episode") or {}
+    episode = current_episode(topic)
     if episode.get("knight") and any(f["name"] == episode["knight"] for f in figures):
         # An episode of The Last Watch is always about its own knight.
         figure_obj = next(f for f in figures if f["name"] == episode["knight"])

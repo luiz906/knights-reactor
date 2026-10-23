@@ -543,6 +543,33 @@ async def add_episodes():
     added = add_episode_topics()
     return {"status": "added" if added else "skipped", "added": added, "total": len(load_topics())}
 
+# ─── STORY (The Last Watch) ──────────────────────────────────
+
+@app.get("/api/story")
+async def get_story():
+    """The story bible for the Story tab, plus the cast figure names from the
+    scene pack (an episode's knight must be one of them)."""
+    from phases.story import load_story, story_source
+    from phases.scenes import get_scene_data, normalize_figures
+    figures = [f["name"] for f in normalize_figures(get_scene_data()[0]) if f.get("name")]
+    from phases.topics import CATEGORIES
+    return {"story": load_story(), "source": story_source(), "figures": figures, "categories": CATEGORIES}
+
+@app.post("/api/story")
+async def save_story_api(req: Request):
+    from phases.story import save_story
+    try:
+        save_story(await req.json())
+    except (ValueError, TypeError) as e:
+        return JSONResponse({"error": str(e)}, 400)
+    return {"status": "saved"}
+
+@app.post("/api/story/reset")
+async def reset_story_api():
+    from phases.story import reset_story
+    reset_story()
+    return {"status": "reset"}
+
 # ─── PROMPT EDITING GATE ─────────────────────────────────────
 
 @app.get("/api/prompts")

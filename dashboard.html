@@ -133,7 +133,7 @@ select.fin option{background:var(--bg2);color:var(--amb);padding:6px}
 /* CAST/LOOKS/MOTION reuse .sec/.sec-b from Settings, but .sec-b becomes a
    2-column grid on desktop (built for short label+input pairs) — wrong for
    full-width rows like these. .sc-sec opts back out to a plain block flow. */
-.sec-b.sc-sec{display:block}
+.sec-b.sc-sec{display:block}.sec-b.sc-sec.shut{display:none}
 .sc-row{display:flex;gap:10px;align-items:flex-start;padding:.7em 0;border-bottom:1px solid rgba(var(--fg),.04)}
 .sc-row:last-of-type{border-bottom:none}
 .sc-key{width:9em;flex-shrink:0}
@@ -296,6 +296,7 @@ body{overflow:auto}
 <button class="sb-i on" onclick="dNav('pipeline',this)"><span class="material-symbols-outlined">bolt</span>PIPELINE</button>
 <button class="sb-i" onclick="dNav('topics',this)"><span class="material-symbols-outlined">auto_awesome</span>TOPICS</button>
 <button class="sb-i" onclick="dNav('scenes',this)"><span class="material-symbols-outlined">theater_comedy</span>SCENES</button>
+<button class="sb-i" onclick="dNav('story',this)"><span class="material-symbols-outlined">menu_book</span>STORY</button>
 <button class="sb-i" onclick="dNav('runs',this)"><span class="material-symbols-outlined">history</span>RUNS</button>
 <button class="sb-i" onclick="dNav('logs',this)"><span class="material-symbols-outlined">terminal</span>LOGS</button>
 <button class="sb-i" onclick="dNav('preview',this)"><span class="material-symbols-outlined">visibility</span>PREVIEW</button>
@@ -367,6 +368,19 @@ body{overflow:auto}
 <div id="d-scenes-body"></div>
 </div>
 
+<div class="dpage" id="dp-story">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7em;flex-wrap:wrap;gap:8px">
+<span class="ptitle" style="margin:0">THE LAST WATCH <span id="d-st-src" style="margin-left:.6em;font-size:.8em"></span></span>
+<div style="display:flex;gap:6px;flex-wrap:wrap">
+<button class="btn-sm" onclick="styReset()">↺ ORIGINAL</button>
+<button class="btn-sm btn-blu" onclick="addEpisodes()">📜 QUEUE EPISODES</button>
+<button class="btn-sm btn-grn" onclick="stySave()">💾 SAVE CHANGES</button>
+</div>
+</div>
+<div id="d-st-status" style="font-size:.65em;margin-bottom:.6em;min-height:1.2em"></div>
+<div id="d-story-body"></div>
+</div>
+
 <div class="dpage" id="dp-runs"><div class="g4" id="d-rs" style="margin-bottom:12px"></div><div class="panel" id="d-rl"></div></div>
 
 <div class="dpage" id="dp-logs"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="ptitle" style="margin:0">SYSTEM LOGS</span><span id="d-lc" style="font-size:.65em;color:var(--txtd)"></span></div><div class="logp" id="d-la"></div></div>
@@ -411,6 +425,7 @@ body{overflow:auto}
 <button style="padding:.4em .7em;background:var(--amblo);border:1px solid var(--bd);color:var(--amb);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('pipeline',document.querySelectorAll('.bnav-i')[0])">⚡ PIPELINE</button>
 <button style="padding:.4em .7em;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('topics',document.querySelectorAll('.bnav-i')[0])">✦ TOPICS</button>
 <button style="padding:.4em .7em;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('scenes',document.querySelectorAll('.bnav-i')[0])">◈ SCENES</button>
+<button style="padding:.4em .7em;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('story',document.querySelectorAll('.bnav-i')[0])">📜 STORY</button>
 <button style="padding:.4em .7em;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('runs',document.querySelectorAll('.bnav-i')[0])">◈ RUNS</button>
 </div>
 <button id="m-verse-btn" onclick="runNow(null,true)" style="width:100%;padding:.6em;margin-bottom:8px;background:rgba(160,120,224,.08);border:1px solid rgba(160,120,224,.2);color:#a078e0;font-family:var(--f1);font-size:.55em;font-weight:600;letter-spacing:.1em;min-height:2.5em">📖 VERSE OF THE DAY</button>
@@ -455,6 +470,19 @@ body{overflow:auto}
 <div id="m-sc-empty" style="display:none;font-size:.6em;color:var(--txtd);border:1px dashed var(--bd2);padding:.8em;margin-bottom:.6em;text-align:center">No scene pack yet for this brand — build one below and save.</div>
 <div id="m-sc-status" style="font-size:.6em;margin-bottom:.5em;min-height:1.2em"></div>
 <div id="m-scenes-body"></div>
+</div>
+
+<div class="mpage" id="mp-story">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7em;flex-wrap:wrap;gap:8px">
+<span class="ptitle" style="margin:0">THE LAST WATCH <span id="m-st-src" style="margin-left:.6em;font-size:.8em"></span></span>
+<div style="display:flex;gap:6px;flex-wrap:wrap">
+<button class="btn-sm" onclick="styReset()">↺ ORIGINAL</button>
+<button class="btn-sm btn-blu" onclick="addEpisodes()">📜 QUEUE EPISODES</button>
+<button class="btn-sm btn-grn" onclick="stySave()">💾 SAVE</button>
+</div>
+</div>
+<div id="m-st-status" style="font-size:.65em;margin-bottom:.6em;min-height:1.2em"></div>
+<div id="m-story-body"></div>
 </div>
 
 <div class="mpage" id="mp-runs"><div class="g4m" id="m-rs"></div><div class="panel" id="m-rl"></div></div>
@@ -538,7 +566,7 @@ let stOpen={};
 const IMG_MODELS={replicate:[{v:"google/nano-banana-2",l:"Nano Banana 2"},{v:"google/nano-banana-pro",l:"Nano Banana Pro"},{v:"google/nano-banana",l:"Nano Banana"},{v:"openai/gpt-image-1.5",l:"GPT Image 1.5"},{v:"xai/grok-imagine-image",l:"Grok Aurora"},{v:"bytedance/seedream-5",l:"Seedream 5"},{v:"bytedance/seedream-4.5",l:"Seedream 4.5"},{v:"black-forest-labs/flux-2-pro",l:"Flux 2 Pro"},{v:"black-forest-labs/flux-1.1-pro",l:"Flux 1.1 Pro"},{v:"black-forest-labs/flux-schnell",l:"Flux Schnell"},{v:"black-forest-labs/flux-dev",l:"Flux Dev"},{v:"ideogram-ai/ideogram-v3-quality",l:"Ideogram v3 Q"},{v:"ideogram-ai/ideogram-v3-turbo",l:"Ideogram v3 T"},{v:"recraft-ai/recraft-v4.1",l:"Recraft V4.1"},{v:"recraft-ai/recraft-v3",l:"Recraft v3"},{v:"stability-ai/stable-diffusion-3.5-large",l:"SD 3.5 L"},{v:"google/imagen-4",l:"Imagen 4"}]};
 const VID_MODELS={replicate:[{v:"bytedance/seedance-2.0",l:"Seedance 2.0"},{v:"bytedance/seedance-1-pro",l:"Seedance Pro"},{v:"bytedance/seedance-1-lite",l:"Seedance Lite"},{v:"kwaivgi/kling-v3-video",l:"Kling v3.0"},{v:"minimax/hailuo-2.3",l:"Hailuo 2.3"},{v:"google/veo-3.1",l:"Veo 3.1"},{v:"luma/ray-3.2",l:"Luma Ray 3.2"},{v:"luma/ray-2-720p",l:"Luma Ray 2"},{v:"luma/ray-flash-2-720p",l:"Luma Flash"},{v:"wan-video/wan-2.5-i2v",l:"Wan 2.5"},{v:"wavespeedai/wan-2.1-i2v-480p",l:"Wan 2.1 480p"},{v:"wavespeedai/wan-2.1-i2v-720p",l:"Wan 2.1 720p"},{v:"xai/grok-imagine-video",l:"Grok Video"},{v:"minimax/video-01-live",l:"Minimax Live"},{v:"minimax/video-01",l:"Minimax v01"}]};
 const SVCS=[{n:"OPENAI",d:"GPT-4o + Whisper",k:"openai"},{n:"REPLICATE",d:"Image + Video",k:"replicate"},{n:"ELEVENLABS",d:"Voice Synthesis",k:"elevenlabs"},{n:"SHOTSTACK",d:"Video Render",k:"shotstack"},{n:"R2",d:"Asset Storage",k:"r2"},{n:"BLOTATO",d:"Publishing",k:"blotato"}];
-const titles={pipeline:'⚡ PIPELINE MONITOR',topics:'✦ TOPIC DATABASE',scenes:'◈ SCENE ENGINE',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ SETTINGS',health:'◎ SYSTEM STATUS'};
+const titles={pipeline:'⚡ PIPELINE MONITOR',topics:'✦ TOPIC DATABASE',scenes:'◈ SCENE ENGINE',story:'📜 THE LAST WATCH',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ SETTINGS',health:'◎ SYSTEM STATUS'};
 
 /* THEME */
 function toggleTheme(){const on=document.documentElement.classList.toggle('light');localStorage.setItem('kr-theme',on?'light':'dark');updThemeBtn();}
@@ -550,8 +578,8 @@ async function go(){const p=$('pw').value;if(!p){$('le').style.display='block';r
 async function autoLogin(){const t=sessionStorage.getItem('kt');if(!t)return;try{const r=await(await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})})).json();if(r.ok){$('L').style.display='none';$('A').classList.remove('hd');init();}}catch(e){}}
 
 /* NAV */
-function dNav(p,btn){document.querySelectorAll('.dpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));$('dp-'+p).classList.add('on');if(btn)btn.classList.add('on');$('d-title').textContent=titles[p]||p;if(p==='topics')loadTopics();if(p==='scenes')loadScenesEditor();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();if(p==='channels')loadChannels();}
-function mNav(p,btn){document.querySelectorAll('.mpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.bnav-i').forEach(b=>b.classList.remove('on'));$('mp-'+p).classList.add('on');if(btn)btn.classList.add('on');if(p==='topics')loadTopics();if(p==='scenes')loadScenesEditor();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();}
+function dNav(p,btn){document.querySelectorAll('.dpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.sb-i').forEach(b=>b.classList.remove('on'));$('dp-'+p).classList.add('on');if(btn)btn.classList.add('on');$('d-title').textContent=titles[p]||p;if(p==='topics')loadTopics();if(p==='scenes')loadScenesEditor();if(p==='story')loadStory();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();if(p==='channels')loadChannels();}
+function mNav(p,btn){document.querySelectorAll('.mpage').forEach(e=>e.classList.remove('on'));document.querySelectorAll('.bnav-i').forEach(b=>b.classList.remove('on'));$('mp-'+p).classList.add('on');if(btn)btn.classList.add('on');if(p==='topics')loadTopics();if(p==='scenes')loadScenesEditor();if(p==='story')loadStory();if(p==='runs')loadRuns();if(p==='logs')loadLogs();if(p==='preview')rPv();if(p==='health')rH();if(p==='settings')rH();}
 
 /* ═══ GATE BANNERS ═══ */
 function rGate(){
@@ -1656,6 +1684,109 @@ async function scSave(){
     scStatus('✓ Saved — '+(SC_DATA.stories||[]).length+' stories, '+(SC_DATA.figures||[]).length+' figures',true);
     if(typeof loadSceneData==='function')loadSceneData();
   }catch(e){scStatus('Save failed: '+e,false);}
+}
+
+/* ═══ STORY (The Last Watch) ═══ */
+// The saga every video lives in. Places are edited as a list and saved back
+// as a name → description map; episodes keep their numbers (S1E03…) so topics
+// already queued from them pick up these edits.
+const styEsc=v=>escHtml(String(v??'')).replace(/"/g,'&quot;');
+let STORY=null,STORY_PLACES=[],STORY_SRC='original',STORY_FIGS=[],STORY_CATS=[],STORY_EP=null;
+const styOpen={world:true,places:false,cast:false,eps:true};
+async function loadStory(){
+  try{
+    const r=await(await fetch('/api/story')).json();
+    STORY=r.story||{};STORY_SRC=r.source||'original';STORY_FIGS=r.figures||[];STORY_CATS=r.categories||[];
+    STORY.cast=STORY.cast||[];STORY.seasons=STORY.seasons||[];
+    STORY_PLACES=Object.entries(STORY.places||{}).map(([name,desc])=>({name,desc}));
+    renderStory();
+  }catch(e){styStatus('Could not load the story: '+e,false);}
+}
+function styStatus(msg,ok){
+  const html=msg?`<span style="color:${ok?'var(--grn)':'var(--red)'}">${msg}</span>`:'';
+  ['d-st-status','m-st-status'].forEach(id=>{if($(id))$(id).innerHTML=html;});
+  if(msg&&ok)setTimeout(()=>['d-st-status','m-st-status'].forEach(id=>{if($(id))$(id).innerHTML='';}),3500);
+}
+function styT(k){styOpen[k]=!styOpen[k];renderStory();}
+// path like "story.cast.0.name" or "places.2.desc"
+function stySet(path,val){
+  const keys=path.split('.');let o={story:STORY,places:STORY_PLACES};
+  for(const k of keys.slice(0,-1))o=o[/^\d+$/.test(k)?+k:k];
+  o[keys[keys.length-1]]=val;
+}
+const styIn=(path,val,ph)=>`<input class="fin" value="${styEsc(val||'')}" placeholder="${ph||''}" oninput="stySet('${path}',this.value)">`;
+const styTA=(path,val,rows,ph)=>`<textarea class="fin sc-ta" rows="${rows||2}" placeholder="${ph||''}" oninput="scGrow(this);stySet('${path}',this.value)">${styEsc(val||'')}</textarea>`;
+const stySel=(path,val,opts,re)=>`<select class="fin" onchange="stySet('${path}',this.value)${re?';renderStory()':''}">${(val&&!opts.includes(val)?[val]:[]).concat(opts).map(o=>`<option${o===val?' selected':''}>${styEsc(o)}</option>`).join('')}</select>`;
+const styF=(label,inner)=>`<div style="margin-bottom:.6em"><div class="fl">${label}</div>${inner}</div>`;
+const stySec=(key,title,body)=>`<div class="sec"><div class="sec-h" onclick="styT('${key}')"><span class="sec-t">${title}</span><span class="sec-a">${styOpen[key]?'▾':'▸'}</span></div><div class="sec-b sc-sec${styOpen[key]?'':' shut'}">${body}</div></div>`;
+const styCard=inner=>`<div style="border:1px solid var(--bd2);border-radius:var(--r);padding:.8em;margin-bottom:.7em;background:var(--bg)">${inner}</div>`;
+function renderStory(){
+  if(!STORY)return;
+  const src=STORY_SRC==='saved'?'<span style="color:var(--grn)">● YOUR EDITS</span>':'<span style="color:var(--txtd)">● ORIGINAL</span>';
+  ['d-st-src','m-st-src'].forEach(id=>{if($(id))$(id).innerHTML=src;});
+  const knights=STORY.cast.map(c=>c.figure).filter(Boolean);
+  const places=STORY_PLACES.map(p=>p.name).filter(Boolean);
+  let h=`<div style="font-size:.6em;color:var(--txtd);line-height:1.6;margin-bottom:.8em">The world every video lives in. The scene writer films in these places with these knights; episodes become topics with <b style="color:var(--wht)">📜 QUEUE EPISODES</b> and run in order. Edits here also apply to episodes already queued. The knights' looks (armor, cape, photo) are set in the Scenes tab.</div>`;
+  h+=stySec('world','THE WORLD',
+    styF('Saga title',styIn('story.title',STORY.title))+styF('Tagline',styIn('story.tagline',STORY.tagline))+
+    styF('The world (what the AI is told about this universe)',styTA('story.world',STORY.world,5))+
+    styF('Director\'s look (light, textures, colors)',styTA('story.look',STORY.look,4))+
+    styF('Motifs (recurring symbols)',styTA('story.motifs',STORY.motifs,2))+
+    styF('Supporting characters',styTA('story.supporting',STORY.supporting,3)));
+  h+=stySec('places',`PLACES (${STORY_PLACES.length})`,
+    STORY_PLACES.map((p,i)=>styCard(styF('Place',styIn(`places.${i}.name`,p.name,'e.g. The Forge'))+styTA(`places.${i}.desc`,p.desc,2,'What it looks like')+
+      `<button class="btn-sm btn-red" style="margin-top:.4em" onclick="STORY_PLACES.splice(${i},1);renderStory()">✕ REMOVE</button>`)).join('')+
+    `<button class="btn-sm btn-grn" onclick="STORY_PLACES.push({name:'',desc:''});renderStory()">+ ADD PLACE</button>`);
+  h+=stySec('cast',`THE KNIGHTS (${STORY.cast.length})`,
+    STORY.cast.map((c,i)=>styCard(
+      `<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 .8em">${styF('Cast look (from Scenes)',stySel(`story.cast.${i}.figure`,c.figure,STORY_FIGS,true))}${styF('Name',styIn(`story.cast.${i}.name`,c.name,'Ser …'))}</div>`+
+      styF('Signature object (shown in his scenes)',styIn(`story.cast.${i}.object`,c.object))+
+      styF('Who he is',styTA(`story.cast.${i}.who`,c.who,2))+styF('His wound',styTA(`story.cast.${i}.wound`,c.wound,2))+
+      styF('His battle',styIn(`story.cast.${i}.battle`,c.battle))+styF('His arc',styTA(`story.cast.${i}.arc`,c.arc,2))+
+      `<button class="btn-sm btn-red" onclick="STORY.cast.splice(${i},1);renderStory()">✕ REMOVE KNIGHT</button>`)).join('')+
+    `<button class="btn-sm btn-grn" onclick="STORY.cast.push({figure:STORY_FIGS[0]||'',name:'',object:'',who:'',wound:'',battle:'',arc:''});renderStory()">+ ADD KNIGHT</button>`);
+  let eps='';
+  STORY.seasons.forEach((se,si)=>{
+    se.episodes=se.episodes||[];
+    eps+=`<div style="margin-bottom:1em"><div style="display:grid;grid-template-columns:auto 1fr;gap:.6em;align-items:center;margin-bottom:.5em"><span style="font-family:var(--f1);font-size:.7em;color:var(--amb);letter-spacing:.12em">SEASON ${se.number}</span>${styIn(`story.seasons.${si}.title`,se.title,'Season title')}</div>`;
+    se.episodes.forEach((ep,ei)=>{
+      const code=`S${se.number}E${String(ep.number).padStart(2,'0')}`,open=STORY_EP===code;
+      eps+=`<div style="border:1px solid var(--bd2);border-radius:var(--r);margin-bottom:.4em;background:var(--bg)">
+        <div onclick="STORY_EP=${open?'null':`'${code}'`};renderStory()" style="cursor:pointer;padding:.6em .8em;font-size:.7em;display:flex;gap:.6em;align-items:baseline"><span style="color:var(--amb);font-family:var(--f1)">${code}</span><span style="color:var(--wht);flex:1">${styEsc(ep.title||'Untitled')}</span><span style="color:var(--txtd)">${styEsc(ep.knight||'')}</span><span style="color:var(--txtd)">${open?'▾':'▸'}</span></div>
+        ${open?`<div style="padding:0 .8em .8em">
+          ${styF('Title',styIn(`story.seasons.${si}.episodes.${ei}.title`,ep.title))}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 .8em">${styF('Knight',stySel(`story.seasons.${si}.episodes.${ei}.knight`,ep.knight,knights,true))}${styF('Place',stySel(`story.seasons.${si}.episodes.${ei}.place`,ep.place,places))}</div>
+          ${styF('The moment we film',styTA(`story.seasons.${si}.episodes.${ei}.moment`,ep.moment,3))}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 .8em">${styF('Season &amp; light',styIn(`story.seasons.${si}.episodes.${ei}.weather`,ep.weather,'e.g. first snow at dawn'))}${styF('The battle (lesson)',styIn(`story.seasons.${si}.episodes.${ei}.battle`,ep.battle))}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 .8em">${styF('Scripture',styIn(`story.seasons.${si}.episodes.${ei}.scripture`,ep.scripture,'e.g. James 1:19'))}${styF('Category',stySel(`story.seasons.${si}.episodes.${ei}.category`,ep.category,STORY_CATS))}</div>
+          <button class="btn-sm btn-red" onclick="if(confirm('Remove ${code}?')){STORY.seasons[${si}].episodes.splice(${ei},1);STORY_EP=null;renderStory()}">✕ REMOVE EPISODE</button>
+        </div>`:''}</div>`;
+    });
+    eps+=`<button class="btn-sm btn-grn" onclick="styAddEpisode(${si})">+ ADD EPISODE</button></div>`;
+  });
+  eps+=`<button class="btn-sm" onclick="STORY.seasons.push({number:Math.max(0,...STORY.seasons.map(s=>+s.number||0))+1,title:'',episodes:[]});renderStory()">+ ADD SEASON</button>`;
+  h+=stySec('eps',`EPISODES (${STORY.seasons.reduce((n,s)=>n+(s.episodes||[]).length,0)})`,eps);
+  ['d-story-body','m-story-body'].forEach(id=>{if($(id))$(id).innerHTML=h;});
+  scGrowAll();
+}
+function styAddEpisode(si){
+  const se=STORY.seasons[si],n=Math.max(0,...se.episodes.map(e=>+e.number||0))+1;
+  se.episodes.push({number:n,title:'',knight:(STORY.cast[0]||{}).figure||'',place:Object.keys(STORY.places||{})[0]||(STORY_PLACES[0]||{}).name||'',weather:'',moment:'',battle:'',scripture:'',category:STORY_CATS[0]||''});
+  STORY_EP=`S${se.number}E${String(n).padStart(2,'0')}`;renderStory();
+}
+async function stySave(){
+  const places={};STORY_PLACES.forEach(p=>{if(p.name.trim())places[p.name.trim()]=p.desc||'';});
+  try{
+    const r=await fetch('/api/story',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...STORY,places})});
+    if(!r.ok){const e=await r.json().catch(()=>({}));styStatus('✗ '+(e.error||'Save failed'),false);return;}
+    STORY_SRC='saved';STORY.places=places;renderStory();
+    styStatus('✓ Saved — new videos use this story',true);
+  }catch(e){styStatus('✗ Save failed: '+e,false);}
+}
+async function styReset(){
+  if(!confirm('Throw away your story edits and go back to the original story?'))return;
+  await fetch('/api/story/reset',{method:'POST'});
+  await loadStory();styStatus('✓ Back to the original story',true);
 }
 
 /* ═══ INIT ═══ */
