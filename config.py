@@ -9,6 +9,10 @@ log = logging.getLogger("knights")
 
 DATA_DIR = Path("/var/data") if Path("/var/data").exists() else Path(__file__).parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
+# All app data (settings, topics, runs, checkpoint, scenes) lives here — the
+# brands/knights/ layout from when the app ran several brands.
+BRAND_DIR = DATA_DIR / "brands" / "knights"
+BRAND_DIR.mkdir(parents=True, exist_ok=True)
 
 def env(key, default=""):
     return os.environ.get(key, default)

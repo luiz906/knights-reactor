@@ -6,7 +6,7 @@ Phases: Topic → Script → Voice → Transcribe (+ split into beats) → Scene
 """
 import os, json, time, re, base64
 
-from config import Config, DATA_DIR, log
+from config import Config, DATA_DIR, BRAND_DIR, log
 
 # Phase functions
 from phases.topics import fetch_topic, update_topic
@@ -39,7 +39,6 @@ PIPELINE_VERSION = 2
 
 
 def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
-                 manual_clips: list = None, manual_voiceover: str = None,
                  verse_mode: bool = False) -> dict:
     """Execute the full pipeline with checkpoint/resume and approval gates.
 
@@ -55,20 +54,12 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
 
     resume_from: phase index to resume from (0 = start fresh).
     topic_id: specific topic ID to use (None = next available).
-    manual_clips: video URLs to use instead of AI generation (skips 4-6).
-    manual_voiceover: voiceover audio URL. With manual_clips this skips all AI
-                      generation; Whisper transcribes it and GPT derives the
-                      topic/captions from the transcript.
     verse_mode: Verse of the Day — topic and script come straight from a real
                 KJV verse (no GPT script); everything after is unchanged.
 
-    Checkpoints are saved after each phase to <brand dir>/pipeline_checkpoint.json.
+    Checkpoints are saved after each phase to <BRAND_DIR>/pipeline_checkpoint.json.
     """
-    _brands_dir = DATA_DIR / "brands"
-    _ab_file = DATA_DIR / "active_brand.txt"
-    _brand = _ab_file.read_text().strip() if _ab_file.exists() else "knights"
-    _bd = _brands_dir / _brand; _bd.mkdir(exist_ok=True)
-    CHECKPOINT_FILE = str(_bd / "pipeline_checkpoint.json")
+    CHECKPOINT_FILE = str(BRAND_DIR / "pipeline_checkpoint.json")
     start = time.time()
     result = {"status": "running", "phases": [], "error": None}
 
@@ -85,14 +76,6 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
             return {"status": "failed", "phases": [],
                     "error": "This run was started before the app was updated and can't be resumed. "
                              "Press Cancel / Reset, then start a new run."}
-
-    # Manual inputs live in the checkpoint so a resumed run (which is started
-    # without them) still uses them — they're consumed only after the voice step.
-    if resume_from <= 0:
-        ckpt.update({"manual_clips": manual_clips, "manual_voiceover": manual_voiceover})
-    manual_clips = manual_clips or ckpt.get("manual_clips")
-    manual_voiceover = manual_voiceover or ckpt.get("manual_voiceover")
-    full_manual = bool(manual_clips and manual_voiceover)
 
     def save_checkpoint(phase_idx, data):
         ckpt.update(data)
@@ -119,13 +102,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
 
     try:
         # ── Phase 0: Fetch topic ────────────────────────────────
-        if full_manual and resume_from <= 0:
-            # Topic is derived from the voiceover transcript in phase 3.
-            notify(0, "Fetch Topic", "running")
-            topic = {"id": f"manual_{int(time.time())}", "idea": "Manual Upload", "category": "Manual", "scripture": ""}
-            save_checkpoint(0, {"topic": topic})
-            done(0, "Fetch Topic", "skipped")
-        elif verse_mode and resume_from <= 0:
+        if verse_mode and resume_from <= 0:
             notify(0, "Fetch Topic", "running")
             topic = build_verse_topic()
             save_checkpoint(0, {"topic": topic})
@@ -142,13 +119,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
         result["topic"] = topic
 
         # ── Phase 1: Script ─────────────────────────────────────
-        if full_manual and resume_from <= 1:
-            # Replaced with the real transcript in phase 3.
-            notify(1, "Generate Script", "running")
-            script = {"hook": "", "build": "", "reveal": "", "command": "", "script_full": "", "tone": "manual"}
-            save_checkpoint(1, {"script": script})
-            done(1, "Generate Script", "skipped")
-        elif resume_from <= 1:
+        if resume_from <= 1:
             notify(1, "Generate Script", "running")
             script = build_verse_script(topic) if verse_mode else generate_script(topic)
             save_checkpoint(1, {"script": script})
@@ -161,14 +132,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
         # ── Phase 2: Voiceover ──────────────────────────────────
         if resume_from <= 2:
             notify(2, "Voiceover", "running")
-            if manual_voiceover:
-                log.info(f"🔊 Using manual voiceover: {manual_voiceover[:80]}...")
-                import requests as rq
-                vo_r = rq.get(manual_voiceover, timeout=120, allow_redirects=True)
-                vo_r.raise_for_status()
-                audio = vo_r.content
-            else:
-                audio = generate_voiceover(script)
+            audio = generate_voiceover(script)
             save_checkpoint(2, {"audio_b64": base64.b64encode(audio).decode()})
             done(2, "Voiceover")
         else:
@@ -185,10 +149,6 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
                 audio_duration = transcription["words"][-1].get("end", 0)
             log.info(f"   ⏱️  Audio duration: {audio_duration:.1f}s")
 
-            if full_manual and transcription.get("text"):
-                topic, script = _derive_from_transcript(transcription["text"], topic, script)
-                result["topic"], result["script"] = topic, script
-
             beats = build_beats(transcription, Config.VIDEO_MODEL, Config.IMAGE_MODEL)
             plan = _plan(beats, script)
             log.info(f"   🎬 {len(beats)} scenes, cut at the narration's sentences: " +
@@ -199,78 +159,60 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
             done(3, "Transcribe")
         else:
             transcription = ckpt["transcription"]
-            audio_duration = ckpt.get("audio_duration") or transcription.get("duration", 0)
             beats = ckpt.get("beats") or build_beats(transcription, Config.VIDEO_MODEL, Config.IMAGE_MODEL)
             plan = ckpt.get("plan") or _plan(beats, script)
             done(3, "Transcribe")
-        if not manual_clips:   # uploaded clips: nothing generated, nothing to estimate
-            result["plan"] = plan
+        result["plan"] = plan
 
-        # ── Phases 4-6: scenes, images, videos ─────────────────
-        if manual_clips and resume_from <= 6:
-            log.info(f"📦 Manual mode: {len(manual_clips)} clips provided, skipping phases 4-6")
-            clips = [{"index": i + 1, "image_prompt": "manual upload", "motion_prompt": "manual upload",
-                      "image_url": "", "video_url": url} for i, url in enumerate(manual_clips)]
-            for ph_idx, ph_name in [(4, "Scene Engine"), (5, "Generate Images"), (6, "Generate Videos")]:
-                notify(ph_idx, ph_name, "running")
-                done(ph_idx, ph_name, "skipped")
-            save_checkpoint(6, {"clips_with_videos": clips, "manual_mode": True})
-
-        elif ckpt.get("manual_mode") and resume_from > 6:
-            clips = ckpt["clips_with_videos"]
-            for ph_idx, ph_name in [(4, "Scene Engine"), (5, "Generate Images"), (6, "Generate Videos")]:
-                done(ph_idx, ph_name, "skipped")
-
-        else:
-            # ── Phase 4: Scene engine ──────────────────────────
-            if resume_from <= 4:
-                notify(4, "Scene Engine", "running")
-                clips = scene_engine(script, topic, beats)
-                save_checkpoint(4, {"clips": clips})
-                done(4, "Scene Engine")
-
-                # ═══ GATE: Prompt editing ═══
-                result.update({"status": "awaiting_prompt_approval", "gate": "prompts", "gate_phase": 5,
-                               "clips": clips})
-                log.info("⏸️  Gate: awaiting prompt approval — edit prompts then resume")
-                return result
-            clips = ckpt.get("clips_edited") or ckpt.get("clips")
+        # ── Phase 4: Scene engine ──────────────────────────
+        if resume_from <= 4:
+            notify(4, "Scene Engine", "running")
+            clips = scene_engine(script, topic, beats)
+            save_checkpoint(4, {"clips": clips})
             done(4, "Scene Engine")
 
-            # ── Phase 5: Images ────────────────────────────────
-            if resume_from <= 5:
-                notify(5, "Generate Images", "running")
-                clips = ckpt.get("clips_with_images") if resume_from == 5 and ckpt.get("clips_with_images") else generate_images(clips)
-                result["images"] = [{"index": c["index"], "url": c["image_url"], "prompt": c.get("image_prompt", "")} for c in clips]
-                save_checkpoint(5, {"clips_with_images": clips})
-                done(5, "Generate Images")
+            # ═══ GATE: Prompt editing ═══
+            result.update({"status": "awaiting_prompt_approval", "gate": "prompts", "gate_phase": 5,
+                           "clips": clips})
+            log.info("⏸️  Gate: awaiting prompt approval — edit prompts then resume")
+            return result
+        clips = ckpt.get("clips_edited") or ckpt.get("clips")
+        done(4, "Scene Engine")
 
-                # ═══ GATE: Image approval ═══
-                # The images are the first frame of every video clip, so a bad
-                # one is cheaper to fix here than after video generation.
-                result.update({"status": "awaiting_image_approval", "gate": "images", "gate_phase": 6,
-                               "clips": clips})
-                log.info("⏸️  Gate: awaiting image approval — review/regenerate images then resume")
-                return result
-            clips = ckpt.get("clips_images_approved") or ckpt.get("clips_with_images")
+        # ── Phase 5: Images ────────────────────────────────
+        if resume_from <= 5:
+            notify(5, "Generate Images", "running")
+            clips = ckpt.get("clips_with_images") if resume_from == 5 and ckpt.get("clips_with_images") else generate_images(clips)
             result["images"] = [{"index": c["index"], "url": c["image_url"], "prompt": c.get("image_prompt", "")} for c in clips]
+            save_checkpoint(5, {"clips_with_images": clips})
             done(5, "Generate Images")
 
-            # ── Phase 6: Videos ────────────────────────────────
-            if resume_from <= 6:
-                notify(6, "Generate Videos", "running")
-                clips = ckpt.get("clips_with_videos") if resume_from == 6 and ckpt.get("clips_with_videos") else generate_videos(clips)
-                result["videos"] = [{"index": c["index"], "url": c["video_url"]} for c in clips]
-                save_checkpoint(6, {"clips_with_videos": clips})
-                done(6, "Generate Videos")
+            # ═══ GATE: Image approval ═══
+            # The images are the first frame of every video clip, so a bad
+            # one is cheaper to fix here than after video generation.
+            result.update({"status": "awaiting_image_approval", "gate": "images", "gate_phase": 6,
+                           "clips": clips})
+            log.info("⏸️  Gate: awaiting image approval — review/regenerate images then resume")
+            return result
+        clips = ckpt.get("clips_images_approved") or ckpt.get("clips_with_images")
+        result["images"] = [{"index": c["index"], "url": c["image_url"], "prompt": c.get("image_prompt", "")} for c in clips]
+        done(5, "Generate Images")
 
-                # ═══ GATE: Video approval ═══
-                result.update({"status": "awaiting_video_approval", "gate": "videos", "gate_phase": 7,
-                               "clips": clips})
-                log.info("⏸️  Gate: awaiting video approval — review clips then resume")
-                return result
-            clips = ckpt.get("clips_approved") or ckpt.get("clips_with_videos")
+        # ── Phase 6: Videos ────────────────────────────────
+        if resume_from <= 6:
+            notify(6, "Generate Videos", "running")
+            clips = ckpt.get("clips_with_videos") if resume_from == 6 and ckpt.get("clips_with_videos") else generate_videos(clips)
+            result["videos"] = [{"index": c["index"], "url": c["video_url"]} for c in clips]
+            save_checkpoint(6, {"clips_with_videos": clips})
             done(6, "Generate Videos")
+
+            # ═══ GATE: Video approval ═══
+            result.update({"status": "awaiting_video_approval", "gate": "videos", "gate_phase": 7,
+                           "clips": clips})
+            log.info("⏸️  Gate: awaiting video approval — review clips then resume")
+            return result
+        clips = ckpt.get("clips_approved") or ckpt.get("clips_with_videos")
+        done(6, "Generate Videos")
         result["videos"] = [{"index": c["index"], "url": c["video_url"]} for c in clips]
 
         # ── Phase 7: Upload to R2 ──────────────────────────────
@@ -290,7 +232,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
         if resume_from <= 8:
             notify(8, "Final Render", "running")
             _fix_webm_clips(clips)
-            final_url = render_video(clips, urls["voiceover"], urls["srt"], audio_duration=audio_duration)
+            final_url = render_video(clips, urls["voiceover"], urls["srt"])
             final_r2_url = upload_to_r2(folder, "final.mp4", final_url, "video/mp4")
             save_checkpoint(8, {"final_r2_url": final_r2_url})
             done(8, "Final Render")
@@ -344,47 +286,12 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
 
 def _plan(beats: list, script: dict) -> dict:
     """Length, clip count and rough cost of this run, for the dashboard. The
-    word counts let the next-video estimate learn the brand's real pace."""
+    word counts let the next-video estimate learn the narrator's real pace."""
     cta = Config.CTA_DURATION if (Config.CTA_ENABLED and Config.CTA_URL) else 0
     plan = video_plan(beats, Config.VIDEO_MODEL, Config.IMAGE_MODEL, cta)
     plan["script_words"] = len((script.get("script_full") or "").split())
     plan["target_words"] = int(Config.SCRIPT_WORDS)
     return plan
-
-
-def _derive_from_transcript(transcript_text: str, topic: dict, script: dict):
-    """Full-manual mode: derive a topic title/category/scripture from the
-    voiceover transcript, and use the transcript as the script."""
-    log.info(f"🧠 Deriving topic from transcript ({len(transcript_text)} chars)...")
-    import requests as rq
-    derive_prompt = f"""Listen to this voiceover transcript and extract:
-1. A short topic/title (5-10 words) that describes what this is about
-2. A category from this list: Shocking Revelations, Behind-the-Scenes, Myths Debunked, Deep Dive Analysis, Shocking Reveal
-3. Any scripture reference mentioned (or "none")
-
-Transcript: "{transcript_text}"
-
-Return JSON only:
-{{"idea": "short topic title", "category": "category name", "scripture": "verse or none"}}"""
-    try:
-        dr = rq.post("https://api.openai.com/v1/chat/completions", headers={
-            "Authorization": f"Bearer {Config.OPENAI_KEY}", "Content-Type": "application/json",
-        }, json={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": derive_prompt}],
-                 "temperature": 0.3, "max_tokens": 200}, timeout=30)
-        dr.raise_for_status()
-        raw = dr.json()["choices"][0]["message"]["content"]
-        raw = re.sub(r'^```json\s*\n?', '', raw, flags=re.IGNORECASE)
-        raw = re.sub(r'\n?```\s*$', '', raw).strip()
-        derived = json.loads(raw)
-        topic["idea"] = derived.get("idea", topic["idea"])
-        topic["category"] = derived.get("category", topic["category"])
-        topic["scripture"] = derived.get("scripture", "")
-        log.info(f"   Derived topic: {topic['idea']} [{topic['category']}]")
-    except Exception as e:
-        log.warning(f"   Topic derivation failed: {e}, using transcript as title")
-        topic["idea"] = transcript_text[:80]
-    script["script_full"] = transcript_text
-    return topic, script
 
 
 def _fix_webm_clips(clips: list):

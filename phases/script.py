@@ -6,18 +6,6 @@ import requests
 from config import Config, log
 
 
-def _active_brand_name() -> str:
-    """Get the active brand id — used to scope the hardcoded knight defaults
-    (persona, voice, themes, category framing) to the 'knights' brand only.
-    Any other brand gets brand-neutral fallbacks instead of inheriting
-    Knights' biblical/military voice by accident."""
-    try:
-        from server import get_active_brand
-        return get_active_brand()
-    except Exception:
-        return "knights"
-
-
 # Note: this used to say "Wears the Armor of God (Ephesians 6) symbolically"
 # — that explicit verse citation, appearing in EVERY script prompt regardless
 # of topic, was why nearly every generated script quoted Ephesians 6 no
@@ -34,39 +22,6 @@ KNIGHTS_PERSONA = (
     "- Wears the Armor of God symbolically\n"
     "- Unwavering allegiance: Christ is King"
 )
-GENERIC_PERSONA = (
-    "A confident, knowledgeable expert:\n"
-    "- Direct, practical, trustworthy\n"
-    "- Not salesy, not preachy—clear and helpful\n"
-    "- Focused on real results for the viewer\n"
-    "- Speaks plainly, backs claims with specifics"
-)
-KNIGHTS_VOICE = (
-    "- Low, controlled, resonant\n"
-    "- Calm intensity; authoritative without shouting\n"
-    "- Short, declarative sentences\n"
-    "- Measured pacing\n"
-    "- Dark, mysterious presence—disciplined resolve\n"
-    "- Masculine and grounded\n"
-    "- NO hype. NO motivational fluff."
-)
-GENERIC_VOICE = (
-    "- Clear, confident, easy to follow\n"
-    "- Short, declarative sentences\n"
-    "- Measured pacing\n"
-    "- Grounded and credible\n"
-    "- NO hype. NO motivational fluff."
-)
-KNIGHTS_THEMES = (
-    "Address real daily battles: Finances, family leadership, temptation, fatigue, doubt, lust, anger, responsibility, endurance, obedience.\n\n"
-    "Core themes: Discipline over comfort. Duty over desire. Endurance over escape. Faith over fear. Action over emotion."
-)
-GENERIC_THEMES = (
-    "Address a real, specific problem the viewer is dealing with right now.\n\n"
-    "Core themes: Clarity over confusion. Action over hesitation. Results over excuses."
-)
-KNIGHTS_AVOID = "Warmth or sentimentality, soft encouragement, modern slang, politics, long scripture quotations, hashtags."
-GENERIC_AVOID = "Vague generalities, corporate jargon, modern slang, politics, hashtags."
 
 CATEGORY_CONFIG = {
     "Shocking Revelations": {
@@ -96,36 +51,6 @@ CATEGORY_CONFIG = {
     },
 }
 
-# Brand-neutral equivalent of CATEGORY_CONFIG — used for every brand except
-# "knights", so a non-faith brand doesn't get military/scripture framing
-# baked into its hook/tone/angle regardless of its own persona settings.
-GENERIC_CATEGORY_CONFIG = {
-    "Shocking Revelations": {
-        "hook_patterns": ["Direct: 'Most people miss this until it's too late.'", "Challenge: 'You're closer to this problem than you think.'"],
-        "tone": "urgent, attention-grabbing",
-        "angle": "expose a problem most people are overlooking",
-    },
-    "Shocking Reveal": {
-        "hook_patterns": ["Direct: 'Here's what nobody tells you.'", "Challenge: 'The fix is simpler than you think — why aren't you doing it?'"],
-        "tone": "confident, no-nonsense",
-        "angle": "call viewers to take immediate action",
-    },
-    "Behind-the-Scenes": {
-        "hook_patterns": ["Direct: 'This is what actually happens behind the scenes.'", "Challenge: 'Nobody sees the work before the result.'"],
-        "tone": "raw, insider perspective",
-        "angle": "show the hidden day-to-day reality",
-    },
-    "Myths Debunked": {
-        "hook_patterns": ["Direct: 'Everything you've heard about this is wrong.'", "Challenge: 'That common advice? It's costing you.'"],
-        "tone": "myth-breaking, direct challenge",
-        "angle": "correct a widely-believed misconception",
-    },
-    "Deep Dive Analysis": {
-        "hook_patterns": ["Direct: 'Look closer — the real answer is easy to miss.'", "Challenge: 'A surface glance won't cut it here.'"],
-        "tone": "thoughtful, focused",
-        "angle": "unpack the topic in depth",
-    },
-}
 
 
 def render_script_prompt(template: str, topic_idea: str, category: str, angle: str, scripture: str = "") -> str:
@@ -158,43 +83,29 @@ def build_script_prompt():
 
 
 def default_script_prompt():
-    """Build the script prompt dynamically from Config values and brand persona.
-    Falls back to the Knights persona/voice/themes/structure only for the
-    'knights' brand — any other brand gets brand-neutral fallbacks so an
-    unrelated business (e.g. a home-services brand) doesn't inherit
-    biblical/military framing it never asked for."""
+    """Build the script prompt from Config values and the brand persona
+    (Settings), falling back to the built-in Knights persona/voice/themes."""
     words = int(Config.SCRIPT_WORDS)
     secs = round(words / 3)
     low = max(words - 10, 20)
     high = words + 10
-    is_knights = _active_brand_name() == "knights"
 
-    # Brand persona (from settings) or brand-appropriate defaults
-    persona = getattr(Config, 'BRAND_PERSONA', '') or (KNIGHTS_PERSONA if is_knights else GENERIC_PERSONA)
-    voice = getattr(Config, 'BRAND_VOICE', '') or (KNIGHTS_VOICE if is_knights else GENERIC_VOICE)
-    themes = getattr(Config, 'BRAND_THEMES', '') or (KNIGHTS_THEMES if is_knights else GENERIC_THEMES)
-    avoid = getattr(Config, 'BRAND_AVOID', '') or (KNIGHTS_AVOID if is_knights else GENERIC_AVOID)
+    # Brand persona (from settings) or the built-in Knights defaults
+    persona = getattr(Config, 'BRAND_PERSONA', '') or KNIGHTS_PERSONA
+    voice = getattr(Config, 'BRAND_VOICE', '') or KNIGHTS_VOICE
+    themes = getattr(Config, 'BRAND_THEMES', '') or KNIGHTS_THEMES
+    avoid = getattr(Config, 'BRAND_AVOID', '') or KNIGHTS_AVOID
 
-    # The structure section below is worded around Knights' military/scripture
-    # framing — genericize it for every other brand regardless of persona,
-    # since these lines are baked into the template, not sourced from Config.
-    if is_knights:
-        build_line = "Name the specific battle. The real struggle men face daily. Paint the scene with military imagery."
-        # {scripture} is filled per-generation by render_script_prompt() from
-        # THIS topic's own assigned scripture field — naming the exact verse
-        # here (instead of leaving GPT to pick one) is what actually varies
-        # the reference video-to-video instead of it defaulting to whatever
-        # verse happens to be named elsewhere in the prompt.
-        reveal_line = "The truth. Weave in this scripture naturally, in your own words (not a direct quote): {scripture}. Military language. The weapon or shield for this battle."
-        reveal_json_hint = "Scripture truth, NO QUOTES"
-        tone_options = "disciplined|resolute|commanding|unwavering"
-        use_line = "Direct honest practical language, brief scripture references woven naturally, one clear action for today."
-    else:
-        build_line = "Name the specific problem. The real struggle the viewer is dealing with. Paint a vivid, concrete scene."
-        reveal_line = "The insight or solution. Concrete and specific — the thing that actually fixes the problem."
-        reveal_json_hint = "The core insight or solution, NO QUOTES"
-        tone_options = "confident|direct|practical|urgent"
-        use_line = "Direct honest practical language, concrete specifics, one clear action for today."
+    build_line = "Name the specific battle. The real struggle men face daily. Paint the scene with military imagery."
+    # {scripture} is filled per-generation by render_script_prompt() from
+    # THIS topic's own assigned scripture field — naming the exact verse
+    # here (instead of leaving GPT to pick one) is what actually varies
+    # the reference video-to-video instead of it defaulting to whatever
+    # verse happens to be named elsewhere in the prompt.
+    reveal_line = "The truth. Weave in this scripture naturally, in your own words (not a direct quote): {scripture}. Military language. The weapon or shield for this battle."
+    reveal_json_hint = "Scripture truth, NO QUOTES"
+    tone_options = "disciplined|resolute|commanding|unwavering"
+    use_line = "Direct honest practical language, brief scripture references woven naturally, one clear action for today."
 
     return f"""## ⚠️ WORD COUNT: ~{words} WORDS ⚠️
 
@@ -266,8 +177,7 @@ def generate_script(topic: dict) -> dict:
     log.info(f"📝 Phase 2: Generating script via {Config.SCRIPT_MODEL} | Words: {Config.SCRIPT_WORDS} | ~{round(int(Config.SCRIPT_WORDS)/3)}s")
 
     cat = topic["category"]
-    cfg_source = CATEGORY_CONFIG if _active_brand_name() == "knights" else GENERIC_CATEGORY_CONFIG
-    config = cfg_source.get(cat, list(cfg_source.values())[0])
+    config = CATEGORY_CONFIG.get(cat, list(CATEGORY_CONFIG.values())[0])
     angle = config["angle"]
 
     prompt = render_script_prompt(build_script_prompt(), topic["idea"], cat, angle, topic.get("scripture", ""))
