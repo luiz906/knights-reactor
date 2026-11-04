@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Knights Reactor — Director Studio</title><link rel="stylesheet" href="/director-studio.css"></head>
+<body>
+<section id="login-screen" class="login card"><div class="eyebrow">KNIGHTS REACTOR · DIRECTOR STUDIO</div><h1>Enter the director's room.</h1><p class="small">Sign in with the same admin password as the existing dashboard.</p><form id="login-form"><label for="password" class="small">ADMIN PASSWORD</label><input type="password" id="password" class="field-input" required autocomplete="current-password"><button class="btn primary" type="submit">ENTER STUDIO</button></form><div id="login-error" class="status bad hidden" role="alert"></div></section>
+<div id="studio" class="layout hidden">
+<aside class="rail"><div class="logo"><span class="logomark">✝</span><span>KNIGHTS<br>REACTOR<span class="sublogo">DIRECTOR STUDIO</span></span></div>
+<div class="nav-label">YOUR WORKSPACE</div>
+<button class="nav-btn on" data-view="create"><span class="nicon">◈</span>Create</button>
+<button class="nav-btn" data-view="library"><span class="nicon">▣</span>Library</button>
+<button class="nav-btn" data-view="productions"><span class="nicon">↶</span>Productions</button>
+<div class="nav-label">SYSTEM</div>
+<button class="nav-btn" data-view="setup"><span class="nicon">⚙</span>Setup</button>
+<div class="navtip">Built on the original Director Studio design.<br><br>Connected to your current production engine. Paid generation and social publishing require deliberate confirmation.</div>
+</aside>
+<div class="content"><header class="top"><div class="eyebrow" id="header-caption">CREATE / DIRECTOR STUDIO</div><div class="topright"><span class="dot" id="system-dot"></span><span id="system-label">CONNECTING</span> · CHRIST IS KING</div></header>
+<main class="main">
+<section id="view-create">
+<div class="heading"><div><div class="eyebrow">FROM IDEA TO CINEMATIC FILM</div><h1>Direct the story before generating.</h1><p>One creative brief, purposeful shots, clear reviews, and an intentional sound mix.</p></div>
+<div class="actions"><button class="btn minor" id="refresh-all">↻ REFRESH</button><button class="btn primary" id="start-run">▶ START PRODUCTION</button></div></div>
+<div class="dashboard"><aside class="reference card">
+<div class="picture" id="reference-picture"><span class="no-image">♜</span><div class="stamp" id="reference-stamp">CAST REFERENCE</div></div>
+<div class="referencetxt"><div class="small">PRIMARY CHARACTER</div><select id="knight-select" class="select"></select><h2 id="knight-name">Knight cast</h2><div id="knight-desc" class="small"></div>
+<div class="metricrow"><div class="metric"><strong id="metric-shots">—</strong><span>SHOTS</span></div><div class="metric"><strong id="metric-secs">—</strong><span>RUNTIME</span></div><div class="metric"><strong id="metric-cost">—</strong><span>EST. COST</span></div></div>
+<p class="small">Actual scene lengths follow the narration; model limits determine feasible cuts. Estimates exclude some provider charges.</p>
+<div id="production-state" class="status warn">No production active</div></div></aside>
+<div class="workflow"><div class="steps">
+<button class="step active" data-tab="story"><span class="num">01</span>STORY DIRECTOR</button>
+<button class="step" data-tab="continuity"><span class="num">02</span>VISUAL CONTINUITY</button>
+<button class="step" data-tab="timeline"><span class="num">03</span>AUDIO &amp; TIMELINE</button></div>
+<section id="story-panel" class="card panel">
+<div class="minibar"><div><div class="eyebrow">01 / STORY DIRECTOR</div><h2>Give the film one clear purpose.</h2></div><span class="tag">CREATIVE BRIEF</span></div>
+<p class="panelintro">Define the story and its visual meaning. Existing Topics and Series episodes feed the same AI director.</p>
+<div class="grid2">
+<div class="field"><label for="production-mode">STORY FORMAT</label><select id="production-mode"><option value="standalone">Standalone film</option><option value="series">Series episode · The Last Watch</option></select></div>
+<div class="field"><label for="topic-select">NEXT SCRIPT / TOPIC</label><select id="topic-select"></select></div>
+<div class="field"><label for="duration-target">TARGET NARRATION LENGTH</label><select id="duration-target"><option value="0">Existing custom length</option><option value="15">15 seconds — Quick message</option><option value="30">30 seconds — Standard short</option><option value="60">60 seconds — Cinematic story</option></select></div>
+<div class="field"><label for="scene-pacing">SCENE PACING</label><select id="scene-pacing"><option value="auto">Automatic — Natural cuts</option><option value="slow">Slow & cinematic</option><option value="dynamic">Dynamic — Faster cuts</option><option value="manual">Manual clip target</option></select></div></div>
+<div id="manual-clips-row" class="field hidden" style="margin-top:12px"><label for="target-clips">TARGET CLIP COUNT · <span id="target-clips-label">6</span></label><input id="target-clips" type="range" min="2" max="12" step="1"><p class="small">If the requested count is impossible with real narration or the model, the planner selects the nearest feasible count.</p></div>
+<div class="field" style="margin-top:14px"><label for="creative-brief">THE DIRECTOR'S BRIEF</label><textarea id="creative-brief" class="inputarea" rows="5" placeholder="What is the character's goal? What stands in the way? What does the choice cost? What should the viewer understand without narration?"></textarea></div>
+<div class="buttonbar"><button class="btn" id="save-brief">SAVE DIRECTION</button><button class="btn" id="preview-script">✎ PREVIEW SCRIPT (AI)</button><button class="btn primary" data-next="continuity">REVIEW SHOTS →</button></div>
+<div id="plan-status" class="status warn" style="margin-top:15px">Loading scene and cost estimates…</div>
+<div id="script-preview" class="field hidden" style="margin-top:12px"><label>SCRIPT PREVIEW · NOT SAVED AS A RUN</label><p id="script-preview-text"></p></div>
+</section>
+<section id="continuity-panel" class="card panel hidden">
+<div class="minibar"><div><div class="eyebrow">02 / VISUAL CONTINUITY</div><h2>Approve each shot, not the batch.</h2></div><span class="tag">SHOT REVIEW</span></div>
+<p class="panelintro">Review the exact image and motion prompts generated from your narration, then approve or regenerate individual frames. The reference portrait stays tied to the shot data.</p>
+<div id="gate-message" class="status warn">Start production to generate shot prompts.</div>
+<div id="shot-grid" class="shotgrid"></div>
+<div class="buttonbar"><button class="btn" data-next="story">← STORY</button><button class="btn primary" id="approve-stage" disabled>APPROVE &amp; CONTINUE →</button></div>
+<div class="note" style="margin-top:16px">Prompt approval starts paid image generation. Image approval starts paid video generation. Video approval proceeds to rendering and may publish automatically under the existing pipeline configuration.</div>
+</section>
+<section id="timeline-panel" class="card panel hidden">
+<div class="minibar"><div><div class="eyebrow">03 / AUDIO &amp; TIMELINE</div><h2>Three intentional audio layers.</h2></div><span class="tag">FINAL MIX</span></div>
+<p class="panelintro">The engine creates a continuous voiceover, an optional instrumental score and optional original video-source sound. Automatic speech ducking is not yet implemented.</p>
+<div class="track"><div class="trackname">VIDEO SHOTS</div><div class="trackbar" id="video-track"><div class="segment video">VIDEO</div></div></div>
+<div class="track"><div class="trackname">NARRATION</div><div class="trackbar"><div class="segment narration">ELEVENLABS · VOICEOVER</div></div></div>
+<div class="track"><div class="trackname">MUSIC</div><div class="trackbar"><div class="segment music">INSTRUMENTAL · OPTIONAL</div></div></div>
+<div class="track"><div class="trackname">CLIP AUDIO</div><div class="trackbar"><div class="segment sfx">SFX · OPTIONAL</div></div></div><div class="thin"></div>
+<div class="controlrow"><label for="music-enabled"><input type="checkbox" id="music-enabled"> Generate an instrumental soundtrack</label><span class="small">Paid ElevenLabs generation</span></div>
+<div class="field"><label for="music-style">MUSIC DIRECTION</label><textarea id="music-style" rows="3" class="inputarea" placeholder="Dark orchestral, intimate emotional resolution"></textarea></div>
+<div class="controlrow"><label for="sfx-enabled"><input type="checkbox" id="sfx-enabled"> Include video source audio</label><span class="small">Only after checking for unintended speech/music</span></div>
+<div class="controlrow"><label for="music-volume">MUSIC VOLUME</label><input id="music-volume" type="range" min="0" max="100" step="1"><strong id="music-value">18%</strong></div>
+<div class="callout">Shotstack uses fixed track volume settings in the current engine. Real automatic music ducking would require a separate implementation; this control does not claim to do it.</div>
+<div class="buttonbar"><button class="btn" data-next="continuity">← SHOT REVIEW</button><button class="btn" id="save-audio">SAVE AUDIO DIRECTION</button></div>
+<div id="final-media" class="hidden" style="margin-top:15px"><video controls playsinline style="width:100%;max-height:480px"></video><p><a id="final-download" target="_blank" rel="noopener">Open final render</a></p></div>
+</section>
+<div class="foot">DIRECTOR STUDIO · EXISTING GENERATION API · PAY-PER-GENERATION STEPS REQUIRE CONFIRMATION</div>
+</div></div></section>
+<section id="view-library" class="hidden">
+<div class="heading"><div><div class="eyebrow">VISUAL LIBRARY</div><h1>Cast and series, one library.</h1><p>Shared visual identity lives in Visual Director; The Last Watch defines ongoing episodes.</p></div><div class="actions"><button class="btn" id="queue-episodes">QUEUE SERIES EPISODES</button><a class="btn minor" href="/">OPEN CLASSIC EDITOR ↗</a></div></div>
+<div class="grid2"><div class="card panel"><h2>Cast & references</h2><p class="small">Current reference images and character descriptions from the saved scene pack.</p><div id="cast-list" class="stack"></div></div><div class="card panel"><h2>The Last Watch</h2><div id="series-library"></div><p class="small">Full editing of episodes and cast lore remains in the Classic Editor while this interface is reviewed.</p></div></div>
+</section>
+<section id="view-productions" class="hidden"><div class="heading"><div><div class="eyebrow">PRODUCTION ARCHIVE</div><h1>Finished films and current work.</h1><p>Review the current pipeline state and generated media without returning to a technical dashboard.</p></div><div class="actions"><button class="btn" id="refresh-productions">↻ REFRESH</button><a class="btn minor" href="/">CLASSIC RUN HISTORY ↗</a></div></div>
+<div class="card panel"><div id="runs-list" class="stack"></div></div></section>
+<section id="view-setup" class="hidden"><div class="heading"><div><div class="eyebrow">SETUP</div><h1>Only what you need to operate.</h1><p>Technical model choices, integrations, publishing accounts and raw template controls remain available in the Classic Editor while the new Studio is tested.</p></div><a class="btn minor" href="/">OPEN TECHNICAL SETUP ↗</a></div><div id="connections" class="grid3"></div><p class="callout" style="margin-top:16px">Before production use, the administrative API requires server-side authentication hardening. The current app's login screen is not by itself a secure API boundary.</p></section>
+</main></div></div>
+<dialog id="confirm-dialog" class="dialog"><h2 id="confirm-title">Confirm action</h2><p id="confirm-text" class="small"></p><div class="buttonbar"><button class="btn" id="confirm-no">CANCEL</button><button class="btn primary" id="confirm-yes">CONFIRM</button></div></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="/director-studio.js" defer></script></body></html>
