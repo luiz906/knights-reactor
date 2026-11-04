@@ -492,13 +492,13 @@ MOOD LOOKS available for this brand (name: look):
 CAMERA STYLE setting: {camera_style or 'steady'}
 MOVEMENT INTENSITY setting: {intensity_style or 'measured'}
 
-STEP 1 — CONCEPT. Find the ONE specific idea this script is about and show it LITERALLY with a concrete visual metaphor built from the script's own words and objects, so a viewer with the sound off could guess the message. Level of specificity wanted (illustrations only, invent your own): {guide['examples']}.
+STEP 1 — DIRECTOR'S INTENT. Establish the protagonist's goal, the visible obstacle, the personal cost, and the irreversible final choice. Find ONE specific idea in the script and show it LITERALLY with a concrete visual metaphor built from its own words and objects, so a viewer with the sound off can understand the stakes. The final shot must reveal the protagonist's actual decision, not a generic heroic pose. Level of specificity wanted (illustrations only, invent your own): {guide['examples']}.
 Do NOT use stock shots: {guide['stock']}. Choose one specific location and time of day for the whole video.
 
 STEP 2 — SHOTS. The video cuts exactly when the narration moves to its next line. There is one shot per line below, and each shot is on screen for exactly the seconds shown while that line is being spoken:
 {timeline}
 
-Write exactly {clip_count} shots, in this order. Each shot must SHOW what its own line is saying at that moment, while all shots play as ONE continuous scene in the concept's location — the same character, place, light, and time of day carried from shot to shot, with each shot picking up where the previous one left off. Every shot shows a DIFFERENT clearly visible action. Vary the framing — wide, medium, and close-up on a meaningful detail ({guide['detail']}) — and never use the same framing twice in a row.
+Write exactly {clip_count} shots, in this order. Each shot must SHOW what its own line is saying at that moment. Tell ONE coherent story with consistent character, location, weather and lighting, but each clip is independently generated: do not require the final frame or body position of the preceding shot. Use deliberate editorial cuts between separately composed establishing views, revealing details and consequential actions. Each shot shows a DIFFERENT, clearly readable action or discovery; do not repeat filler or walking shots. Vary the framing — wide, medium and a close-up of a meaningful detail ({guide['detail']}) — and never use the same framing twice in a row. Each clip's IMAGE prompt must depict the starting pose BEFORE its action, not an image of an action already completed.
 
 IMAGE PROMPT rules (one paragraph, 60-110 words, natural sentences):
 - Start with the character description exactly as given, then what he/she is doing.
@@ -511,6 +511,7 @@ MOTION PROMPT rules (one paragraph, 30-60 words):
 - How the camera moves, what the character does during the clip, and what else moves in the frame.
 - Keep the motion small enough to happen within that shot's seconds — one action, not a sequence.
 - Follow the CAMERA STYLE and MOVEMENT INTENSITY settings above, and never contradict yourself (don't say "slow" and "dynamic" together).
+- Include only one achievable physical action in each shot. Video-generation clips must have no speech, voiceover, dialogue, soundtrack, song, or score. If the video model generates audio, request only natural diegetic sound effects tied to visible actions (armor, wind, rain, footsteps). Never add music or vocals.
 - End with: 9:16 vertical.
 
 Return ONLY a JSON object:
@@ -564,6 +565,8 @@ Return ONLY a JSON object:
             ip += " 9:16 vertical."
         if "9:16" not in mp:
             mp += " 9:16 vertical."
+        # Preserve narration/music separation even when the language model omits the rule.
+        mp += " Only natural scene sound effects if supported. No music, singing, dialogue or narration."
         out.append({"image_prompt": ip, "motion_prompt": mp})
 
     mood = data.get("mood") if data.get("mood") in mood_options else pick(mood_options)
@@ -627,6 +630,11 @@ def scene_engine(script: dict, topic: dict, beats: list = None) -> list:
 
     figure = figure_obj["desc"]
     figure_ref = figure_obj.get("ref_image", "")
+    if getattr(Config, "SCENE_REF_REQUIRED", False):
+        if not figure_ref:
+            raise RuntimeError("Character reference required: upload a cast reference image in Scenes before generation")
+        if not figure_supports_reference(Config.IMAGE_MODEL):
+            raise RuntimeError("Character reference required: selected image model does not support reference images")
     # His signature object from the story bible goes into every description,
     # so it shows up the same way in every shot.
     profile = cast_profile(figure_obj.get("name", ""))
@@ -734,6 +742,7 @@ def scene_engine(script: dict, topic: dict, beats: list = None) -> list:
                                                 clip['composition'], clip['lighting'], clip['atmosphere'], img_suffix)
             motion_prompt = render_motion_prompt(mot_template, clip['camera'], clip['subject'],
                                                   clip['ambient'], clip['pace'], tech_suffix)
+            motion_prompt += " Natural diegetic sound effects only if supported; no music, singing, dialogue or narration."
         clip_out = {
             "index": i + 1,
             "image_prompt": image_prompt,
