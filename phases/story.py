@@ -105,6 +105,11 @@ How to use it: the scenes show this moment. Open the narration inside it (you ma
 def scene_story_block(topic: dict, figure_name: str) -> str:
     """Scene-writer context: the world's look and places, the knight's
     profile, and — for an episode — the exact moment to film."""
+    # Standalone films do not inherit the serialized world or series character arcs.
+    # Only episode topics receive The Last Watch bible.
+    ep = current_episode(topic)
+    if not ep or not ep.get("code"):
+        return ""
     story = load_story()
     if not story:
         return ""
