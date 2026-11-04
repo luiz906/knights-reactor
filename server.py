@@ -97,6 +97,24 @@ def apply_model_settings():
     if s.get("scene_figure"):   Config.SCENE_FIGURE = s["scene_figure"]
     if "scene_ai_enabled" in s: Config.SCENE_AI_ENABLED = s["scene_ai_enabled"] in (True, "true", "True")
     if "research_enabled" in s: Config.RESEARCH_ENABLED = s["research_enabled"] in (True, "true", "True")
+    # Director: require a cast reference for character-driven AI scenes.
+    if "scene_ref_required" in s:
+        Config.SCENE_REF_REQUIRED = s["scene_ref_required"] in (True, "true", "True")
+    # Audio options are deliberately off by default for backward compatibility.
+    if "music_enabled" in s:
+        Config.MUSIC_ENABLED = s["music_enabled"] in (True, "true", "True")
+    if s.get("music_model"): Config.MUSIC_MODEL = s["music_model"]
+    if "music_style" in s: Config.MUSIC_STYLE = str(s["music_style"])[:1000]
+    if "music_prompt_override" in s:
+        Config.MUSIC_PROMPT_OVERRIDE = str(s["music_prompt_override"])[:4100]
+    for key, attr in (("music_volume", "MUSIC_VOLUME"),
+                      ("sfx_volume", "SFX_VOLUME"),
+                      ("voice_volume", "VOICE_VOLUME")):
+        if key in s:
+            try: setattr(Config, attr, min(1.0, max(0.0, float(s[key]))))
+            except (ValueError, TypeError): pass
+    if "sfx_enabled" in s:
+        Config.SFX_ENABLED = s["sfx_enabled"] in (True, "true", "True")
     # Voice
     if s.get("voice_model"):    Config.VOICE_MODEL = s["voice_model"]
     if s.get("voice_stability"):Config.VOICE_STABILITY = float(s["voice_stability"])
