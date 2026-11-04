@@ -40,7 +40,8 @@ PIPELINE_VERSION = 2
 
 
 def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
-                 verse_mode: bool = False, production_mode: str = None) -> dict:
+                 verse_mode: bool = False, production_mode: str = None,
+                 approved_script: dict = None) -> dict:
     """Execute the full pipeline with checkpoint/resume and approval gates.
 
     Phase order (v2): the voiceover is recorded right after the script, so
@@ -123,7 +124,9 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
         # ── Phase 1: Script ─────────────────────────────────────
         if resume_from <= 1:
             notify(1, "Generate Script", "running")
-            script = build_verse_script(topic) if verse_mode else generate_script(topic)
+            # Film development and production must use the same approved screenplay.
+            script = (build_verse_script(topic) if verse_mode else
+                      approved_script if approved_script is not None else generate_script(topic))
             save_checkpoint(1, {"script": script})
             done(1, "Generate Script")
         else:

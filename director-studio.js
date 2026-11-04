@@ -4,7 +4,7 @@
 "use strict";
 const $=id=>document.getElementById(id);
 const state={settings:{},topics:[],scenePack:{},story:null,runs:[],plan:null,status:null,
-  gate:null,clips:[],runTopic:null,activeTab:"story",mode:"standalone",busy:false,initialized:false};
+  gate:null,clips:[],runTopic:null,draft:null,approvedDraft:null,activeTab:"story",mode:"standalone",busy:false,initialized:false};
 const saveKeys=["creative_direction","video_length_target","scene_pacing","target_clips","scene_figure",
   "music_enabled","music_style","music_volume","sfx_enabled"];
 const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -25,6 +25,22 @@ function confirmAction(title,description){
     const accepted=()=>finish(true),declined=()=>finish(false),cancelled=e=>{e.preventDefault();finish(false);};
     yes.addEventListener("click",accepted);no.addEventListener("click",declined);dialog.addEventListener("cancel",cancelled);dialog.showModal();
   });
+}
+function invalidateDraft(){
+  state.draft=null;
+  state.approvedDraft=null;
+  $("script-preview").classList.add("hidden");
+  $("approve-screenplay").disabled=true;
+  $("screenplay-status").textContent="Story changed. Preview and approve again.";
+}
+function approveScreenplay(){
+  if(!state.draft?.script?.film_blueprint)return toast("Generate the screenplay preview first.",true);
+  const selected=selectedTopic();
+  if(selected && selected.id!==state.draft.topic?.id)return toast("The topic changed. Preview again.",true);
+  state.approvedDraft=state.draft;
+  $("approve-screenplay").disabled=true;
+  $("screenplay-status").textContent="Approved · Production will use this exact screenplay";
+  toast("Screenplay approved. Start production when ready.");
 }
 function showView(view){
   for(const name of ["create","library","productions","setup"]) $("view-"+name).classList.toggle("hidden",name!==view);
@@ -210,14 +226,17 @@ async function startProduction(){
   if(state.status?.running||state.gate)return toast("Finish or cancel the current run in Classic Editor first",true);
   collectFields();
   const topic=selectedTopic();
-  if(!state.topics.some(t=>t.status==="new"&&(state.mode==="series"?isSeries(t):!isSeries(t))))return toast("No new topics in this mode. Add or queue one first.",true);
+  const draft=state.approvedDraft;
+  if(!draft?.script?.film_blueprint)return toast("Preview and approve the screenplay before starting production.",true);
+  if(topic && draft.topic?.id!==topic.id)return toast("Approved screenplay belongs to a different topic. Preview again.",true);
+  if(!state.topics.some(t=>t.id===draft.topic?.id&&t.status==="new"&&(state.mode==="series"?isSeries(t):!isSeries(t))))return toast("The approved topic is no longer available.",true);
   if(!await confirmAction("Start paid production?",
-    "This will generate a script, narration, scene prompts and then pause for approval. Later approval gates trigger paid images/videos. The existing final phase may auto-publish when approved."))return;
+    "This will USE YOUR APPROVED SCREENPLAY without rewriting it, generate narration and shot prompts, and pause for review. Later approvals can incur media costs or auto-publish."))return;
   state.busy=true;renderState();
   try{
     await saveDirection(true);
-    const data=await post("/api/run",{production_mode:state.mode,...(topic?{topic_id:topic.id}:{})});
-    toast("Production started. Waiting for the storyboard gate.");
+    const data=await post("/api/run",{production_mode:state.mode,topic_id:draft.topic.id,approved_script:draft.script});
+    toast("Approved screenplay sent to production. Waiting for the shot review gate.");
     state.status={running:true,phase_name:"Starting",result:null};renderState();
     poll();
   }catch(e){toast("Could not start production: "+e.message,true);}
@@ -287,6 +306,10 @@ async function previewScript(){
         '</p><small>What changes: '+esc(beat.change||"")+'</small></div></div>').join("")+
       '<p class="small"><strong>Final choice:</strong> '+esc(film.final_choice||"")+'</p>':
       '<p class="small">No film blueprint returned; this is a legacy script.</p>';
+    state.draft=out;
+    state.approvedDraft=null;
+    $("approve-screenplay").disabled=false;
+    $("screenplay-status").textContent="Review the story, then approve the screenplay.";
     $("script-preview-text").textContent=out.script.script_full||"No text";
     $("script-preview").classList.remove("hidden");
     toast("Script preview generated.");
@@ -321,8 +344,11 @@ function bindEvents(){
   document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>showView(b.dataset.view)));
   document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>showTab(b.dataset.tab)));
   document.querySelectorAll("[data-next]").forEach(b=>b.addEventListener("click",()=>showTab(b.dataset.next)));
-  $("production-mode").addEventListener("change",e=>{state.mode=e.target.value;renderTopics();});
-  $("knight-select").addEventListener("change",()=>{collectFields();renderCast();});
+  $("production-mode").addEventListener("change",e=>{invalidateDraft();state.mode=e.target.value;renderTopics();});
+  $("knight-select").addEventListener("change",()=>{invalidateDraft();collectFields();renderCast();});
+  $("topic-select").addEventListener("change",invalidateDraft);
+  for(const id of ["story-goal","story-conflict","story-choice","creative-brief","duration-target"])
+    $(id).addEventListener("input",invalidateDraft);
   $("scene-pacing").addEventListener("change",()=>{$("manual-clips-row").classList.toggle("hidden",$("scene-pacing").value!=="manual");});
   $("target-clips").addEventListener("input",()=>{$("target-clips-label").textContent=$("target-clips").value;});
   $("music-volume").addEventListener("input",()=>{$("music-value").textContent=$("music-volume").value+"%";});
@@ -344,6 +370,7 @@ function bindEvents(){
   $("save-audio").addEventListener("click",()=>saveDirection().catch(e=>toast(e.message,true)));
   $("start-run").addEventListener("click",startProduction);
   $("preview-script").addEventListener("click",previewScript);
+  $("approve-screenplay").addEventListener("click",approveScreenplay);
   $("approve-stage").addEventListener("click",advanceGate);
   $("shot-grid").addEventListener("click",e=>{
     const image=e.target.closest("[data-regen-image]");
