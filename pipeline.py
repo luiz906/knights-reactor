@@ -17,6 +17,7 @@ from phases.media import generate_images, generate_image_single, generate_videos
 from phases.render import get_s3_client, upload_to_r2, upload_assets, create_srt, render_video
 from phases.publish import generate_captions, publish_everywhere
 from phases.timing import build_beats, video_plan
+from phases.music import generate_music
 
 # Re-export for server.py imports
 from phases.topics import (
@@ -215,12 +216,25 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
         done(6, "Generate Videos")
         result["videos"] = [{"index": c["index"], "url": c["video_url"]} for c in clips]
 
+        # ── Optional soundtrack — after video approval; preserve on resume ──
+        # Voice determines exact scene timing. Music is one separate instrumental
+        # file and can be skipped without changing the 11 existing phase indices.
+        music = None
+        if getattr(Config, "MUSIC_ENABLED", False):
+            if ckpt.get("music_b64"):
+                music = base64.b64decode(ckpt["music_b64"])
+            else:
+                duration = max(float(c["start"]) + float(c["length"]) for c in clips)
+                music = generate_music(script, clips, duration)
+                save_checkpoint(6, {"music_b64": base64.b64encode(music).decode()})
+            result["music_size"] = len(music)
+
         # ── Phase 7: Upload to R2 ──────────────────────────────
         if resume_from <= 7:
             notify(7, "Upload Assets", "running")
             folder = re.sub(r'[^a-zA-Z0-9_-]', '_', f"{topic['id']}_{topic['idea'][:30]}")
             srt = create_srt(script["script_full"], transcription)
-            urls = upload_assets(folder, clips, audio, srt)
+            urls = upload_assets(folder, clips, audio, srt, music=music)
             save_checkpoint(7, {"folder": folder, "urls": urls, "clips_uploaded": clips})
             done(7, "Upload Assets")
         else:
@@ -232,7 +246,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
         if resume_from <= 8:
             notify(8, "Final Render", "running")
             _fix_webm_clips(clips)
-            final_url = render_video(clips, urls["voiceover"], urls["srt"])
+            final_url = render_video(clips, urls["voiceover"], urls["srt"], music_url=urls.get("music") if getattr(Config, "MUSIC_ENABLED", False) else None)
             final_r2_url = upload_to_r2(folder, "final.mp4", final_url, "video/mp4")
             save_checkpoint(8, {"final_r2_url": final_r2_url})
             done(8, "Final Render")

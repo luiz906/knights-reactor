@@ -71,7 +71,7 @@ def upload_to_r2(folder: str, filename: str, data, content_type: str) -> str:
     return url
 
 
-def upload_assets(folder: str, clips: list, audio: bytes, srt: str) -> dict:
+def upload_assets(folder: str, clips: list, audio: bytes, srt: str, music: bytes = None) -> dict:
     """Upload all assets to R2."""
     log.info("☁️  Phase 8: Uploading assets to R2...")
 
@@ -85,6 +85,10 @@ def upload_assets(folder: str, clips: list, audio: bytes, srt: str) -> dict:
 
     urls["voiceover"] = upload_to_r2(folder, "voiceover.mp3", audio, "audio/mpeg")
     log.info("   voiceover.mp3 ✓")
+
+    if music is not None:
+        urls["music"] = upload_to_r2(folder, "music.mp3", music, "audio/mpeg")
+        log.info("   music.mp3 ✓")
 
     urls["srt"] = upload_to_r2(folder, "subtitles.srt", srt, "text/plain")
     log.info("   subtitles.srt ✓")
@@ -218,7 +222,7 @@ def _probe_duration(ss_base: str, url: str):
     return None
 
 
-def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
+def render_video(clips: list, voiceover_url: str, srt_url: str, music_url: str = None) -> str:
     """Render final video via Shotstack. Returns download URL. Each clip
     carries its scene timing (start/length) from the narration."""
     ss_env = getattr(Config, 'SHOTSTACK_ENV', 'v1')
@@ -230,7 +234,10 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
     # Pipeline scenes carry their narration timing (phases/timing.py): each one
     # sits exactly under the line being spoken and cuts when the line changes.
     for clip in clips:
-        asset = {"type": "video", "src": clip["r2_url"], "volume": 0, "transcode": True}
+        # Video sound is muted by default: AI outputs may contain speech or music.
+        # Enable only after reviewing clips for isolated diegetic sound effects.
+        clip_vol = float(getattr(Config, "SFX_VOLUME", 0.25)) if getattr(Config, "SFX_ENABLED", False) else 0.0
+        asset = {"type": "video", "src": clip["r2_url"], "volume": max(0.0, min(1.0, clip_vol)), "transcode": True}
         length = round(float(clip["length"]), 3)
         # A clip shorter than its scene would freeze on its last frame —
         # play it slightly slower instead so it fills the scene.
@@ -365,11 +372,20 @@ def render_video(clips: list, voiceover_url: str, srt_url: str) -> str:
     # Video clips
     tracks.append({"clips": video_clips})
 
-    # Audio
+    # Audio: independent tracks allow the narrator to remain intelligible.
+    narration_end = round(float(clips[-1]["start"]) + float(clips[-1]["length"]), 3)
+    voice_vol = max(0.0, min(1.0, float(getattr(Config, "VOICE_VOLUME", 1.0))))
     tracks.append({"clips": [{
-        "asset": {"type": "audio", "src": voiceover_url},
-        "start": 0, "length": total_dur,
+        "asset": {"type": "audio", "src": voiceover_url, "volume": voice_vol},
+        "start": 0, "length": narration_end,
     }]})
+    if music_url:
+        music_vol = max(0.0, min(1.0, float(getattr(Config, "MUSIC_VOLUME", 0.18))))
+        tracks.append({"clips": [{
+            "asset": {"type": "audio", "src": music_url, "volume": music_vol, "effect": "fadeInFadeOut"},
+            "start": 0, "length": narration_end,
+        }]})
+        log.info("   Music layer: %.0f%% beneath narration", music_vol * 100)
 
 
     timeline = {
