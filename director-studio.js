@@ -190,6 +190,9 @@ function renderShots(){
   $("shot-grid").innerHTML=state.clips.length?state.clips.map((c,i)=>'<article class="shot">'+
     '<div class="shot-image">'+shotMedia(c)+'</div><div class="shot-bd"><div class="sectionbar"><h3>SHOT '+esc(c.index||i+1)+'</h3><span class="tag">'+esc(c.length?Number(c.length).toFixed(1)+"s":"PLANNED")+'</span></div>'+
     '<div class="small">'+esc(c.scene_source||c.scene_concept||"Narration-aligned shot")+'</div>'+
+    (c.physical_action?'<p class="small"><strong>'+esc((c.screenplay_phase||"").toUpperCase())+' · ON-SCREEN ACTION</strong> '+esc(c.physical_action)+'</p>':"")+
+    (c.camera_direction?'<p class="small"><strong>CAMERA:</strong> '+esc(c.camera_direction)+'</p>':"")+
+    (c.end_state?'<p class="small"><strong>STORY CHANGE:</strong> '+esc(c.end_state)+'</p>':"")+
     '<label class="small" for="shot-image-'+i+'">IMAGE PROMPT</label><textarea class="inputarea" id="shot-image-'+i+'" data-field="image_prompt" data-index="'+i+'" '+(gate==="videos"?"readonly":"")+'>'+esc(c.image_prompt||"")+'</textarea>'+
     '<label class="small" for="shot-motion-'+i+'">MOTION PROMPT</label><textarea class="inputarea" id="shot-motion-'+i+'" data-field="motion_prompt" data-index="'+i+'" '+(gate!=="prompts"?"readonly":"")+'>'+esc(c.motion_prompt||"")+'</textarea>'+
     '<div class="shot-tools">'+(gate==="images"?'<button class="btn tiny" data-regen-image="'+i+'">↻ REGENERATE IMAGE (PAID)</button>':"")+
@@ -272,6 +275,18 @@ async function previewScript(){
     if(!await confirmAction("Generate AI script preview?","This makes a paid AI script/scene call but will not generate image or video media, publish, or consume the topic."))return;
     const out=await post("/api/script-only",{production_mode:state.mode,...(t?{topic_id:t.id}:{})});
     if(!out.script)throw Error(out.error||"No script returned");
+    const film=out.script.film_blueprint;
+    $("film-blueprint-preview").innerHTML=film?
+      '<h3>'+esc(film.title||"Untitled film")+'</h3>'+
+      '<p class="small">'+esc(film.logline||"")+'</p>'+
+      '<p class="small"><strong>Character:</strong> '+esc(film.character?.name||"")+
+      ' · <strong>Goal:</strong> '+esc(film.goal||"")+
+      ' · <strong>Stakes:</strong> '+esc(film.stakes||"")+'</p>'+
+      (film.visual_story||[]).map((beat,i)=>'<div class="beat"><div class="beatnum">'+(i+1)+'</div><div><strong>'+
+        esc((beat.phase||"").toUpperCase())+'</strong><p>'+esc(beat.visible_action||"")+
+        '</p><small>What changes: '+esc(beat.change||"")+'</small></div></div>').join("")+
+      '<p class="small"><strong>Final choice:</strong> '+esc(film.final_choice||"")+'</p>':
+      '<p class="small">No film blueprint returned; this is a legacy script.</p>';
     $("script-preview-text").textContent=out.script.script_full||"No text";
     $("script-preview").classList.remove("hidden");
     toast("Script preview generated.");
