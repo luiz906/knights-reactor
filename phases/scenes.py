@@ -485,6 +485,8 @@ Scripture: {script.get('scripture') or topic.get('scripture') or 'none'}
 
 CHARACTER (must appear in every shot, looking identical): {figure_desc}
 {scene_story_block(topic, figure_name)}
+DIRECTOR BRIEF (follow wherever it fits narration; do not contradict series canon):
+{getattr(Config, "CREATIVE_DIRECTION", "") or "Use the strongest visible conflict, meaningful details and a clear ending."}
 MOOD LOOKS available for this brand (name: look):
 {mood_guide}
 {mood_rule}
