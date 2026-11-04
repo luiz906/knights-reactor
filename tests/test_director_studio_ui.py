@@ -37,10 +37,10 @@ class DirectorStudioTests(unittest.TestCase):
             self.assertIn(path, self.js, path)
 
     def test_no_unmapped_static_dom_ids(self):
-        declared = set(re.findall(r'\\bid="([^"]+)"', self.html))
-        accessed = set(re.findall(r'\\$\\("([^"]+)"\\)', self.js))
+        declared = set(re.findall(r'\bid="([^"]+)"', self.html))
+        accessed = set(re.findall(r'\$\("([^"]+)"\)', self.js))
         self.assertFalse(accessed - declared, accessed - declared)
-        self.assertEqual(len(declared), len(re.findall(r'\\bid="([^"]+)"', self.html)))
+        self.assertEqual(len(declared), len(re.findall(r'\bid="([^"]+)"', self.html)))
 
     def test_live_operations_confirmed(self):
         self.assertIn('confirmAction("Start paid production?"', self.js)
