@@ -84,6 +84,9 @@ function renderTopics(){
     '<div class="stack">'+episodes.slice(0,12).map(ep=>'<div class="field"><strong>'+esc(ep.code||"Episode")+' — '+esc(ep.title||"Untitled")+'</strong><p>'+esc(ep.knight||ep.summary||"")+'</p></div>').join("")+'</div>';
 }
 function syncFields(){
+  $("story-goal").value=state.settings.story_goal||"";
+  $("story-conflict").value=state.settings.story_conflict||"";
+  $("story-choice").value=state.settings.story_choice||"";
   $("creative-brief").value=state.settings.creative_direction||"";
   $("duration-target").value=String(state.settings.video_length_target??"0");
   $("scene-pacing").value=state.settings.scene_pacing||"auto";
@@ -98,6 +101,9 @@ function syncFields(){
 }
 function collectFields(){
   const s=state.settings;
+  s.story_goal=$("story-goal").value.slice(0,700);
+  s.story_conflict=$("story-conflict").value.slice(0,700);
+  s.story_choice=$("story-choice").value.slice(0,700);
   s.creative_direction=$("creative-brief").value.slice(0,3000);
   s.video_length_target=$("duration-target").value;
   s.scene_pacing=$("scene-pacing").value;
