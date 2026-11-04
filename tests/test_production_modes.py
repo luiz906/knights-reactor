@@ -1,5 +1,6 @@
 """Regression tests for standalone versus series topic routing."""
 import unittest
+from unittest.mock import patch
 from phases.topics import _select_topic, peek_next_topic, topic_mode
 
 class ProductionModeTests(unittest.TestCase):
@@ -32,7 +33,7 @@ class ProductionModeTests(unittest.TestCase):
             _select_topic([self.topics[1]],production_mode="series")
 
     def test_preview_has_no_side_effects(self):
-        with unittest.mock.patch("phases.topics.load_topics",return_value=self.topics):
+        with patch("phases.topics.load_topics",return_value=self.topics):
             preview=peek_next_topic(production_mode="series")
         self.assertEqual(preview["id"],"ep1")
         self.assertEqual(self.topics[0]["status"],"new")
