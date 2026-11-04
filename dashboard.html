@@ -648,7 +648,7 @@ async function openImageReview(){
   try{
     const r=await(await fetch('/api/images/review')).json();
     if(!r.clips||!r.clips.length){alert('No images found');return;}
-    let h='<div style="font-family:var(--f1);font-size:.7em;letter-spacing:.15em;color:var(--amb);margin-bottom:.5em;grid-column:1/-1">REVIEW IMAGES — BASE FRAME FOR EACH VIDEO CLIP</div>';
+    let h='<div style="font-family:var(--f1);font-size:.7em;letter-spacing:.15em;color:var(--amb);margin-bottom:.5em;grid-column:1/-1">REVIEW IMAGES — BASE FRAME FOR EACH VIDEO CLIP</div><div class="panel" style="font-size:.7em;color:var(--txtd);line-height:1.6;grid-column:1/-1">VISUAL CONTINUITY CHECK: compare helmet, armor details, crosses, shield design, color palette, character proportions, and lighting across ALL starting images. Regenerate only the mismatched image before approving.</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;grid-column:1/-1">';
     r.clips.forEach(c=>{
       h+=`<div class="clip-review" id="ir-${c.index}">
         <img src="${c.image_url}" style="width:100%;border-radius:var(--r);margin-bottom:.5em;display:block">
@@ -658,7 +658,7 @@ async function openImageReview(){
         <div class="cr-acts" style="margin-top:.4em"><button class="btn-sm btn-red" onclick="regenImage(${c.index})">♻ REGENERATE</button><span id="irs-${c.index}" style="font-size:.6em;color:var(--txtd)"></span></div>
       </div>`;
     });
-    h+=`<div style="display:flex;gap:8px;margin-top:.7em;grid-column:1/-1"><button class="btn-sm btn-grn" onclick="approveAllImages()">APPROVE ALL & CONTINUE ▶</button><button class="btn-sm" onclick="rP()">CANCEL</button></div>`;
+    h+=`</div><div style="display:flex;gap:8px;margin-top:.7em;grid-column:1/-1"><button class="btn-sm btn-grn" onclick="approveAllImages()">APPROVE ALL & CONTINUE ▶</button><button class="btn-sm" onclick="rP()">CANCEL</button></div>`;
     ['d-pl','m-pl'].forEach(id=>{if($(id))$(id).innerHTML=h;});
     scGrowAll();
     ['d-stats'].forEach(id=>{if($(id))$(id).innerHTML='';});
