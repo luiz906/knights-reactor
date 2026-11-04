@@ -380,6 +380,7 @@ body{overflow:auto}
 <div style="display:flex;gap:6px;flex-wrap:wrap">
 <button class="btn-sm" onclick="styReset()">↺ ORIGINAL</button>
 <button class="btn-sm btn-blu" onclick="addEpisodes()">📜 QUEUE EPISODES</button>
+<button class="btn-sm" onclick="goSeriesProduction()">▶ PRODUCE EPISODE</button>
 <button class="btn-sm btn-grn" onclick="stySave()">💾 SAVE CHANGES</button>
 </div>
 </div>
@@ -487,6 +488,7 @@ body{overflow:auto}
 <div style="display:flex;gap:6px;flex-wrap:wrap">
 <button class="btn-sm" onclick="styReset()">↺ ORIGINAL</button>
 <button class="btn-sm btn-blu" onclick="addEpisodes()">📜 QUEUE EPISODES</button>
+<button class="btn-sm" onclick="goSeriesProduction()">▶ PRODUCE EPISODE</button>
 <button class="btn-sm btn-grn" onclick="stySave()">💾 SAVE</button>
 </div>
 </div>
@@ -530,6 +532,25 @@ body{overflow:auto}
 
 <script>
 let RN=false,PH=0,PD=[],ST={},LAST_RESULT=null,GATE=null,SCENE_DATA=null,PLAN_EST=null;
+let PRODUCTION_MODE=localStorage.getItem('kr-production-mode')==='series'?'series':'standalone';
+function setProductionMode(mode){
+  PRODUCTION_MODE=mode==='series'?'series':'standalone';
+  localStorage.setItem('kr-production-mode',PRODUCTION_MODE);
+  ['d-production-mode','m-production-mode'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.value=PRODUCTION_MODE;
+  });
+  document.querySelectorAll('.production-mode-note').forEach(el=>{
+    el.textContent=PRODUCTION_MODE==='series'?
+      'Uses only queued Last Watch episodes with established continuity. Queue episodes from Series first.':
+      'Independent film from regular Topics. Does not consume queued series episodes.';
+  });
+}
+function goSeriesProduction(){
+  setProductionMode('series');
+  if(window.innerWidth>768)dNav('pipeline',null);
+  else mNav('pipeline',null);
+}
+
 const usd=x=>'$'+Number(x||0).toFixed(2);
 // Length, clip count and rough cost of a video (a run's plan, or the
 // next-video estimate from /api/plan-estimate).
@@ -810,13 +831,18 @@ function rP(){
 }
 
 /* ═══ ACTIONS ═══ */
-async function runNow(topicId,verseMode){
+async function runNow(topicId,verseMode,explicitMode){
   if(RN)return;
   const body={};
   if(topicId)body.topic_id=topicId;
   if(verseMode)body.verse_mode=true;
-  await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  RN=true;PH=0;PD=[];GATE=null;rP();poll();
+  else body.production_mode=explicitMode||PRODUCTION_MODE;
+  try{
+    const response=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const data=await response.json();
+    if(!response.ok){alert(data.error||'Could not start production');return;}
+    RN=true;PH=0;PD=[];GATE=null;rP();poll();
+  }catch(e){alert('Could not start production: '+e.message);}
 }
 async function resumeNow(){
   if(RN)return;
@@ -879,7 +905,7 @@ async function poll(){
 async function loadTopics(){
   try{
     const _tr=await(await fetch('/api/topics')).json();const topics=_tr.topics||_tr;
-    const h=topics.length?topics.map(t=>`<div class="topic-row"><div style="flex:1"><div style="font-family:var(--f2);font-size:.85em;font-weight:600;color:var(--wht)">${t.idea}</div><div style="font-size:.55em;color:var(--txtd);margin-top:.05em">${t.category}${t.scripture?' · '+t.scripture:''}</div></div><div style="flex-shrink:0;margin-right:.5em">${TB(t.status||'new')}</div><div style="display:flex;gap:4px"><button class="btn-sm btn-grn" onclick="runNow('${t.id}')" title="Run pipeline with this topic">▶</button><button class="btn-sm btn-red" onclick="deleteTopic('${t.id}')" title="Delete">✕</button></div></div>`).join(''):'<div class="topic-row" style="color:var(--txtd)">No topics — seed defaults or add manually</div>';
+    const h=topics.length?topics.map(t=>`<div class="topic-row"><div style="flex:1"><div style="font-family:var(--f2);font-size:.85em;font-weight:600;color:var(--wht)">${t.idea}</div><div style="font-size:.55em;color:var(--txtd);margin-top:.05em">${t.category}${t.scripture?' · '+t.scripture:''}</div></div><div style="flex-shrink:0;margin-right:.5em">${TB(t.status||'new')}</div><div style="display:flex;gap:4px"><button class="btn-sm btn-grn" onclick="runNow('${t.id}',false,'${(t.episode||{}).code?'series':'standalone'}')" title="Run pipeline with this topic">▶</button><button class="btn-sm btn-red" onclick="deleteTopic('${t.id}')" title="Delete">✕</button></div></div>`).join(''):'<div class="topic-row" style="color:var(--txtd)">No topics — seed defaults or add manually</div>';
     ['d-tl','m-tl'].forEach(id=>{if($(id))$(id).innerHTML=h;});
   }catch(e){console.error('loadTopics:',e);}
 }
@@ -1344,7 +1370,9 @@ async function saveScenePack(){
 }
 
 /* ═══ SCENE ENGINE TAB — plain-text editor (no raw JSON) ═══ */
-let SC_DATA=null, SC_SRC='default', scOpen={}, SC_STORY_SEL=0;
+let SC_DATA=null, SC_SRC='default', scOpen={}, SC_STORY_SEL=0, scShowTemplates=false;
+function scToggleTemplates(){scShowTemplates=!scShowTemplates;renderScenesEditor();}
+
 const SC_CLIP_FIELDS=[['action','ACTION'],['setting','SETTING'],['lighting','LIGHTING'],['atmosphere','ATMOSPHERE'],['composition','COMPOSITION'],['camera','CAMERA MOVE'],['subject','SUBJECT MOTION'],['ambient','AMBIENT'],['pace','PACE']];
 const SC_CAMERA_KEYS=['steady','dynamic','handheld'];
 const SC_INTENSITY_KEYS=['still','measured','dynamic'];
@@ -1512,7 +1540,8 @@ function renderScenesEditor(){
   h+='</div>';
   h+='</div></div>';
 
-  h+=`<div class="sec-t" style="margin:1em 0 .5em;color:var(--amb)">STORIES (${stories.length})</div>`;
+  h+=`<div class="sec" style="margin-top:1em"><div class="sec-h" onclick="scToggleTemplates()" role="button" aria-expanded="${scShowTemplates?'true':'false'}" style="cursor:pointer"><span class="sec-t">ADVANCED · SHOT TEMPLATES (${stories.length})</span><span class="sec-a">${scShowTemplates?'▾':'▸'}</span></div><div class="sec-b sc-sec${scShowTemplates?'':' shut'}" style="display:${scShowTemplates?'block':'none'}"><div style="font-size:.65em;color:var(--txtd);line-height:1.6;margin-bottom:1em">Optional prewritten shots used when bespoke AI scenes are off or unavailable. Series episodes live under Series.</div>`;
+  if(scShowTemplates){
 
   // Card rail: one small card per story, click to open it below. Keeps the
   // list scannable instead of a long stack of accordions.
@@ -1577,6 +1606,8 @@ function renderScenesEditor(){
     </div>`;
   }
 
+  }
+  h+='</div></div>';
   ['d-scenes-body','m-scenes-body'].forEach(id=>{if($(id))$(id).innerHTML=h;});
   scGrowAll();
   scRenderAllPreviews();
@@ -1695,6 +1726,7 @@ async function scSeedMotion(){
 function scSelectStory(i){SC_STORY_SEL=i;renderScenesEditor();}
 function scStoryNav(d){SC_STORY_SEL+=d;renderScenesEditor();}
 function scAddStory(){
+  scShowTemplates=true;
   scEnsure('stories');scEnsure('moods');
   SC_DATA.stories.push({name:'new_story',themes:[],mood:Object.keys(SC_DATA.moods)[0]||'',clips:[scEmptyClip()]});
   SC_STORY_SEL=SC_DATA.stories.length-1;
@@ -1844,7 +1876,7 @@ async function styReset(){
 
 /* ═══ INIT ═══ */
 async function init(){
-  rP();updThemeBtn();
+  rP();updThemeBtn();setProductionMode(PRODUCTION_MODE);
   try{
     const r=await(await fetch('/api/settings')).json();
     STS.forEach(s=>s.f.forEach(f=>{ST[f.k]=r[f.k]!==undefined?r[f.k]:f.d;}));
