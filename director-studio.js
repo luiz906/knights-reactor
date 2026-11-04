@@ -225,7 +225,7 @@ async function poll(){
   if(polling)return;
   polling=true;
   try{
-    for(let i=0;i<75;i++){
+    for(let i=0;i<400;i++){
       await refreshStatus();
       if(!state.status.running)break;
       await new Promise(r=>setTimeout(r,3500));
@@ -298,6 +298,9 @@ async function loadAll(){
   syncFields();renderCast();renderTopics();
   await Promise.all([refreshEstimate(),refreshStatus(),loadConnections(),loadRuns()]);
   state.initialized=true;
+  // Reopening the studio while a run is in flight must keep the progress
+  // monitor live without requiring a paid restart.
+  if(state.status?.running)poll();
 }
 function bindEvents(){
   document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>showView(b.dataset.view)));
