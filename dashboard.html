@@ -298,7 +298,7 @@ body{overflow:auto}
 <button class="sb-i" onclick="dNav('scenes',this)"><span class="material-symbols-outlined">theater_comedy</span>VISUAL DIRECTOR</button>
 <button class="sb-i" onclick="dNav('story',this)"><span class="material-symbols-outlined">menu_book</span>SERIES</button>
 <button class="sb-i" onclick="dNav('runs',this)"><span class="material-symbols-outlined">history</span>RUNS</button>
-<button class="sb-i" onclick="dNav('settings',this)"><span class="material-symbols-outlined">settings</span>SETTINGS</button>
+<button class="sb-i" onclick="dNav('settings',this)"><span class="material-symbols-outlined">settings</span>SETUP</button>
 </div>
 <div class="sb-ft">
 <button class="sb-exec" id="d-rb" onclick="runNow()">▶ EXECUTE</button>
@@ -319,6 +319,12 @@ body{overflow:auto}
 <select id="d-production-mode" class="fin" style="max-width:260px" onchange="setProductionMode(this.value)"><option value="standalone">Standalone Film</option><option value="series">Series Episode · The Last Watch</option></select>
 <span style="font-size:.6em;color:var(--txtd)">Both use the same film and audio engines.</span>
 </div><div class="production-mode-note" style="font-size:.65em;color:var(--txtd);margin-top:8px"></div>
+</div>
+<div class="panel" style="padding:12px;margin-bottom:12px">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+<div><div class="ptitle" style="font-size:.86em;margin-bottom:3px">CREATIVE BRIEF</div><div style="font-size:.65em;color:var(--txtd)">The director uses this guidance in both the script and scene prompts.</div></div>
+<button class="btn-sm btn-grn" onclick="saveSett()">SAVE BRIEF</button>
+</div><div id="d-brief-fields"></div>
 </div>
 <!-- Action Bar -->
 <div style="display:flex;gap:6px;margin-bottom:10px">
@@ -370,6 +376,9 @@ body{overflow:auto}
 </div>
 </div>
 <div id="d-sc-status" style="font-size:.65em;margin-bottom:.6em;min-height:1.2em"></div>
+<div class="panel" style="padding:12px;margin-bottom:12px">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><div class="ptitle" style="font-size:.86em;margin-bottom:3px">SHOT DIRECTION</div><div style="font-size:.65em;color:var(--txtd)">Choose framing and visual intent here, then edit cast and looks below.</div></div><button class="btn-sm btn-grn" onclick="saveSett()">SAVE DIRECTION</button></div>
+<div id="d-director-fields"></div></div>
 <div id="d-sc-empty" style="display:none;font-size:.65em;color:var(--txtd);border:1px dashed var(--bd2);padding:1em;margin-bottom:.8em;text-align:center">No scene pack yet for this brand — build one below (figures + at least one story) and save.</div>
 <div id="d-scenes-body"></div>
 </div>
@@ -430,6 +439,9 @@ body{overflow:auto}
 <div class="panel" style="padding:10px;margin-bottom:9px"><div class="fl">PRODUCTION MODE</div>
 <select id="m-production-mode" class="fin" onchange="setProductionMode(this.value)"><option value="standalone">Standalone Film</option><option value="series">Series Episode · The Last Watch</option></select>
 <div class="production-mode-note" style="font-size:.65em;color:var(--txtd);margin-top:6px"></div></div>
+<div class="panel" style="padding:10px;margin-bottom:9px">
+<div style="display:flex;align-items:center;justify-content:space-between"><b style="color:var(--amb);font-size:.8em">CREATIVE BRIEF</b><button class="btn-sm btn-grn" onclick="saveSett()">SAVE</button></div>
+<div id="m-brief-fields"></div></div>
 <!-- Quick-nav pills -->
 <div style="display:flex;gap:4px;margin-bottom:8px;overflow-x:auto">
 <button style="padding:.4em .7em;background:var(--amblo);border:1px solid var(--bd);color:var(--amb);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('pipeline',document.querySelectorAll('.bnav-i')[0])">⚡ PIPELINE</button>
@@ -479,6 +491,7 @@ body{overflow:auto}
 </div>
 <div id="m-sc-empty" style="display:none;font-size:.6em;color:var(--txtd);border:1px dashed var(--bd2);padding:.8em;margin-bottom:.6em;text-align:center">No scene pack yet for this brand — build one below and save.</div>
 <div id="m-sc-status" style="font-size:.6em;margin-bottom:.5em;min-height:1.2em"></div>
+<div class="panel" style="padding:10px;margin-bottom:9px"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:.8em;color:var(--amb)">SHOT DIRECTION</b><button class="btn-sm btn-grn" onclick="saveSett()">SAVE</button></div><div id="m-director-fields"></div></div>
 <div id="m-scenes-body"></div>
 </div>
 
@@ -525,7 +538,7 @@ body{overflow:auto}
 <button class="bnav-i on" onclick="mNav('pipeline',this)"><span class="bnav-icon material-symbols-outlined">bolt</span><span class="bnav-lbl">PIPELINE</span></button>
 <button class="bnav-i" onclick="mNav('scenes',this)"><span class="bnav-icon material-symbols-outlined">theater_comedy</span><span class="bnav-lbl">VISUALS</span></button>
 <button class="bnav-i" onclick="mNav('runs',this)"><span class="bnav-icon material-symbols-outlined">history</span><span class="bnav-lbl">RUNS</span></button>
-<button class="bnav-i" onclick="mNav('settings',this)"><span class="bnav-icon material-symbols-outlined">settings</span><span class="bnav-lbl">SETTINGS</span></button>
+<button class="bnav-i" onclick="mNav('settings',this)"><span class="bnav-icon material-symbols-outlined">settings</span><span class="bnav-lbl">SETUP</span></button>
 </nav>
 </div>
 </div>
@@ -579,7 +592,7 @@ const B=(s,l)=>{const c={done:'g',running:'b',failed:'r',configured:'g',missing:
 const PHS=[{n:"FETCH TOPIC",a:"LOCAL DB",i:"⬡",d:"~1s"},{n:"GENERATE SCRIPT",a:"GPT-4o",i:"⬢",d:"~3s"},{n:"VOICEOVER",a:"ELEVENLABS",i:"◎",d:"~4s"},{n:"TRANSCRIBE",a:"WHISPER",i:"▤",d:"~3s"},{n:"SCENE ENGINE",a:"GPT-4o",i:"◈",d:"~20s"},{n:"GENERATE IMAGES",a:"REPLICATE",i:"◉",d:"~30s"},{n:"GENERATE VIDEOS",a:"REPLICATE",i:"▶",d:"~120s"},{n:"UPLOAD ASSETS",a:"R2",i:"⬆",d:"~8s"},{n:"FINAL RENDER",a:"SHOTSTACK",i:"⬡",d:"~90s"},{n:"CAPTIONS",a:"GPT-4o",i:"✎",d:"~4s"},{n:"PUBLISH",a:"BLOTATO",i:"◇",d:"~6s"}];
 
 const STS=[
-{t:"BRAND",f:[{k:"brand_name",l:"Brand Name",d:"Knights Reactor",b:1},{k:"brand_tagline",l:"Tagline",d:"Biblical content for men of faith",b:1},{k:"brand_persona",l:"Character Persona",tp:"textarea",d:"A battle-hardened Christian knight: Strong, disciplined, capable, calm. Not cruel, not cold—firm and compassionate. Protector of faith, family, duty, truth. Lives in peace but ready for war. Wears the Armor of God symbolically. Unwavering allegiance: Christ is King.",b:1},{k:"brand_voice",l:"Voice Description",tp:"textarea",d:"Low, controlled, resonant. Calm intensity; authoritative without shouting. Short, declarative sentences. Measured pacing. Dark, mysterious presence—disciplined resolve. Masculine and grounded. NO hype. NO motivational fluff.",b:1},{k:"brand_themes",l:"Core Themes",tp:"textarea",d:"Address real daily battles: Finances, family leadership, temptation, fatigue, doubt, lust, anger, responsibility, endurance, obedience. Discipline over comfort. Duty over desire. Endurance over escape. Faith over fear. Action over emotion.",b:1},{k:"brand_avoid",l:"What to Avoid",d:"Warmth or sentimentality, soft encouragement, modern slang, politics, long scripture quotations, hashtags",b:1}]},
+{t:"BRAND",f:[{k:"brand_name",l:"Brand Name",d:"Knights Reactor",b:1},{k:"brand_tagline",l:"Tagline",d:"Biblical content for men of faith",b:1},{k:"brand_persona",l:"Character Persona",tp:"textarea",d:"A battle-hardened Christian knight: Strong, disciplined, capable, calm. Not cruel, not cold—firm and compassionate. Protector of faith, family, duty, truth. Lives in peace but ready for war. Wears the Armor of God symbolically. Unwavering allegiance: Christ is King.",b:1},{k:"brand_voice",l:"Voice Description",tp:"textarea",d:"Low, controlled, resonant. Calm intensity; authoritative without shouting. Short, declarative sentences. Measured pacing. Dark, mysterious presence—disciplined resolve. Masculine and grounded. NO hype. NO motivational fluff.",b:1},{k:"brand_themes",l:"Core Themes",tp:"textarea",d:"Address real daily battles: Finances, family leadership, temptation, fatigue, doubt, lust, anger, responsibility, endurance, obedience. Discipline over comfort. Duty over desire. Endurance over escape. Faith over fear. Action over emotion.",b:1},{k:"brand_avoid",l:"What to Avoid",d:"Warmth or sentimentality, soft encouragement, modern slang, politics, long scripture quotations, hashtags",b:1},{k:"creative_direction",l:"Creative Brief — story goal, emotional arc, meaning, and visual direction",tp:"textarea",rows:5,d:""}]},
 {t:"SCRIPT ENGINE",f:[{k:"script_model",l:"AI Model",tp:"select",o:["gpt-4o","gpt-4o-mini"],d:"gpt-4o"},{k:"script_temp",l:"Temperature",d:"0.85"},{k:"script_words",l:"Script Length",tp:"slider",min:30,max:180,step:5,d:90},{k:"script_prompt_template",l:"Script Prompt (optional override, leave blank for built-in default — placeholders: {topic} {category} {angle} {scripture})",tp:"textarea",rows:12,d:""}]},
 {t:"TOPICS",f:[{k:"research_enabled",l:"Ground AI Topics in Real Research (web search before generating topics)",tp:"toggle",d:true},{k:"topics_prompt_template",l:"AI Topic Generation Prompt (optional override, leave blank for built-in default — keep {count} in the text)",tp:"textarea",rows:6,d:""}]},
 {t:"SCENE ENGINE",f:[{k:"scene_ai_enabled",l:"AI-Generate Bespoke Scenes (off = always use the story library below)",tp:"toggle",d:true},{k:"scene_ref_required",l:"Visual Continuity: Require Approved Cast Reference (blocks unsupported image models or missing references)",tp:"toggle",d:false},{k:"scene_story",l:"Fallback Shot Template",tp:"select",o:["auto"],d:"auto",dynamic:"stories"},{k:"scene_theme",l:"Theme Force",tp:"select",o:["auto"],d:"auto",dynamic:"themes"},{k:"scene_figure",l:"Figure",tp:"select",o:["auto"],d:"auto",dynamic:"figures"},{k:"scene_intensity",l:"Intensity",tp:"select",o:["still","measured","dynamic"],d:"measured"},{k:"scene_camera",l:"Camera Style",tp:"select",o:["steady","dynamic","handheld"],d:"steady"},{k:"scene_mood",l:"Mood Lighting",tp:"select",o:["auto"],d:"auto",dynamic:"moods"},{k:"_scene_pack",l:"",tp:"scene_pack"},{k:"scene_image_prompt_template",l:"Image Prompt Template for pre-written JSON-library shots only (optional override, leave blank for built-in default — placeholders: {figure} {action} {setting} {composition} {lighting} {atmosphere} {suffix})",tp:"textarea",rows:3,d:""},{k:"scene_motion_prompt_template",l:"Motion Prompt Template for pre-written JSON-library shots only (optional override, leave blank for built-in default — placeholders: {camera} {subject} {ambient} {pace} {tech_suffix})",tp:"textarea",rows:3,d:""}]},
@@ -602,11 +615,11 @@ const STS=[
 {t:"CHANNELS (BLOTATO IDs)",f:[{k:"ch_instagram",l:"Instagram Account ID",d:""},{k:"ch_tiktok",l:"TikTok Account ID",d:""},{k:"ch_youtube",l:"YouTube Account ID",d:""},{k:"ch_facebook",l:"Facebook Account ID",d:""},{k:"ch_facebook_page",l:"Facebook Page ID",d:""},{k:"ch_twitter",l:"Twitter/X Account ID",d:""},{k:"ch_threads",l:"Threads Account ID",d:""},{k:"ch_pinterest",l:"Pinterest Account ID",d:""},{k:"ch_pinterest_board",l:"Pinterest Board ID",d:""}]},
 {t:"CAPTIONS",f:[{k:"captions_video_prompt",l:"Video Caption Prompt — TikTok/YouTube/Instagram/Facebook (optional override, leave blank for built-in default)",tp:"textarea",rows:10,d:""},{k:"captions_text_prompt",l:"Text-Only Caption Prompt — X/Threads/Pinterest (optional override, leave blank for built-in default)",tp:"textarea",rows:8,d:""}]}
 ];
-let stOpen={};
+let stOpen={0:true,1:true,3:true,5:true};
 const IMG_MODELS={replicate:[{v:"google/nano-banana-2",l:"Nano Banana 2"},{v:"google/nano-banana-pro",l:"Nano Banana Pro"},{v:"google/nano-banana",l:"Nano Banana"},{v:"openai/gpt-image-1.5",l:"GPT Image 1.5"},{v:"xai/grok-imagine-image",l:"Grok Aurora"},{v:"bytedance/seedream-5",l:"Seedream 5"},{v:"bytedance/seedream-4.5",l:"Seedream 4.5"},{v:"black-forest-labs/flux-2-pro",l:"Flux 2 Pro"},{v:"black-forest-labs/flux-1.1-pro",l:"Flux 1.1 Pro"},{v:"black-forest-labs/flux-schnell",l:"Flux Schnell"},{v:"black-forest-labs/flux-dev",l:"Flux Dev"},{v:"ideogram-ai/ideogram-v3-quality",l:"Ideogram v3 Q"},{v:"ideogram-ai/ideogram-v3-turbo",l:"Ideogram v3 T"},{v:"recraft-ai/recraft-v4.1",l:"Recraft V4.1"},{v:"recraft-ai/recraft-v3",l:"Recraft v3"},{v:"stability-ai/stable-diffusion-3.5-large",l:"SD 3.5 L"},{v:"google/imagen-4",l:"Imagen 4"}]};
 const VID_MODELS={replicate:[{v:"bytedance/seedance-2.0",l:"Seedance 2.0"},{v:"bytedance/seedance-1-pro",l:"Seedance Pro"},{v:"bytedance/seedance-1-lite",l:"Seedance Lite"},{v:"kwaivgi/kling-v3-video",l:"Kling v3.0"},{v:"minimax/hailuo-2.3",l:"Hailuo 2.3"},{v:"google/veo-3.1",l:"Veo 3.1"},{v:"luma/ray-3.2",l:"Luma Ray 3.2"},{v:"luma/ray-2-720p",l:"Luma Ray 2"},{v:"luma/ray-flash-2-720p",l:"Luma Flash"},{v:"wan-video/wan-2.5-i2v",l:"Wan 2.5"},{v:"wavespeedai/wan-2.1-i2v-480p",l:"Wan 2.1 480p"},{v:"wavespeedai/wan-2.1-i2v-720p",l:"Wan 2.1 720p"},{v:"xai/grok-imagine-video",l:"Grok Video"},{v:"minimax/video-01-live",l:"Minimax Live"},{v:"minimax/video-01",l:"Minimax v01"}]};
 const SVCS=[{n:"OPENAI",d:"GPT-4o + Whisper",k:"openai"},{n:"REPLICATE",d:"Image + Video",k:"replicate"},{n:"ELEVENLABS",d:"Voice Synthesis",k:"elevenlabs"},{n:"SHOTSTACK",d:"Video Render",k:"shotstack"},{n:"R2",d:"Asset Storage",k:"r2"},{n:"BLOTATO",d:"Publishing",k:"blotato"}];
-const titles={pipeline:'⚡ PIPELINE MONITOR',topics:'✦ TOPIC DATABASE',scenes:'◈ VISUAL DIRECTOR',story:'📜 SERIES · THE LAST WATCH',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ SETTINGS',health:'◎ SYSTEM STATUS'};
+const titles={pipeline:'⚡ PIPELINE MONITOR',topics:'✦ TOPIC DATABASE',scenes:'◈ VISUAL DIRECTOR',story:'📜 SERIES · THE LAST WATCH',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ SETUP',health:'◎ SYSTEM STATUS'};
 
 /* THEME */
 function toggleTheme(){const on=document.documentElement.classList.toggle('light');localStorage.setItem('kr-theme',on?'light':'dark');updThemeBtn();}
@@ -833,6 +846,8 @@ function rP(){
 /* ═══ ACTIONS ═══ */
 async function runNow(topicId,verseMode,explicitMode){
   if(RN)return;
+  // Creative Brief and shot direction must be persisted before AI runs.
+  if(!(await persistCreativeSettings()))return;
   const body={};
   if(topicId)body.topic_id=topicId;
   if(verseMode)body.verse_mode=true;
@@ -858,8 +873,9 @@ async function cancelPipeline(){
 }
 async function scriptOnly(){
   const btn=event.target;btn.textContent='⏳ GENERATING...';btn.disabled=true;
+  if(!(await persistCreativeSettings())){btn.textContent='✎ SCRIPT ONLY';btn.disabled=false;return;}
   try{
-    const r=await fetch('/api/script-only',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    const r=await fetch('/api/script-only',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({production_mode:PRODUCTION_MODE})});
     const d=await r.json();
     if(r.ok&&d.script){
       ['d-','m-'].forEach(px=>{
@@ -1170,11 +1186,27 @@ async function loadPromptDefault(fieldKey){
 
 function getModels(fk){const prov=fk==='image_model'?(ST.image_provider||'replicate'):(ST.video_provider||'replicate');const cat=fk==='image_model'?IMG_MODELS:VID_MODELS;return cat[prov]||[];}
 
+// Creative choices live where users make films. Only operational controls
+// remain in Setup; all legacy fields are retained in the Advanced drawer.
+let stAdvanced=false;
+const BRIEF_FIELDS=new Set(['creative_direction','script_words','music_enabled','music_style']);
+const DIRECTOR_FIELDS=new Set(['scene_ai_enabled','scene_ref_required','scene_figure','scene_intensity','scene_camera','scene_mood']);
+const SIMPLE_SETUP_FIELDS=new Set(['voice_id','voice_model','image_model','video_model','render_res','render_aspect','logo_enabled','captions_enabled','on_tt','on_yt','on_ig','on_fb','on_tw','on_th','on_pn']);
+function settingGroup(key){
+  if(BRIEF_FIELDS.has(key))return 'brief';
+  if(DIRECTOR_FIELDS.has(key))return 'director';
+  if(SIMPLE_SETUP_FIELDS.has(key))return 'settings';
+  return 'advanced';
+}
 function rSt(){
-  let h='';
-  STS.forEach((sec,si)=>{
+  const panels={brief:'',director:'',settings:'',advanced:''};
+  for(const group of ['brief','director','settings','advanced']){
+    let h='';
+    STS.forEach((sec,si)=>{
+    const fields=sec.f.filter(f=>settingGroup(f.k)===group);
+    if(!fields.length)return;
     let ff='';
-    sec.f.forEach(f=>{try{
+    fields.forEach(f=>{try{
       const v=ST[f.k]!==undefined?ST[f.k]:f.d;
       if(f.tp==='toggle'){
         const on=v===true||v==='true';
@@ -1243,7 +1275,7 @@ ${showSeed?`<button style="flex:1;padding:6px;background:var(--bg);border:1px so
         ff+=`<div class="fi"><div class="fl">${f.l}</div><input class="fin" value="${v||''}" onchange="ST['${f.k}']=this.value"></div>`;
       }
     }catch(e){console.error('CFG:',f.k,e);}});
-    if(sec.t==='MUSIC & CINEMATIC AUDIO'){
+    if(group==='brief' && sec.t==='MUSIC & CINEMATIC AUDIO'){
       ff+=`<div class="fi w music-preview-panel" style="border:1px solid var(--bd2);padding:12px;background:var(--bg2);margin-top:10px">
         <div class="fl" style="color:var(--amb)">MANUAL MUSIC TEST · GENERATES A PAID ELEVENLABS TRACK</div>
         <div class="fl" style="margin-top:8px">Story / emotional direction</div>
@@ -1257,8 +1289,16 @@ ${showSeed?`<button style="flex:1;padding:6px;background:var(--bg);border:1px so
     }
     const secNote=sec.note?`<div class="fi" style="font-size:.72em;line-height:1.5;color:var(--txtd);background:rgba(255,255,255,.03);border-radius:.4em;padding:.6em .8em;margin-bottom:.6em">ℹ️ ${sec.note}</div>`:'';
     h+=`<div class="sec"><button class="sec-h" onclick="stOpen[${si}]=!stOpen[${si}];rSt()"><span class="sec-t">${sec.t}</span><span class="sec-a" style="transform:${stOpen[si]?'rotate(90deg)':''}">›</span></button><div class="sec-b${stOpen[si]?'':' shut'}">${secNote}${ff}</div></div>`;
-  });
-  ['d-sf','m-sf'].forEach(id=>{if($(id))$(id).innerHTML=h;});
+    });
+    panels[group]=h;
+  }
+  ['d-brief-fields','m-brief-fields'].forEach(id=>{if($(id))$(id).innerHTML=panels.brief;});
+  ['d-director-fields','m-director-fields'].forEach(id=>{if($(id))$(id).innerHTML=panels.director;});
+  const intro='<div style="font-size:.72em;color:var(--txtd);line-height:1.6;margin-bottom:10px">Only production essentials live here. Use Creative Brief for stories and Visual Director for shot choices. Your old custom prompts and brand settings remain in Advanced Setup.</div>';
+  const advancedToggle='<button class="btn-sm" style="width:100%;margin:12px 0;padding:10px;text-align:left" onclick="stAdvanced=!stAdvanced;rSt()">'
+    +(stAdvanced?'▾ HIDE ADVANCED SETUP':'▸ ADVANCED SETUP · Models, detailed prompts, audio, and integrations')+'</button>';
+  const setup=intro+panels.settings+advancedToggle+(stAdvanced?panels.advanced:'');
+  ['d-sf','m-sf'].forEach(id=>{if($(id))$(id).innerHTML=setup;});
 }
 
 async function previewMusic(btn){
@@ -1283,8 +1323,15 @@ async function previewMusic(btn){
   }catch(e){status.textContent='Error: '+e.message;}finally{btn.disabled=false;}
 }
 
+async function persistCreativeSettings(){
+  try{
+    const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(ST)});
+    if(!r.ok)throw new Error('Save returned HTTP '+r.status);
+    return true;
+  }catch(e){alert('Could not save your production brief: '+e.message);return false;}
+}
 async function saveSett(){
-  await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(ST)});
+  if(!(await persistCreativeSettings()))return;
   await loadPlanEst();rSt();rP();
   ['d-ss','m-ss'].forEach(id=>{if($(id)){$(id).style.display='block';setTimeout(()=>$(id).style.display='none',3000);}});
 }

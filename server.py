@@ -156,6 +156,7 @@ def apply_model_settings():
     if s.get("brand_voice"):    Config.BRAND_VOICE = s["brand_voice"]
     if s.get("brand_themes"):   Config.BRAND_THEMES = s["brand_themes"]
     if s.get("brand_avoid"):    Config.BRAND_AVOID = s["brand_avoid"]
+    Config.CREATIVE_DIRECTION = str(s.get("creative_direction") or "")[:3000]
     # Captions — optional full-prompt overrides for Phase 10 (blank = built-in default)
     if s.get("captions_video_prompt"): Config.CAPTIONS_VIDEO_PROMPT = s["captions_video_prompt"]
     if s.get("captions_text_prompt"):  Config.CAPTIONS_TEXT_PROMPT = s["captions_text_prompt"]
@@ -514,14 +515,18 @@ async def trigger_resume(bg: BackgroundTasks):
 @app.post("/api/script-only")
 async def generate_script_only(req: Request):
     """Generate script + scene prompts for a topic — no media, no render."""
-    from phases.topics import fetch_topic
+    from phases.topics import peek_next_topic
     from phases.script import generate_script
     from phases.scenes import scene_engine
     apply_model_settings()
     body = await req.json()
     topic_id = body.get("topic_id")
+    production_mode = body.get("production_mode")
+    if production_mode not in (None, "standalone", "series"):
+        return JSONResponse({"error": "Invalid production mode"}, 422)
     try:
-        topic = fetch_topic(topic_id)
+        # Script preview should not consume a queued topic.
+        topic = peek_next_topic(topic_id, production_mode=production_mode)
         script = generate_script(topic)
         clips = scene_engine(script, topic)
         return {"status": "ok", "topic": topic, "script": script, "clips": clips}

@@ -197,6 +197,9 @@ def generate_script(topic: dict) -> dict:
 
     prompt = render_script_prompt(build_script_prompt(), topic["idea"], cat, angle, topic.get("scripture", ""))
     prompt += script_story_block(topic)   # episode of The Last Watch, if this topic is one
+    director_brief = str(getattr(Config, "CREATIVE_DIRECTION", "") or "").strip()
+    if director_brief:
+        prompt += "\n\n## CREATIVE BRIEF — APPLY TO THIS VIDEO\n" + director_brief[:3000]
 
     r = requests.post("https://api.openai.com/v1/chat/completions", headers={
         "Authorization": f"Bearer {Config.OPENAI_KEY}", "Content-Type": "application/json",
