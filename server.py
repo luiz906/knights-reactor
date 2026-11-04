@@ -179,7 +179,7 @@ def apply_model_settings():
         ("FINAL VISIBLE DECISION", s.get("story_choice")),
         ("ADDITIONAL DIRECTOR NOTES", s.get("creative_direction")),
     )
-    Config.CREATIVE_DIRECTION = "\\n".join(
+    Config.CREATIVE_DIRECTION = "\n".join(
         f"{label}: {str(value).strip()[:700]}" for label, value in pillars
         if value and str(value).strip()
     )[:3000]
