@@ -295,11 +295,9 @@ body{overflow:auto}
 <div class="sb-nav">
 <button class="sb-i on" onclick="dNav('pipeline',this)"><span class="material-symbols-outlined">bolt</span>PIPELINE</button>
 <button class="sb-i" onclick="dNav('topics',this)"><span class="material-symbols-outlined">auto_awesome</span>TOPICS</button>
-<button class="sb-i" onclick="dNav('scenes',this)"><span class="material-symbols-outlined">theater_comedy</span>SCENES</button>
-<button class="sb-i" onclick="dNav('story',this)"><span class="material-symbols-outlined">menu_book</span>STORY</button>
+<button class="sb-i" onclick="dNav('scenes',this)"><span class="material-symbols-outlined">theater_comedy</span>VISUAL DIRECTOR</button>
+<button class="sb-i" onclick="dNav('story',this)"><span class="material-symbols-outlined">menu_book</span>SERIES</button>
 <button class="sb-i" onclick="dNav('runs',this)"><span class="material-symbols-outlined">history</span>RUNS</button>
-<button class="sb-i" onclick="dNav('logs',this)"><span class="material-symbols-outlined">terminal</span>LOGS</button>
-<button class="sb-i" onclick="dNav('preview',this)"><span class="material-symbols-outlined">visibility</span>PREVIEW</button>
 <button class="sb-i" onclick="dNav('settings',this)"><span class="material-symbols-outlined">settings</span>SETTINGS</button>
 </div>
 <div class="sb-ft">
@@ -314,6 +312,14 @@ body{overflow:auto}
 <div class="dcontent">
 
 <div class="dpage on" id="dp-pipeline">
+<div class="panel" style="padding:12px;margin-bottom:12px">
+<div style="font-family:var(--f1);font-size:.65em;font-weight:700;color:var(--amb);letter-spacing:.1em">PRODUCTION MODE</div>
+<div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:8px">
+<label for="d-production-mode" style="font-size:.75em;color:var(--wht)">Film type</label>
+<select id="d-production-mode" class="fin" style="max-width:260px" onchange="setProductionMode(this.value)"><option value="standalone">Standalone Film</option><option value="series">Series Episode · The Last Watch</option></select>
+<span style="font-size:.6em;color:var(--txtd)">Both use the same film and audio engines.</span>
+</div><div class="production-mode-note" style="font-size:.65em;color:var(--txtd);margin-top:8px"></div>
+</div>
 <!-- Action Bar -->
 <div style="display:flex;gap:6px;margin-bottom:10px">
 <button id="d-rb2" onclick="runNow()" style="flex:1;padding:.7em;background:var(--amb);border:none;color:var(--bg);font-family:var(--f1);font-size:.65em;font-weight:600;letter-spacing:.15em;box-shadow:0 0 8px rgba(227,160,40,.2)">▶ EXECUTE</button>
@@ -356,7 +362,7 @@ body{overflow:auto}
 
 <div class="dpage" id="dp-scenes">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7em;flex-wrap:wrap;gap:8px">
-<span class="ptitle" style="margin:0">SCENE ENGINE <span id="d-sc-src" style="margin-left:.6em"></span></span>
+<span class="ptitle" style="margin:0">VISUAL DIRECTOR <span id="d-sc-src" style="margin-left:.6em"></span></span>
 <div style="display:flex;gap:6px">
 <button class="btn-sm" id="d-sc-seedbtn" onclick="scSeed()">SEED FROM DEFAULTS</button>
 <button class="btn-sm btn-blu" onclick="editScenePack()">⌘ ADVANCED (RAW JSON)</button>
@@ -381,7 +387,7 @@ body{overflow:auto}
 <div id="d-story-body"></div>
 </div>
 
-<div class="dpage" id="dp-runs"><div class="g4" id="d-rs" style="margin-bottom:12px"></div><div class="panel" id="d-rl"></div></div>
+<div class="dpage" id="dp-runs"><div style="display:flex;gap:8px;margin-bottom:12px"><button class="btn-sm" onclick="dNav('preview',null)">◉ ASSET PREVIEW</button><button class="btn-sm" onclick="dNav('logs',null)">▤ SYSTEM LOGS</button></div><div class="g4" id="d-rs" style="margin-bottom:12px"></div><div class="panel" id="d-rl"></div></div>
 
 <div class="dpage" id="dp-logs"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="ptitle" style="margin:0">SYSTEM LOGS</span><span id="d-lc" style="font-size:.65em;color:var(--txtd)"></span></div><div class="logp" id="d-la"></div></div>
 
@@ -420,12 +426,15 @@ body{overflow:auto}
 <div class="mcont">
 
 <div class="mpage on" id="mp-pipeline">
+<div class="panel" style="padding:10px;margin-bottom:9px"><div class="fl">PRODUCTION MODE</div>
+<select id="m-production-mode" class="fin" onchange="setProductionMode(this.value)"><option value="standalone">Standalone Film</option><option value="series">Series Episode · The Last Watch</option></select>
+<div class="production-mode-note" style="font-size:.65em;color:var(--txtd);margin-top:6px"></div></div>
 <!-- Quick-nav pills -->
 <div style="display:flex;gap:4px;margin-bottom:8px;overflow-x:auto">
 <button style="padding:.4em .7em;background:var(--amblo);border:1px solid var(--bd);color:var(--amb);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('pipeline',document.querySelectorAll('.bnav-i')[0])">⚡ PIPELINE</button>
 <button style="padding:.4em .7em;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('topics',document.querySelectorAll('.bnav-i')[0])">✦ TOPICS</button>
-<button style="padding:.4em .7em;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('scenes',document.querySelectorAll('.bnav-i')[0])">◈ SCENES</button>
-<button style="padding:.4em .7em;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('story',document.querySelectorAll('.bnav-i')[0])">📜 STORY</button>
+<button style="padding:.4em .7em;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('scenes',document.querySelectorAll('.bnav-i')[0])">◈ VISUAL DIRECTOR</button>
+<button style="padding:.4em .7em;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('story',document.querySelectorAll('.bnav-i')[0])">📜 SERIES</button>
 <button style="padding:.4em .7em;background:var(--bg);border:1px solid var(--bd2);color:var(--txtd);font-family:var(--f1);font-size:.5em;letter-spacing:.1em;white-space:nowrap;border-radius:2px" onclick="mNav('runs',document.querySelectorAll('.bnav-i')[0])">◈ RUNS</button>
 </div>
 <button id="m-verse-btn" onclick="runNow(null,true)" style="width:100%;padding:.6em;margin-bottom:8px;background:rgba(160,120,224,.08);border:1px solid rgba(160,120,224,.2);color:#a078e0;font-family:var(--f1);font-size:.55em;font-weight:600;letter-spacing:.1em;min-height:2.5em">📖 VERSE OF THE DAY</button>
@@ -459,7 +468,7 @@ body{overflow:auto}
 
 <div class="mpage" id="mp-scenes">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6em;flex-wrap:wrap;gap:6px">
-<span class="ptitle" style="margin:0">SCENE ENGINE</span>
+<span class="ptitle" style="margin:0">VISUAL DIRECTOR</span>
 <span id="m-sc-src" style="font-size:.55em"></span>
 </div>
 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.6em">
@@ -485,7 +494,7 @@ body{overflow:auto}
 <div id="m-story-body"></div>
 </div>
 
-<div class="mpage" id="mp-runs"><div class="g4m" id="m-rs"></div><div class="panel" id="m-rl"></div></div>
+<div class="mpage" id="mp-runs"><div style="display:flex;gap:8px;margin-bottom:12px"><button class="btn-sm" onclick="mNav('preview',null)">◉ ASSETS</button><button class="btn-sm" onclick="mNav('logs',null)">▤ LOGS</button></div><div class="g4m" id="m-rs"></div><div class="panel" id="m-rl"></div></div>
 <div class="mpage" id="mp-logs"><div class="logp" id="m-la"></div></div>
 
 <div class="mpage" id="mp-preview">
@@ -512,8 +521,8 @@ body{overflow:auto}
 <!-- Bottom Nav -->
 <nav class="bnav">
 <button class="bnav-i on" onclick="mNav('pipeline',this)"><span class="bnav-icon material-symbols-outlined">bolt</span><span class="bnav-lbl">PIPELINE</span></button>
-<button class="bnav-i" onclick="mNav('logs',this)"><span class="bnav-icon material-symbols-outlined">terminal</span><span class="bnav-lbl">LOGS</span></button>
-<button class="bnav-i" onclick="mNav('preview',this)"><span class="bnav-icon material-symbols-outlined">visibility</span><span class="bnav-lbl">ASSETS</span></button>
+<button class="bnav-i" onclick="mNav('scenes',this)"><span class="bnav-icon material-symbols-outlined">theater_comedy</span><span class="bnav-lbl">VISUALS</span></button>
+<button class="bnav-i" onclick="mNav('runs',this)"><span class="bnav-icon material-symbols-outlined">history</span><span class="bnav-lbl">RUNS</span></button>
 <button class="bnav-i" onclick="mNav('settings',this)"><span class="bnav-icon material-symbols-outlined">settings</span><span class="bnav-lbl">SETTINGS</span></button>
 </nav>
 </div>
@@ -576,7 +585,7 @@ let stOpen={};
 const IMG_MODELS={replicate:[{v:"google/nano-banana-2",l:"Nano Banana 2"},{v:"google/nano-banana-pro",l:"Nano Banana Pro"},{v:"google/nano-banana",l:"Nano Banana"},{v:"openai/gpt-image-1.5",l:"GPT Image 1.5"},{v:"xai/grok-imagine-image",l:"Grok Aurora"},{v:"bytedance/seedream-5",l:"Seedream 5"},{v:"bytedance/seedream-4.5",l:"Seedream 4.5"},{v:"black-forest-labs/flux-2-pro",l:"Flux 2 Pro"},{v:"black-forest-labs/flux-1.1-pro",l:"Flux 1.1 Pro"},{v:"black-forest-labs/flux-schnell",l:"Flux Schnell"},{v:"black-forest-labs/flux-dev",l:"Flux Dev"},{v:"ideogram-ai/ideogram-v3-quality",l:"Ideogram v3 Q"},{v:"ideogram-ai/ideogram-v3-turbo",l:"Ideogram v3 T"},{v:"recraft-ai/recraft-v4.1",l:"Recraft V4.1"},{v:"recraft-ai/recraft-v3",l:"Recraft v3"},{v:"stability-ai/stable-diffusion-3.5-large",l:"SD 3.5 L"},{v:"google/imagen-4",l:"Imagen 4"}]};
 const VID_MODELS={replicate:[{v:"bytedance/seedance-2.0",l:"Seedance 2.0"},{v:"bytedance/seedance-1-pro",l:"Seedance Pro"},{v:"bytedance/seedance-1-lite",l:"Seedance Lite"},{v:"kwaivgi/kling-v3-video",l:"Kling v3.0"},{v:"minimax/hailuo-2.3",l:"Hailuo 2.3"},{v:"google/veo-3.1",l:"Veo 3.1"},{v:"luma/ray-3.2",l:"Luma Ray 3.2"},{v:"luma/ray-2-720p",l:"Luma Ray 2"},{v:"luma/ray-flash-2-720p",l:"Luma Flash"},{v:"wan-video/wan-2.5-i2v",l:"Wan 2.5"},{v:"wavespeedai/wan-2.1-i2v-480p",l:"Wan 2.1 480p"},{v:"wavespeedai/wan-2.1-i2v-720p",l:"Wan 2.1 720p"},{v:"xai/grok-imagine-video",l:"Grok Video"},{v:"minimax/video-01-live",l:"Minimax Live"},{v:"minimax/video-01",l:"Minimax v01"}]};
 const SVCS=[{n:"OPENAI",d:"GPT-4o + Whisper",k:"openai"},{n:"REPLICATE",d:"Image + Video",k:"replicate"},{n:"ELEVENLABS",d:"Voice Synthesis",k:"elevenlabs"},{n:"SHOTSTACK",d:"Video Render",k:"shotstack"},{n:"R2",d:"Asset Storage",k:"r2"},{n:"BLOTATO",d:"Publishing",k:"blotato"}];
-const titles={pipeline:'⚡ PIPELINE MONITOR',topics:'✦ TOPIC DATABASE',scenes:'◈ SCENE ENGINE',story:'📜 THE LAST WATCH',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ SETTINGS',health:'◎ SYSTEM STATUS'};
+const titles={pipeline:'⚡ PIPELINE MONITOR',topics:'✦ TOPIC DATABASE',scenes:'◈ VISUAL DIRECTOR',story:'📜 SERIES · THE LAST WATCH',runs:'◈ RUN HISTORY',logs:'▤ SYSTEM LOGS',preview:'◉ ASSET PREVIEW',settings:'⚙ SETTINGS',health:'◎ SYSTEM STATUS'};
 
 /* THEME */
 function toggleTheme(){const on=document.documentElement.classList.toggle('light');localStorage.setItem('kr-theme',on?'light':'dark');updThemeBtn();}
