@@ -875,7 +875,7 @@ async function scriptOnly(){
   const btn=event.target;btn.textContent='⏳ GENERATING...';btn.disabled=true;
   if(!(await persistCreativeSettings())){btn.textContent='✎ SCRIPT ONLY';btn.disabled=false;return;}
   try{
-    const r=await fetch('/api/script-only',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    const r=await fetch('/api/script-only',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({production_mode:PRODUCTION_MODE})});
     const d=await r.json();
     if(r.ok&&d.script){
       ['d-','m-'].forEach(px=>{
