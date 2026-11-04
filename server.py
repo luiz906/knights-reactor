@@ -171,7 +171,18 @@ def apply_model_settings():
     if s.get("brand_voice"):    Config.BRAND_VOICE = s["brand_voice"]
     if s.get("brand_themes"):   Config.BRAND_THEMES = s["brand_themes"]
     if s.get("brand_avoid"):    Config.BRAND_AVOID = s["brand_avoid"]
-    Config.CREATIVE_DIRECTION = str(s.get("creative_direction") or "")[:3000]
+    # The Studio's goal / cost / choice fields now feed both the Script
+    # Engine and cinematic shot generator through the shared director brief.
+    pillars = (
+        ("CHARACTER GOAL", s.get("story_goal")),
+        ("VISIBLE OBSTACLE AND COST", s.get("story_conflict")),
+        ("FINAL VISIBLE DECISION", s.get("story_choice")),
+        ("ADDITIONAL DIRECTOR NOTES", s.get("creative_direction")),
+    )
+    Config.CREATIVE_DIRECTION = "\\n".join(
+        f"{label}: {str(value).strip()[:700]}" for label, value in pillars
+        if value and str(value).strip()
+    )[:3000]
     # Captions — optional full-prompt overrides for Phase 10 (blank = built-in default)
     if s.get("captions_video_prompt"): Config.CAPTIONS_VIDEO_PROMPT = s["captions_video_prompt"]
     if s.get("captions_text_prompt"):  Config.CAPTIONS_TEXT_PROMPT = s["captions_text_prompt"]
