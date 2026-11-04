@@ -128,7 +128,7 @@ are authoritative. Return one complete JSON object.
 
 
 def generate_script(topic: dict) -> dict:
-    """Generate viral knight script via GPT-4o."""
+    """Write one character-driven screenplay with its voiceover and visual arc."""
     log.info(f"📝 Phase 2: Generating script via {Config.SCRIPT_MODEL} | Words: {Config.SCRIPT_WORDS} | ~{round(int(Config.SCRIPT_WORDS)/3)}s")
 
     cat = topic["category"]
@@ -150,8 +150,8 @@ def generate_script(topic: dict) -> dict:
         "model": Config.SCRIPT_MODEL,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": Config.SCRIPT_TEMP, "max_tokens": 2400,
-        "response_format": {"type": "json_object"}, "timeout": 90,
-    })
+        "response_format": {"type": "json_object"},
+    }, timeout=90)
     r.raise_for_status()
 
     text = r.json()["choices"][0]["message"]["content"]
@@ -159,30 +159,29 @@ def generate_script(topic: dict) -> dict:
     raw = re.sub(r'\n?```\s*$', '', raw).strip()
 
     try:
-        script = json.loads(raw)
-    except json.JSONDecodeError:
-        sentences = re.findall(r'[^.!?]+[.!?]+', raw) or [raw]
-        script = {
-            "hook": sentences[0].strip() if len(sentences) > 0 else "",
-            "build": sentences[1].strip() if len(sentences) > 1 else "",
-            "reveal": sentences[2].strip() if len(sentences) > 2 else "",
-            "command": sentences[3].strip() if len(sentences) > 3 else "",
-            "script_full": raw.strip(),
-        }
+        response = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError("Screenwriter did not return a complete screenplay JSON") from exc
+    if not isinstance(response, dict):
+        raise ValueError("Screenwriter response must be a JSON object")
 
     script = {
-        "hook": str(script.get("hook", "")).strip(),
-        "build": str(script.get("build", "")).strip(),
-        "reveal": str(script.get("reveal", "")).strip(),
-        "command": str(script.get("command", "")).strip(),
-        "script_full": str(script.get("script_full", "")).strip(),
-        "tone": str(script.get("tone", "commanding")),
+        "hook": str(response.get("hook", "")).strip(),
+        "build": str(response.get("build", "")).strip(),
+        "reveal": str(response.get("reveal", "")).strip(),
+        "command": str(response.get("command", "")).strip(),
+        "script_full": str(response.get("script_full", "")).strip(),
+        "tone": str(response.get("tone", "natural, restrained")),
     }
-
+    if not script["script_full"]:
+        raise ValueError("The film screenplay has no spoken narration")
     script["film_blueprint"] = validate_film_blueprint(
-        json.loads(raw).get("film_blueprint") if isinstance(json.loads(raw), dict) else None,
-        locked_character,
+        response.get("film_blueprint"), locked_character
     )
+    # The narration should be a voiceover, not a separate second script.
+    # Retain the exact full spoken text for synthesis, subtitles and timing.
+    if any(not script[key] for key in ("hook", "build", "reveal", "command")):
+        raise ValueError("The screenplay must split its narration into four ordered sections")
     wc = len(script["script_full"].split())
     log.info(f"   Script: {wc} words — {script['hook'][:60]}...")
     return script
