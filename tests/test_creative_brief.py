@@ -21,14 +21,39 @@ class CreativeBriefTests(unittest.TestCase):
             "command": "Choose mercy",
             "script_full": "A knight faces a choice. He chooses mercy.",
             "tone": "resolute",
+            "film_blueprint": {
+                "title": "The Price of Mercy",
+                "logline": "A knight can save the enemy who hurt him.",
+                "setting": "Ruined chapel in winter",
+                "goal": "Save a dying man",
+                "obstacle": "The man's betrayal",
+                "stakes": "The wounded man will die",
+                "theme": "Mercy requires courage",
+                "final_choice": "The knight lowers his sword and helps him",
+                "visual_story": [
+                    {"phase": phase, "dramatic_purpose": phase,
+                     "visible_action": "An observable " + phase + " action",
+                     "change": "The situation changes",
+                     "narration_intent": "A human reflection"}
+                    for phase in ("setup", "conflict", "choice", "consequence")
+                ],
+            },
         }
         response = Mock()
         response.json.return_value = {"choices": [{"message": {"content": json.dumps(payload)}}]}
         response.raise_for_status.return_value = None
         with patch.object(Config, "CREATIVE_DIRECTION", "A costly decision at a ruined chapel"), \
+             patch("phases.script.select_character", return_value={
+                 "name": "Ser Bramble", "cast_key": "The Knight",
+                 "description": "Blackened knight with roses", "ref_image": "",
+                 "who": "", "wound": "", "desire": "", "arc": "",
+                 "signature_object": "Rose-covered shield",
+             }), \
              patch("phases.script.requests.post", return_value=response) as api:
             script = generate_script({"idea": "The price of mercy", "category": "Shocking Revelations", "scripture": "Luke 6:36"})
         self.assertEqual(script["tone"], "resolute")
+        self.assertEqual(script["film_blueprint"]["character"]["name"], "Ser Bramble")
+        self.assertEqual(len(script["film_blueprint"]["visual_story"]), 4)
         prompt = api.call_args.kwargs["json"]["messages"][0]["content"]
         self.assertIn("A costly decision at a ruined chapel", prompt)
         self.assertIn("CREATIVE BRIEF", prompt)

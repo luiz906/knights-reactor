@@ -460,8 +460,27 @@ def generate_ai_scenes(script: dict, topic: dict, figure_desc: str, beats: list,
     back to the pre-written story library.
     """
     clip_count = len(beats)
-    timeline = "\n".join(
-        f'Shot {b["index"]} ({b["length"]:.1f}s): "{b["text"]}"' for b in beats)
+    blueprint = script.get("film_blueprint")
+    if blueprint:
+        from phases.film_blueprint import shot_assignment
+        assignments = shot_assignment(blueprint, beats)
+        timeline = "\n".join(
+            f'Shot {b["index"]} ({b["length"]:.1f}s), narration: "{b["text"]}"\n'
+            f'  SCREENPLAY PHASE: {a["phase"]}; PURPOSE: {a["dramatic_purpose"]}; '
+            f'VISIBLE ACTION: {a["visible_action"]}; CHANGE: {a["change"]}'
+            for b, a in zip(beats, assignments))
+    else:
+        timeline = "\n".join(
+            f'Shot {b["index"]} ({b["length"]:.1f}s): "{b["text"]}"' for b in beats)
+    screenplay_context = (
+        "APPROVED FILM BLUEPRINT — THIS IS CANON, NOT AN OPTIONAL INSPIRATION:\n"
+        + json.dumps(blueprint, ensure_ascii=False, indent=2)
+        + "\nFilm the four dramatic phases IN ORDER. The character's decisions"
+          " and consequences must be apparent with sound muted. Several shots"
+          " may share a phase: break its event into non-repetitive angles/actions."
+          " No invented plots, character changes, or unrelated imagery.\n"
+        if blueprint else ""
+    )
     mood_options = list(mood_pool.keys()) or ["default"]
     mood_guide = "\n".join(f"- {k}: {v}" for k, v in mood_pool.items()) or "- default: natural cinematic light"
     guide = _ai_scene_style_guide()
@@ -474,6 +493,7 @@ def generate_ai_scenes(script: dict, topic: dict, figure_desc: str, beats: list,
     prompt = f"""You are the director and cinematographer of a short vertical (9:16) video. Plan the shots, then write the exact prompts an AI image model and an AI video model will receive.
 
 SCRIPT (narrated in this order):
+{screenplay_context}
 Hook: {script.get('hook','')}
 Build: {script.get('build','')}
 Reveal: {script.get('reveal','')}
@@ -497,10 +517,21 @@ MOVEMENT INTENSITY setting: {intensity_style or 'measured'}
 STEP 1 — DIRECTOR'S INTENT. Establish the protagonist's goal, the visible obstacle, the personal cost, and the irreversible final choice. Find ONE specific idea in the script and show it LITERALLY with a concrete visual metaphor built from its own words and objects, so a viewer with the sound off can understand the stakes. The final shot must reveal the protagonist's actual decision, not a generic heroic pose. Level of specificity wanted (illustrations only, invent your own): {guide['examples']}.
 Do NOT use stock shots: {guide['stock']}. Choose one specific location and time of day for the whole video.
 
-STEP 2 — SHOTS. The video cuts exactly when the narration moves to its next line. There is one shot per line below, and each shot is on screen for exactly the seconds shown while that line is being spoken:
+STEP 2 — DIRECT THE SCREENPLAY INTO SHOTS. The narration sets the EDITING CLOCK,
+but the actions come from the screenplay's ordered dramatic beats. The action
+must progress even if the narration is metaphorical. Each shot lasts the
+specified duration and must show a physically achievable moment:
 {timeline}
 
-Write exactly {clip_count} shots, in this order. Each shot must SHOW what its own line is saying at that moment. Tell ONE coherent story with consistent character, location, weather and lighting, but each clip is independently generated: do not require the final frame or body position of the preceding shot. Use deliberate editorial cuts between separately composed establishing views, revealing details and consequential actions. Each shot shows a DIFFERENT, clearly readable action or discovery; do not repeat filler or walking shots. Vary the framing — wide, medium and a close-up of a meaningful detail ({guide['detail']}) — and never use the same framing twice in a row. Each clip's IMAGE prompt must depict the starting pose BEFORE its action, not an image of an action already completed.
+Write exactly {clip_count} shots, in order. Tell ONE story with consistent
+character, location, weather, and lighting. Each independently generated
+clip starts in a stable pose BEFORE its action. Do not require matching the
+preceding clip's literal final frame, but maintain cause and effect across
+editorial cuts. The camera is motivated by PERFORMANCE, not generic movement.
+Show DIFFERENT readable actions, discoveries, reactions, or consequences;
+no filler walking, repeated poses, floating camera or portrait montages.
+Vary wide, medium and meaningful details ({guide['detail']}); do not repeat
+the same framing twice in a row.
 
 IMAGE PROMPT rules (one paragraph, 60-110 words, natural sentences):
 - Start with the character description exactly as given, then what he/she is doing.
@@ -510,15 +541,20 @@ IMAGE PROMPT rules (one paragraph, 60-110 words, natural sentences):
 - End with: photorealistic cinematic film still, 9:16 vertical.
 
 MOTION PROMPT rules (one paragraph, 30-60 words):
-- How the camera moves, what the character does during the clip, and what else moves in the frame.
+- FIRST: what the actor physically does, the motivation and the tangible end state.
+- THEN: camera position, framing and movement that reveals that action. A
+  generic dolly, pan or push-in is NEVER sufficient on its own.
+- Finally: environmental movement that supports the action.
 - Keep the motion small enough to happen within that shot's seconds — one action, not a sequence.
 - Follow the CAMERA STYLE and MOVEMENT INTENSITY settings above, and never contradict yourself (don't say "slow" and "dynamic" together).
 - Include only one achievable physical action in each shot. Video-generation clips must have no speech, voiceover, dialogue, soundtrack, song, or score. If the video model generates audio, request only natural diegetic sound effects tied to visible actions (armor, wind, rain, footsteps). Never add music or vocals.
 - End with: 9:16 vertical.
 
 Return ONLY a JSON object:
-{{"concept": "<one sentence: the visual metaphor, location and time of day>", "mood": "<one of: {', '.join(mood_options)}>", "clips": [{{"image_prompt": "...", "motion_prompt": "..."}}]}}
-"clips" must have exactly {clip_count} entries."""
+{{"concept": "<one sentence: the film's central action and physical setting>", "mood": "<one of: {', '.join(mood_options)}>", "clips": [{{"screenplay_phase":"setup|conflict|choice|consequence", "dramatic_purpose":"...", "physical_action":"observable action with beginning and end", "camera_direction":"motivated camera placement and movement", "end_state":"what changes visibly", "image_prompt":"...", "motion_prompt":"..."}}]}}
+"clips" must have exactly {clip_count} entries.
+When a film blueprint is provided, each clip's phase MUST match the timed
+screenplay assignment above. Never substitute pretty images for the action."""
 
     messages = [{"role": "user", "content": prompt}]
     data = None
@@ -554,7 +590,14 @@ Return ONLY a JSON object:
         raise RuntimeError(f"AI scene generation returned {len(clips)} clips, expected {clip_count}")
     out = []
     fig_key = figure_desc.lower()[:30]
-    for c in clips:
+    for index, c in enumerate(clips):
+        if blueprint:
+            expected = assignments[index]["phase"]
+            if c.get("screenplay_phase") != expected:
+                raise RuntimeError(f"Shot {index+1} deviates from approved screenplay phase {expected}")
+            for field in ("dramatic_purpose", "physical_action", "camera_direction", "end_state"):
+                if not isinstance(c.get(field), str) or not c[field].strip():
+                    raise RuntimeError(f"Shot {index+1} lacks film direction: {field}")
         ip = str(c.get("image_prompt", "")).strip()
         mp = str(c.get("motion_prompt", "")).strip()
         if not ip or not mp:
@@ -569,7 +612,12 @@ Return ONLY a JSON object:
             mp += " 9:16 vertical."
         # Preserve narration/music separation even when the language model omits the rule.
         mp += " Only natural scene sound effects if supported. No music, singing, dialogue or narration."
-        out.append({"image_prompt": ip, "motion_prompt": mp})
+        directed = {"image_prompt": ip, "motion_prompt": mp}
+        if blueprint:
+            directed.update({key: c[key] for key in
+                             ("screenplay_phase", "dramatic_purpose",
+                              "physical_action", "camera_direction", "end_state")})
+        out.append(directed)
 
     mood = data.get("mood") if data.get("mood") in mood_options else pick(mood_options)
     return {"concept": str(data.get("concept", "")).strip(), "mood": mood, "clips": out}
@@ -585,6 +633,7 @@ def scene_engine(script: dict, topic: dict, beats: list = None) -> list:
         from phases.timing import estimate_beats
         beats = estimate_beats(script.get("script_full", ""), Config.VIDEO_MODEL, Config.IMAGE_MODEL)
     clip_count = len(beats)
+    film_blueprint = script.get("film_blueprint")
     story_override = getattr(Config, 'SCENE_STORY', 'auto')
     theme_override = getattr(Config, 'SCENE_THEME', 'auto')
     figure_override = getattr(Config, 'SCENE_FIGURE', 'auto')
@@ -615,7 +664,12 @@ def scene_engine(script: dict, topic: dict, beats: list = None) -> list:
     # real cast entry — otherwise the character's reference image is lost
     # whenever a figure is forced instead of auto-picked.
     episode = current_episode(topic)
-    if episode.get("knight") and any(f["name"] == episode["knight"] for f in figures):
+    locked_cast = (film_blueprint or {}).get("character") or {}
+    if locked_cast:
+        figure_obj = next((f for f in figures if f["name"] == locked_cast.get("cast_key")), None)
+        if figure_obj is None:
+            raise RuntimeError("The screenplay's locked character is missing from the cast library")
+    elif episode.get("knight") and any(f["name"] == episode["knight"] for f in figures):
         # An episode of The Last Watch is always about its own knight.
         figure_obj = next(f for f in figures if f["name"] == episode["knight"])
     elif figure_override and figure_override != "auto":
@@ -649,6 +703,12 @@ def scene_engine(script: dict, topic: dict, beats: list = None) -> list:
     # shots were written for the script or came from the pre-written library
     # (and why) — a failed AI call used to fall back with no visible trace.
     scene_source, scene_note, scene_concept = "library", "", ""
+    if film_blueprint and story_override != "auto":
+        raise RuntimeError("Film screenplay requires Story Seed = Auto; presets replace the film's plot")
+    if film_blueprint and not ai_enabled:
+        raise RuntimeError("Film screenplay requires AI scene direction to preserve its plot")
+    if film_blueprint and not Config.OPENAI_KEY:
+        raise RuntimeError("Film screenplay needs an OpenAI key for scene direction")
 
     # 1. Forced story seed — an explicit hand-written choice always wins,
     # AI generation is skipped entirely for it.
@@ -684,6 +744,10 @@ def scene_engine(script: dict, topic: dict, beats: list = None) -> list:
                 log.info(f"   AI-generated scene: mood={ai['mood']} | concept: {ai['concept']}")
             except Exception as e:
                 scene_note = f"AI scene writing failed: {e}"
+                if film_blueprint:
+                    raise RuntimeError(
+                        f"Film directing failed; stopped rather than insert unrelated stock scenes: {e}"
+                    ) from e
                 log.warning(f"   AI scene generation failed ({e}) — falling back to story library")
 
     # 2. Forced theme → pick matching story
@@ -759,6 +823,11 @@ def scene_engine(script: dict, topic: dict, beats: list = None) -> list:
             "end": beats[i]["end"],
             "length": beats[i]["length"],
         }
+        # Preserve screenplay decisions alongside prompts for human review.
+        for key in ("screenplay_phase", "dramatic_purpose",
+                    "physical_action", "camera_direction", "end_state"):
+            if key in clip:
+                clip_out[key] = clip[key]
         # Every clip in a run shares one cast member, so they all carry the
         # same reference image — that's what finally makes the knight look
         # like the SAME knight across clips 1, 2 and 3 of one video.
