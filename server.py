@@ -1023,6 +1023,40 @@ async def save_settings(req: Request):
     apply_model_settings()
     return {"status": "saved"}
 
+@app.post("/api/music/preview")
+async def preview_music(req: Request):
+    """Paid manual test. Requires the UI session; never triggers on page load."""
+    body = await req.json()
+    if body.get("token") != SESSION_TOKEN:
+        return JSONResponse({"error": "Please log in before generating paid music"}, 401)
+    if CURRENT_RUN["active"]:
+        return JSONResponse({"error": "Finish the current pipeline run first"}, 409)
+    try:
+        duration = float(body.get("duration_seconds", 30))
+        if not 3 <= duration <= 120:
+            return JSONResponse({"error": "Preview duration must be 3–120 seconds"}, 422)
+        style = str(body.get("style", "") or Config.MUSIC_STYLE)[:600]
+        story = str(body.get("story", "") or "A medieval Christian knight chooses mercy over vengeance")[:1000]
+        custom_prompt = str(body.get("prompt", "") or "").strip()[:4100]
+        prompt = custom_prompt or (
+            f"One {duration:g}-second continuous instrumental soundtrack for a cinematic Christian "
+            f"knight story. Musical palette: {style}. Story: {story}. "
+            "Build from solemn tension through personal sacrifice into restrained hope. "
+            "No words, voices, singing, music vocals, dialogue or environmental SFX. "
+            "Leave space for a deep male narrator; natural resolved ending."
+        )
+        from phases.music import generate_music
+        from phases.render import upload_to_r2
+        from datetime import datetime as _dt
+        import secrets as _secrets
+        audio = generate_music({"script_full": story}, [], duration, prompt_override=prompt)
+        key = f"preview_{_dt.utcnow().strftime('%Y%m%d_%H%M%S')}_{_secrets.token_hex(4)}.mp3"
+        url = upload_to_r2("_music_previews", key, audio, "audio/mpeg")
+        return {"status": "ready", "url": url, "prompt": prompt, "duration_seconds": duration}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 502)
+
+
 @app.post("/api/test-connection")
 async def test_conn(req: Request):
     body = await req.json()
