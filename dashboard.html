@@ -1183,11 +1183,27 @@ async function loadPromptDefault(fieldKey){
 
 function getModels(fk){const prov=fk==='image_model'?(ST.image_provider||'replicate'):(ST.video_provider||'replicate');const cat=fk==='image_model'?IMG_MODELS:VID_MODELS;return cat[prov]||[];}
 
+// Creative choices live where users make films. Only operational controls
+// remain in Setup; all legacy fields are retained in the Advanced drawer.
+let stAdvanced=false;
+const BRIEF_FIELDS=new Set(['brand_persona','brand_voice','brand_themes','brand_avoid','creative_direction','script_words','music_enabled','music_style','music_volume','sfx_enabled','sfx_volume']);
+const DIRECTOR_FIELDS=new Set(['scene_ai_enabled','scene_ref_required','scene_figure','scene_intensity','scene_camera','scene_mood']);
+const SIMPLE_SETUP_FIELDS=new Set(['voice_id','voice_model','image_model','video_model','render_res','render_aspect','logo_enabled','captions_enabled','on_tt','on_yt','on_ig','on_fb','on_tw','on_th','on_pn']);
+function settingGroup(key){
+  if(BRIEF_FIELDS.has(key))return 'brief';
+  if(DIRECTOR_FIELDS.has(key))return 'director';
+  if(SIMPLE_SETUP_FIELDS.has(key))return 'settings';
+  return 'advanced';
+}
 function rSt(){
-  let h='';
-  STS.forEach((sec,si)=>{
+  const panels={brief:'',director:'',settings:'',advanced:''};
+  for(const group of ['brief','director','settings','advanced']){
+    let h='';
+    STS.forEach((sec,si)=>{
+    const fields=sec.f.filter(f=>settingGroup(f.k)===group);
+    if(!fields.length)return;
     let ff='';
-    sec.f.forEach(f=>{try{
+    fields.forEach(f=>{try{
       const v=ST[f.k]!==undefined?ST[f.k]:f.d;
       if(f.tp==='toggle'){
         const on=v===true||v==='true';
@@ -1256,7 +1272,7 @@ ${showSeed?`<button style="flex:1;padding:6px;background:var(--bg);border:1px so
         ff+=`<div class="fi"><div class="fl">${f.l}</div><input class="fin" value="${v||''}" onchange="ST['${f.k}']=this.value"></div>`;
       }
     }catch(e){console.error('CFG:',f.k,e);}});
-    if(sec.t==='MUSIC & CINEMATIC AUDIO'){
+    if(group==='brief' && sec.t==='MUSIC & CINEMATIC AUDIO'){
       ff+=`<div class="fi w music-preview-panel" style="border:1px solid var(--bd2);padding:12px;background:var(--bg2);margin-top:10px">
         <div class="fl" style="color:var(--amb)">MANUAL MUSIC TEST · GENERATES A PAID ELEVENLABS TRACK</div>
         <div class="fl" style="margin-top:8px">Story / emotional direction</div>
@@ -1270,8 +1286,16 @@ ${showSeed?`<button style="flex:1;padding:6px;background:var(--bg);border:1px so
     }
     const secNote=sec.note?`<div class="fi" style="font-size:.72em;line-height:1.5;color:var(--txtd);background:rgba(255,255,255,.03);border-radius:.4em;padding:.6em .8em;margin-bottom:.6em">ℹ️ ${sec.note}</div>`:'';
     h+=`<div class="sec"><button class="sec-h" onclick="stOpen[${si}]=!stOpen[${si}];rSt()"><span class="sec-t">${sec.t}</span><span class="sec-a" style="transform:${stOpen[si]?'rotate(90deg)':''}">›</span></button><div class="sec-b${stOpen[si]?'':' shut'}">${secNote}${ff}</div></div>`;
-  });
-  ['d-sf','m-sf'].forEach(id=>{if($(id))$(id).innerHTML=h;});
+    });
+    panels[group]=h;
+  }
+  ['d-brief-fields','m-brief-fields'].forEach(id=>{if($(id))$(id).innerHTML=panels.brief;});
+  ['d-director-fields','m-director-fields'].forEach(id=>{if($(id))$(id).innerHTML=panels.director;});
+  const intro='<div style="font-size:.72em;color:var(--txtd);line-height:1.6;margin-bottom:10px">Only production essentials live here. For creative direction, use the Brief in Pipeline or Visual Director.</div>';
+  const advancedToggle='<button class="btn-sm" style="width:100%;margin:12px 0;padding:10px;text-align:left" onclick="stAdvanced=!stAdvanced;rSt()">'
+    +(stAdvanced?'▾ HIDE ADVANCED SETUP':'▸ ADVANCED SETUP · Models, detailed prompts, audio, and integrations')+'</button>';
+  const setup=intro+panels.settings+advancedToggle+(stAdvanced?panels.advanced:'');
+  ['d-sf','m-sf'].forEach(id=>{if($(id))$(id).innerHTML=setup;});
 }
 
 async function previewMusic(btn){
