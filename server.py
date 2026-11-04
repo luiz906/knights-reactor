@@ -171,7 +171,18 @@ def apply_model_settings():
     if s.get("brand_voice"):    Config.BRAND_VOICE = s["brand_voice"]
     if s.get("brand_themes"):   Config.BRAND_THEMES = s["brand_themes"]
     if s.get("brand_avoid"):    Config.BRAND_AVOID = s["brand_avoid"]
-    Config.CREATIVE_DIRECTION = str(s.get("creative_direction") or "")[:3000]
+    # The Studio's goal / cost / choice fields now feed both the Script
+    # Engine and cinematic shot generator through the shared director brief.
+    pillars = (
+        ("CHARACTER GOAL", s.get("story_goal")),
+        ("VISIBLE OBSTACLE AND COST", s.get("story_conflict")),
+        ("FINAL VISIBLE DECISION", s.get("story_choice")),
+        ("ADDITIONAL DIRECTOR NOTES", s.get("creative_direction")),
+    )
+    Config.CREATIVE_DIRECTION = "\n".join(
+        f"{label}: {str(value).strip()[:700]}" for label, value in pillars
+        if value and str(value).strip()
+    )[:3000]
     # Captions — optional full-prompt overrides for Phase 10 (blank = built-in default)
     if s.get("captions_video_prompt"): Config.CAPTIONS_VIDEO_PROMPT = s["captions_video_prompt"]
     if s.get("captions_text_prompt"):  Config.CAPTIONS_TEXT_PROMPT = s["captions_text_prompt"]
@@ -1116,6 +1127,31 @@ async def test_conn(req: Request):
         return {"ok": False, "error": "Unknown"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+# ─── DIRECTOR STUDIO (parallel review interface) ──────────────
+# Serve the new studio at /studio without changing the production / route.
+# No API or authentication bypass is added here: the studio uses the
+# existing admin sign-in flow and current pipeline approval endpoints.
+@app.get("/studio")
+async def director_studio():
+    from fastapi.responses import FileResponse
+    return FileResponse(Path(__file__).parent / "director-studio.html",
+                        media_type="text/html", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/director-studio.css")
+async def director_studio_css():
+    from fastapi.responses import FileResponse
+    return FileResponse(Path(__file__).parent / "director-studio.css",
+                        media_type="text/css")
+
+
+@app.get("/director-studio.js")
+async def director_studio_js():
+    from fastapi.responses import FileResponse
+    return FileResponse(Path(__file__).parent / "director-studio.js",
+                        media_type="application/javascript", headers={"Cache-Control": "no-store"})
+
 
 # ─── DASHBOARD ────────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
