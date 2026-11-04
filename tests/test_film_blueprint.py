@@ -1,6 +1,11 @@
 """No-paid-provider regression tests for the screenplay-first foundation."""
 import unittest
+import json
 from pathlib import Path
+from unittest.mock import Mock, patch
+
+from config import Config
+from phases.scenes import generate_ai_scenes
 
 from phases.film_blueprint import (STORY_PHASES, validate_film_blueprint,
                                   film_assignment, shot_assignment)
@@ -73,6 +78,41 @@ class FilmBlueprintTests(unittest.TestCase):
         self.assertIn("locked_cast = (film_blueprint or {}).get", scenes)
         self.assertIn("shot_assignment(blueprint, beats)", scenes)
         self.assertIn("stopped rather than insert unrelated stock scenes", scenes)
+
+    def test_cinematographer_films_the_same_screenplay_beats(self):
+        blueprint = validate_film_blueprint(example_blueprint(), CAST)
+        beats = [
+            {"index": i + 1, "start": i * 2.0, "end": (i + 1) * 2.0,
+             "length": 2.0, "text": "Narration portion"}
+            for i in range(4)
+        ]
+        clips = [
+            {"screenplay_phase": phase, "dramatic_purpose": "Make decision visible",
+             "physical_action": "The knight lowers his sword",
+             "camera_direction": "Hold close enough to see his hand",
+             "end_state": "His sword reaches the ground",
+             "image_prompt": "blackened armor covered in roses at the abbey",
+             "motion_prompt": "The knight lowers the blade into the ground in a continuous motion"}
+            for phase in STORY_PHASES
+        ]
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {"choices": [{"message": {
+            "content": json.dumps({"concept": "The choice", "mood": "dawn", "clips": clips})
+        }}]}
+        script = {"film_blueprint": blueprint, "hook": "Setup", "build": "Conflict",
+                  "reveal": "Choice", "command": "Consequence", "tone": "natural"}
+        with patch.object(Config, "CREATIVE_DIRECTION", ""), \\
+             patch("phases.scenes.requests.post", return_value=response) as api:
+            directed = generate_ai_scenes(
+                script, {"idea": "Mercy", "category": "Deep Dive Analysis"},
+                CAST["description"], beats, {"dawn": "cold daylight"}
+            )
+        prompt = api.call_args.kwargs["json"]["messages"][0]["content"]
+        self.assertIn("APPROVED FILM BLUEPRINT", prompt)
+        self.assertIn("A concrete action for conflict", prompt)
+        self.assertEqual(directed["clips"][2]["screenplay_phase"], "choice")
+        self.assertEqual(directed["clips"][2]["end_state"], "His sword reaches the ground")
 
     def test_film_prompt_requires_real_actions_not_motivational_montage(self):
         instructions = film_assignment(CAST)
