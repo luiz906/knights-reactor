@@ -2,6 +2,7 @@
 import unittest
 from unittest.mock import patch
 from phases.topics import _select_topic, peek_next_topic, topic_mode
+from phases.story import scene_story_block
 
 class ProductionModeTests(unittest.TestCase):
     def setUp(self):
@@ -41,6 +42,12 @@ class ProductionModeTests(unittest.TestCase):
     def test_invalid_mode_rejected(self):
         with self.assertRaises(ValueError):
             _select_topic(self.topics,production_mode="invalid")
+
+    def test_standalone_does_not_import_series_world(self):
+        with patch("phases.story.load_story") as bible:
+            block=scene_story_block({"idea":"Mercy"}, "The Veteran")
+        self.assertEqual(block,"")
+        bible.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()
