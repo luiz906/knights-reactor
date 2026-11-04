@@ -77,6 +77,7 @@ class Config:
     BRAND_VOICE       = ""
     BRAND_THEMES      = ""
     BRAND_AVOID       = ""
+    CREATIVE_DIRECTION = ""  # Production brief shared by story and visual director
     CAPTIONS_VIDEO_PROMPT = ""   # Optional override, loaded from settings — blank = use built-in default
     CAPTIONS_TEXT_PROMPT  = ""   # Optional override, loaded from settings — blank = use built-in default
     SCRIPT_PROMPT_TEMPLATE = ""       # Optional override for the Phase 2 script prompt — blank = built-in default
