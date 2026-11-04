@@ -33,6 +33,18 @@ class Config:
     VOICE_SIMILARITY  = 0.75
     VOICE_SPEED       = 1.0
     VOICE_STYLE       = 0.0
+    # Director / continuity — opt in so existing runs remain compatible.
+    SCENE_REF_REQUIRED = False
+    # Music uses the existing ELEVENLABS_API_KEY, but must be enabled deliberately.
+    MUSIC_ENABLED     = False
+    MUSIC_MODEL       = "music_v2_5"
+    MUSIC_STYLE       = "Dark cinematic orchestral score; low cello, restrained strings, subtle brass"
+    MUSIC_VOLUME      = 0.18
+    MUSIC_PROMPT_OVERRIDE = ""
+    # Enable source sound only for clips reviewed to contain diegetic SFX alone.
+    SFX_ENABLED       = False
+    SFX_VOLUME        = 0.25
+    VOICE_VOLUME      = 1.0
     SCRIPT_MODEL      = "gpt-4o"
     SCRIPT_TEMP       = 0.85
     SCRIPT_WORDS      = 90
