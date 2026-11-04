@@ -151,7 +151,9 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
                 audio_duration = transcription["words"][-1].get("end", 0)
             log.info(f"   ⏱️  Audio duration: {audio_duration:.1f}s")
 
-            beats = build_beats(transcription, Config.VIDEO_MODEL, Config.IMAGE_MODEL)
+            beats = build_beats(transcription, Config.VIDEO_MODEL, Config.IMAGE_MODEL,
+                                pacing=Config.SCENE_PACING,
+                                target_clips=Config.TARGET_CLIPS if Config.SCENE_PACING == "manual" else None)
             plan = _plan(beats, script)
             log.info(f"   🎬 {len(beats)} scenes, cut at the narration's sentences: " +
                      " | ".join(f"{b['length']:.1f}s" for b in beats) +
@@ -161,7 +163,9 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
             done(3, "Transcribe")
         else:
             transcription = ckpt["transcription"]
-            beats = ckpt.get("beats") or build_beats(transcription, Config.VIDEO_MODEL, Config.IMAGE_MODEL)
+            beats = ckpt.get("beats") or build_beats(transcription, Config.VIDEO_MODEL, Config.IMAGE_MODEL,
+                                                   pacing=Config.SCENE_PACING,
+                                                   target_clips=Config.TARGET_CLIPS if Config.SCENE_PACING == "manual" else None)
             plan = ckpt.get("plan") or _plan(beats, script)
             done(3, "Transcribe")
         result["plan"] = plan
@@ -303,7 +307,10 @@ def _plan(beats: list, script: dict) -> dict:
     """Length, clip count and rough cost of this run, for the dashboard. The
     word counts let the next-video estimate learn the narrator's real pace."""
     cta = Config.CTA_DURATION if (Config.CTA_ENABLED and Config.CTA_URL) else 0
-    plan = video_plan(beats, Config.VIDEO_MODEL, Config.IMAGE_MODEL, cta)
+    plan = video_plan(beats, Config.VIDEO_MODEL, Config.IMAGE_MODEL, cta,
+                      pacing=Config.SCENE_PACING,
+                      target_clips=Config.TARGET_CLIPS if Config.SCENE_PACING == "manual" else None)
+    plan["duration_target"] = Config.VIDEO_LENGTH_TARGET or None
     plan["script_words"] = len((script.get("script_full") or "").split())
     plan["target_words"] = int(Config.SCRIPT_WORDS)
     return plan
