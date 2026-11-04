@@ -102,8 +102,8 @@ class FilmBlueprintTests(unittest.TestCase):
         }}]}
         script = {"film_blueprint": blueprint, "hook": "Setup", "build": "Conflict",
                   "reveal": "Choice", "command": "Consequence", "tone": "natural"}
-        with patch.object(Config, "CREATIVE_DIRECTION", ""), \\
-             patch("phases.scenes.requests.post", return_value=response) as api:
+        with (patch.object(Config, "CREATIVE_DIRECTION", ""),
+              patch("phases.scenes.requests.post", return_value=response) as api):
             directed = generate_ai_scenes(
                 script, {"idea": "Mercy", "category": "Deep Dive Analysis"},
                 CAST["description"], beats, {"dawn": "cold daylight"}
