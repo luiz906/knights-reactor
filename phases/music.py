@@ -26,14 +26,14 @@ def build_music_prompt(script: dict, clips: list) -> str:
     )[:4100]
 
 
-def generate_music(script: dict, clips: list, duration_seconds: float) -> bytes:
+def generate_music(script: dict, clips: list, duration_seconds: float, prompt_override: str = "") -> bytes:
     """Generate a single MP3; raise on failure so a paid operation is never silent."""
     if not Config.ELEVEN_KEY:
         raise RuntimeError("ElevenLabs API key is missing (required for Music)")
     # Eleven Music accepts 3-600 seconds in milliseconds, with text-prompt mode.
     milliseconds = max(3000, min(600000, round(float(duration_seconds) * 1000)))
     payload = {
-        "prompt": build_music_prompt(script, clips),
+        "prompt": (prompt_override.strip()[:4100] if prompt_override and prompt_override.strip() else build_music_prompt(script, clips)),
         "music_length_ms": milliseconds,
         "model_id": getattr(Config, "MUSIC_MODEL", "music_v2_5"),
         "force_instrumental": True,
