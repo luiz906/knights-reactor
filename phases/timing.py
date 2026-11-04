@@ -72,17 +72,35 @@ def clip_seconds(scene_length: float, video_model: str) -> float:
     return clip_duration(scene_length, video_model) or _default_clip(video_model)
 
 
-def _plan(words: list, sentence_end: list, video_model: str, image_model: str) -> list:
-    """Choose the cuts (dynamic programming over the word gaps) that score
-    best: cuts at sentence ends > pauses > anywhere, scenes near IDEAL_SCENE,
-    nothing longer than the model's clip, and the least spent on images and
-    footage. Returns word groups, one per scene."""
+def _plan(words: list, sentence_end: list, video_model: str, image_model: str,
+          pacing: str = "auto", target_clips: int = None) -> list:
+    """Choose narration-aligned cuts under the model's actual clip-length limit.
+
+    Auto retains the original cost-aware sentence-break planner. Slow/dynamic
+    change the preferred shot length; manual uses an exact-count dynamic
+    program when feasible and the closest feasible count otherwise. Never
+    stretch a scene beyond the video model's maximum usable duration.
+    """
     n = len(words)
+    if not n:
+        return []
+    pacing = pacing if pacing in ("auto", "slow", "dynamic", "manual") else "auto"
     tail = words[-1]["end"] + _TAIL
     limit = scene_limit(video_model)
     per_sec, per_img = planning_prices(video_model, image_model)
+    allowed = sorted(clip_lengths(video_model) or [])
+    fallback_seconds = _default_clip(video_model)
 
-    def t(b):   # time of a cut before word b
+    def generated_seconds(length):
+        if not allowed:
+            return fallback_seconds
+        return next((v for v in allowed if length <= v + 1e-6), allowed[-1])
+
+    ideal = {"auto": IDEAL_SCENE, "slow": 8.0, "dynamic": 3.8}.get(pacing, IDEAL_SCENE)
+    if pacing == "manual" and target_clips:
+        ideal = max(1.5, min(limit, tail / max(1, target_clips)))
+
+    def t(b):
         if b == 0:
             return 0.0
         if b == n:
@@ -98,27 +116,72 @@ def _plan(words: list, sentence_end: list, video_model: str, image_model: str) -
             return _CUT_COST["pause"]
         return _CUT_COST["word"]
 
+    def score(a, b):
+        length = t(b) - t(a)
+        if length <= 0 or length > limit + 1e-6:
+            return None
+        return (
+            cut_cost(b) + _EVEN * ((length - ideal) / max(ideal, 1)) ** 2
+            + (5.0 if length < _SHORT else 0.0)
+            + _PER_DOLLAR * (generated_seconds(length) * per_sec + per_img)
+        )
+
     INF = float("inf")
+    if pacing == "manual" and target_clips is not None:
+        target = max(2, min(12, int(target_clips)))
+        # The actual audio can exceed the requested duration. Search enough
+        # counts to cover it without pretending that impossible counts work.
+        max_count = min(n, max(target, math.ceil(tail / limit) + 3))
+        best = [[INF] * (n + 1) for _ in range(max_count + 1)]
+        back = [[-1] * (n + 1) for _ in range(max_count + 1)]
+        best[0][0] = 0.0
+        for count in range(1, max_count + 1):
+            for end in range(count, n + 1):
+                for start in range(end - 1, count - 2, -1):
+                    extra = score(start, end)
+                    if extra is None:
+                        if t(end) - t(start) > limit:
+                            break
+                        continue
+                    if best[count - 1][start] == INF:
+                        continue
+                    candidate = best[count - 1][start] + extra
+                    if candidate < best[count][end]:
+                        best[count][end], back[count][end] = candidate, start
+        feasible = [k for k in range(1, max_count + 1) if best[k][n] != INF]
+        if feasible:
+            count = min(feasible, key=lambda k: (abs(k - target), best[k][n]))
+            groups, end = [], n
+            while count > 0:
+                start = back[count][end]
+                groups.append(words[start:end])
+                end = start
+                count -= 1
+            return groups[::-1]
+
+    # Original one-dimensional planner: use it for Auto, Slow and Dynamic,
+    # or if an extreme manual target could not be reached.
     best, back = [0.0] + [INF] * n, [0] * (n + 1)
-    for b in range(1, n + 1):
-        cb = cut_cost(b)
-        for a in range(b - 1, -1, -1):
-            length = t(b) - t(a)
-            if length > limit:
-                break
-            if best[a] == INF:
+    for end in range(1, n + 1):
+        for start in range(end - 1, -1, -1):
+            extra = score(start, end)
+            if extra is None:
+                if t(end) - t(start) > limit:
+                    break
                 continue
-            score = best[a] + cb + _EVEN * ((length - IDEAL_SCENE) / IDEAL_SCENE) ** 2 \
-                + (5.0 if length < _SHORT else 0.0) \
-                + _PER_DOLLAR * (clip_seconds(length, video_model) * per_sec + per_img)
-            if score < best[b]:
-                best[b], back[b] = score, a
-    if best[n] == INF:   # a single word longer than a clip: one scene per word
+            if best[start] == INF:
+                continue
+            candidate = best[start] + extra
+            if candidate < best[end]:
+                best[end], back[end] = candidate, start
+    if best[n] == INF:
+        # A single transcribed word lasts longer than any supported video
+        # clip. Keep every word, and make the limitation visible in the plan.
         return [[w] for w in words]
-    groups, b = [], n
-    while b > 0:
-        groups.append(words[back[b]:b])
-        b = back[b]
+    groups, end = [], n
+    while end > 0:
+        groups.append(words[back[end]:end])
+        end = back[end]
     return groups[::-1]
 
 
@@ -134,28 +197,33 @@ def _to_beats(groups: list) -> list:
     return beats
 
 
-def build_beats(transcription: dict, video_model: str = "", image_model: str = "") -> list:
+def build_beats(transcription: dict, video_model: str = "", image_model: str = "",
+                pacing: str = "auto", target_clips: int = None) -> list:
     """Beats from Whisper word timestamps. Each beat:
     {"index", "start", "end", "length", "text"} — contiguous, starting at 0,
     covering the whole narration."""
     words = [w for w in (transcription or {}).get("words", []) if "start" in w and "end" in w]
     if not words:
-        return estimate_beats((transcription or {}).get("text", ""), video_model, image_model)
+        return estimate_beats((transcription or {}).get("text", ""), video_model, image_model,
+                              pacing=pacing, target_clips=target_clips)
     seg_ends = [float(s["end"]) for s in (transcription.get("segments") or []) if "end" in s]
     sentence_end = []
     for i, w in enumerate(words):
         gap = words[i + 1]["start"] - w["end"] if i + 1 < len(words) else 0
         sentence_end.append(any(abs(w["end"] - e) < 0.08 for e in seg_ends) or gap >= _SENTENCE_GAP
                             or str(w.get("word", "")).strip().endswith((".", "!", "?")))
-    return _to_beats(_plan(words, sentence_end, video_model, image_model))
+    return _to_beats(_plan(words, sentence_end, video_model, image_model,
+                           pacing=pacing, target_clips=target_clips))
 
 
 def estimate_beats(text: str, video_model: str = "", image_model: str = "",
-                   words_per_sec: float = 2.8) -> list:
+                   words_per_sec: float = 2.8, pacing: str = "auto",
+                   target_clips: int = None) -> list:
     """Approximate beats from script text alone (no audio yet) — used by
     Script Only previews and as a fallback if Whisper returns no words."""
     words, sentence_end = _synthetic_words(text, words_per_sec)
-    return _to_beats(_plan(words, sentence_end, video_model, image_model))
+    return _to_beats(_plan(words, sentence_end, video_model, image_model,
+                           pacing=pacing, target_clips=target_clips))
 
 
 def _synthetic_words(text: str, words_per_sec: float, seconds: float = None):
@@ -175,13 +243,18 @@ def _synthetic_words(text: str, words_per_sec: float, seconds: float = None):
     return words, sentence_end
 
 
-def video_plan(beats: list, video_model: str, image_model: str, cta_seconds: float = 0.0) -> dict:
+def video_plan(beats: list, video_model: str, image_model: str, cta_seconds: float = 0.0,
+               pacing: str = "auto", target_clips: int = None) -> dict:
     """What a run will make and roughly cost — shown on the dashboard."""
     from phases.costs import estimate
     clips = [clip_seconds(b["length"], video_model) for b in beats]
     narration = beats[-1]["end"] if beats else 0.0
     return {
         "clips": len(beats),
+        "pacing": pacing,
+        "target_clips": int(target_clips) if pacing == "manual" and target_clips else None,
+        "target_met": (len(beats) == int(target_clips)) if pacing == "manual" and target_clips else None,
+        "max_clip_seconds": scene_limit(video_model),
         "scene_seconds": [round(b["length"], 1) for b in beats],
         "clip_seconds": clips,
         "narration_seconds": round(narration, 1),
@@ -193,7 +266,8 @@ def video_plan(beats: list, video_model: str, image_model: str, cta_seconds: flo
 
 
 def estimate_plan(script_words: int, video_model: str, image_model: str, cta_seconds: float = 0.0,
-                  seconds_per_word: float = None) -> dict:
+                  seconds_per_word: float = None, pacing: str = "auto",
+                  target_clips: int = None) -> dict:
     """Plan for a script of about script_words words (before one exists),
     with a typical mix of sentence lengths. seconds_per_word is the brand's
     real reading pace (pauses included) measured from past videos; without
@@ -207,7 +281,10 @@ def estimate_plan(script_words: int, video_model: str, image_model: str, cta_sec
     text = " ".join(toks)
     seconds = words * seconds_per_word if seconds_per_word else None
     tw, ends = _synthetic_words(text, 3.0, seconds)
-    plan = video_plan(_to_beats(_plan(tw, ends, video_model, image_model)), video_model, image_model, cta_seconds)
+    beats = _to_beats(_plan(tw, ends, video_model, image_model,
+                            pacing=pacing, target_clips=target_clips))
+    plan = video_plan(beats, video_model, image_model, cta_seconds,
+                      pacing=pacing, target_clips=target_clips)
     plan["estimated"] = True
     plan["script_words"] = words
     return plan
