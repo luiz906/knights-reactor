@@ -233,7 +233,7 @@ def log_entry(phase, level, msg):
     if len(LOGS) > 500: LOGS.pop(0)
 
 def execute_pipeline(resume_from: int = 0, topic_id: str = None, verse_mode: bool = False,
-                     production_mode: str = None):
+                     production_mode: str = None, approved_script: dict = None):
     apply_model_settings()  # Reload model selections before each run
     RUN_GEN["id"] += 1
     my_gen = RUN_GEN["id"]
@@ -262,7 +262,8 @@ def execute_pipeline(resume_from: int = 0, topic_id: str = None, verse_mode: boo
             log_entry(phase_name, "ok", f"Complete ✓")
 
     result = run_pipeline(progress_cb=on_phase, resume_from=resume_from, topic_id=topic_id,
-                          verse_mode=verse_mode, production_mode=production_mode)
+                          verse_mode=verse_mode, production_mode=production_mode,
+                          approved_script=approved_script)
 
     if my_gen != RUN_GEN["id"]:
         return  # superseded — /api/cancel (or a newer run) already owns CURRENT_RUN/RUNS now
@@ -502,6 +503,29 @@ async def cancel_pipeline():
     log_entry("System", "info", "⏹ Pipeline cancelled and reset" if was_active else "⏹ System reset")
     return {"status": "reset", "was_active": was_active, "checkpoint_cleared": had_checkpoint}
 
+def verify_approved_screenplay(script: dict) -> dict:
+    """Accept an approved Studio preview, never a substituted cast/reference."""
+    from phases.film_blueprint import validate_film_blueprint
+    from phases.scenes import get_scene_data, normalize_figures
+
+    if not isinstance(script, dict) or len(json.dumps(script)) > 40000:
+        raise ValueError("Approved screenplay is missing or too large")
+    for field in ("hook", "build", "reveal", "command", "script_full"):
+        if not isinstance(script.get(field), str) or not script[field].strip():
+            raise ValueError("Approved screenplay missing narration field: " + field)
+    cast = (script.get("film_blueprint") or {}).get("character") or {}
+    key = cast.get("cast_key")
+    figures = normalize_figures(get_scene_data()[0])
+    match = next((f for f in figures if f["name"] == key), None)
+    if match is None or cast.get("description") != match["desc"] or (
+        cast.get("ref_image", "") != match.get("ref_image", "")
+    ):
+        raise ValueError("Approved character reference no longer matches the cast library")
+    result = dict(script)
+    result["film_blueprint"] = validate_film_blueprint(script.get("film_blueprint"), cast)
+    return result
+
+
 @app.post("/api/run")
 async def trigger_run(bg: BackgroundTasks, req: Request):
     if CURRENT_RUN["active"]: return JSONResponse({"error": "Already running"}, 409)
@@ -511,6 +535,7 @@ async def trigger_run(bg: BackgroundTasks, req: Request):
     topic_id = body.get("topic_id")
     verse_mode = bool(body.get("verse_mode"))
     production_mode = None if verse_mode else body.get("production_mode")
+    approved_script = body.get("approved_script")
     if production_mode not in (None, "standalone", "series"):
         return JSONResponse({"error": "Invalid production mode"}, 422)
     # Preflight before scheduling an expensive background run. Explicit IDs
@@ -521,7 +546,14 @@ async def trigger_run(bg: BackgroundTasks, req: Request):
             peek_next_topic(topic_id, production_mode=production_mode)
         except (ValueError, RuntimeError) as e:
             return JSONResponse({"error": str(e)}, 400)
-    bg.add_task(execute_pipeline, 0, topic_id, verse_mode, production_mode)
+    if approved_script is not None:
+        if verse_mode or not topic_id:
+            return JSONResponse({"error": "Approved film needs a specific non-verse topic"}, 422)
+        try:
+            approved_script = verify_approved_screenplay(approved_script)
+        except (ValueError, TypeError) as e:
+            return JSONResponse({"error": str(e)}, 422)
+    bg.add_task(execute_pipeline, 0, topic_id, verse_mode, production_mode, approved_script)
     return {"status": "started", "topic_id": topic_id,
             "verse_mode": verse_mode, "production_mode": production_mode}
 
