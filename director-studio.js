@@ -54,8 +54,10 @@ function renderCast(){
   const fs=figures(),current=state.settings.scene_figure||"auto";
   $("knight-select").innerHTML='<option value="auto">Auto-select character</option>'+fs.map(f=>'<option value="'+esc(f.name)+'">'+esc(f.name)+'</option>').join("");
   $("knight-select").value=fs.some(f=>f.name===current)?current:"auto";
-  let f=selectedFigure();$("knight-name").textContent=$("knight-select").value==="auto"?"AI chooses the knight":formatName(f);
-  $("knight-desc").textContent=f?f.desc:"Add cast members in Classic Visual Director.";
+  const automatic=$("knight-select").value==="auto";
+  let f=automatic?null:selectedFigure();
+  $("knight-name").textContent=automatic?"AI chooses the knight":formatName(f);
+  $("knight-desc").textContent=automatic?"The series episode may select its established protagonist. Otherwise the AI Director chooses from your cast.":f?f.desc:"Add cast members in Classic Visual Director.";
   const frame=$("reference-picture");frame.querySelector("img")?.remove();
   frame.querySelector(".no-image")?.remove();
   if(f&&f.ref_image){
@@ -302,6 +304,18 @@ function bindEvents(){
   $("music-volume").addEventListener("input",()=>{$("music-value").textContent=$("music-volume").value+"%";});
   $("refresh-all").addEventListener("click",()=>loadAll().then(()=>toast("Studio refreshed")).catch(e=>toast(e.message,true)));
   $("refresh-productions").addEventListener("click",()=>loadRuns().catch(e=>toast(e.message,true)));
+  $("add-topic").addEventListener("click",async()=>{
+    const idea=$("new-topic").value.trim();
+    if(!idea)return toast("Write the film idea first.",true);
+    if(state.mode!=="standalone")return toast("Use Queue Series Episodes in Library for The Last Watch.",true);
+    try{
+      const r=await post("/api/topics",{idea,category:"Shocking Revelations",scripture:""});
+      $("new-topic").value="";
+      const all=await api("/api/topics");state.topics=all.topics||[];
+      renderTopics();if(r.topic?.id)$("topic-select").value=r.topic.id;
+      toast("Film idea added. Ready to direct.");
+    }catch(e){toast("Could not add idea: "+e.message,true);}
+  });
   $("save-brief").addEventListener("click",()=>saveDirection().catch(e=>toast(e.message,true)));
   $("save-audio").addEventListener("click",()=>saveDirection().catch(e=>toast(e.message,true)));
   $("start-run").addEventListener("click",startProduction);
