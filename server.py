@@ -1117,6 +1117,31 @@ async def test_conn(req: Request):
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
+# ─── DIRECTOR STUDIO (parallel review interface) ──────────────
+# Serve the new studio at /studio without changing the production / route.
+# No API or authentication bypass is added here: the studio uses the
+# existing admin sign-in flow and current pipeline approval endpoints.
+@app.get("/studio")
+async def director_studio():
+    from fastapi.responses import FileResponse
+    return FileResponse(Path(__file__).parent / "director-studio.html",
+                        media_type="text/html", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/director-studio.css")
+async def director_studio_css():
+    from fastapi.responses import FileResponse
+    return FileResponse(Path(__file__).parent / "director-studio.css",
+                        media_type="text/css")
+
+
+@app.get("/director-studio.js")
+async def director_studio_js():
+    from fastapi.responses import FileResponse
+    return FileResponse(Path(__file__).parent / "director-studio.js",
+                        media_type="application/javascript", headers={"Cache-Control": "no-store"})
+
+
 # ─── DASHBOARD ────────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(): return HTML
