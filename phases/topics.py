@@ -61,18 +61,43 @@ def delete_topic(topic_id):
     save_topics(remaining)
     return found
 
-def fetch_next_topic(topic_id=None):
-    """Get next new topic, or specific one by ID."""
-    topics = load_topics()
+def topic_mode(topic: dict) -> str:
+    """Series topics reference an episode code; all other topics stand alone."""
+    return "series" if (topic.get("episode") or {}).get("code") else "standalone"
+
+
+def _select_topic(topics: list, topic_id=None, production_mode=None) -> dict:
+    """Select without side effects; mode filtering never changes existing topic data."""
+    if production_mode not in (None, "standalone", "series"):
+        raise ValueError(f"Unknown production mode: {production_mode}")
     if topic_id:
         for t in topics:
             if t.get("id") == topic_id:
-                t["status"] = "processing"; save_topics(topics); return t
+                if production_mode and topic_mode(t) != production_mode:
+                    raise RuntimeError(f"Selected topic is not a {production_mode} item")
+                return t
         raise RuntimeError(f"Topic {topic_id} not found")
     for t in topics:
-        if t.get("status") == "new":
-            t["status"] = "processing"; save_topics(topics); return t
-    raise RuntimeError("No new topics - add topics or generate with AI")
+        if t.get("status") == "new" and (
+            production_mode is None or topic_mode(t) == production_mode
+        ):
+            return t
+    label = f" for {production_mode}" if production_mode else ""
+    raise RuntimeError(f"No new topics{label} - add topics or queue an episode")
+
+
+def peek_next_topic(topic_id=None, production_mode=None):
+    """Preview a topic without accidentally marking it as processing."""
+    return dict(_select_topic(load_topics(), topic_id, production_mode))
+
+
+def fetch_next_topic(topic_id=None, production_mode=None):
+    """Mark the selected mode-matched topic as processing, preserving legacy calls."""
+    topics = load_topics()
+    t = _select_topic(topics, topic_id, production_mode)
+    t["status"] = "processing"
+    save_topics(topics)
+    return t
 
 def update_topic_status(topic_id, status, extra=None):
     topics = load_topics()
@@ -290,9 +315,9 @@ def seed_default_topics():
 
 
 
-def fetch_topic(topic_id=None):
-    """Get next new topic from local DB."""
-    return fetch_next_topic(topic_id)
+def fetch_topic(topic_id=None, production_mode=None):
+    """Get next queued topic from local DB, optionally filtering by format."""
+    return fetch_next_topic(topic_id, production_mode)
 
 def update_topic(record_id, fields):
     """Update topic status in local DB."""
