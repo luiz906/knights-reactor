@@ -40,7 +40,7 @@ PIPELINE_VERSION = 2
 
 
 def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
-                 verse_mode: bool = False) -> dict:
+                 verse_mode: bool = False, production_mode: str = None) -> dict:
     """Execute the full pipeline with checkpoint/resume and approval gates.
 
     Phase order (v2): the voiceover is recorded right after the script, so
@@ -53,6 +53,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
       6 Generate Videos → GATE videos
       7 Upload Assets   8 Final Render   9 Captions   10 Publish
 
+    production_mode: optional 'standalone' or 'series' topic filter; None preserves legacy queue order.
     resume_from: phase index to resume from (0 = start fresh).
     topic_id: specific topic ID to use (None = next available).
     verse_mode: Verse of the Day — topic and script come straight from a real
@@ -110,7 +111,7 @@ def run_pipeline(progress_cb=None, resume_from: int = 0, topic_id: str = None,
             done(0, "Fetch Topic")
         elif resume_from <= 0:
             notify(0, "Fetch Topic", "running")
-            topic = fetch_topic(topic_id)
+            topic = fetch_topic(topic_id, production_mode=production_mode)
             update_topic(topic["id"], {"Status": "Processing"})
             save_checkpoint(0, {"topic": topic})
             done(0, "Fetch Topic")

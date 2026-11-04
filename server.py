@@ -205,11 +205,12 @@ def log_entry(phase, level, msg):
     LOGS.append({"t": datetime.now().strftime("%H:%M:%S"), "phase": phase, "level": level, "msg": msg})
     if len(LOGS) > 500: LOGS.pop(0)
 
-def execute_pipeline(resume_from: int = 0, topic_id: str = None, verse_mode: bool = False):
+def execute_pipeline(resume_from: int = 0, topic_id: str = None, verse_mode: bool = False,
+                     production_mode: str = None):
     apply_model_settings()  # Reload model selections before each run
     RUN_GEN["id"] += 1
     my_gen = RUN_GEN["id"]
-    mode = "verse-of-the-day" if verse_mode else ("resume" if resume_from > 0 else "normal")
+    mode = "verse-of-the-day" if verse_mode else ("resume" if resume_from > 0 else (production_mode or "normal"))
     CURRENT_RUN.update({"active": True, "started": datetime.now().isoformat(), "result": None, "phase": 0, "phase_name": "", "phases_done": []})
     if resume_from == 0:
         LOGS.clear()
@@ -233,7 +234,8 @@ def execute_pipeline(resume_from: int = 0, topic_id: str = None, verse_mode: boo
                 CURRENT_RUN["phases_done"].append(phase_index)
             log_entry(phase_name, "ok", f"Complete ✓")
 
-    result = run_pipeline(progress_cb=on_phase, resume_from=resume_from, topic_id=topic_id, verse_mode=verse_mode)
+    result = run_pipeline(progress_cb=on_phase, resume_from=resume_from, topic_id=topic_id,
+                          verse_mode=verse_mode, production_mode=production_mode)
 
     if my_gen != RUN_GEN["id"]:
         return  # superseded — /api/cancel (or a newer run) already owns CURRENT_RUN/RUNS now
@@ -481,8 +483,20 @@ async def trigger_run(bg: BackgroundTasks, req: Request):
     except: pass
     topic_id = body.get("topic_id")
     verse_mode = bool(body.get("verse_mode"))
-    bg.add_task(execute_pipeline, 0, topic_id, verse_mode)
-    return {"status": "started", "topic_id": topic_id, "verse_mode": verse_mode}
+    production_mode = None if verse_mode else body.get("production_mode")
+    if production_mode not in (None, "standalone", "series"):
+        return JSONResponse({"error": "Invalid production mode"}, 422)
+    # Preflight before scheduling an expensive background run. Explicit IDs
+    # must belong to the selected mode; a filtered queue must have a new topic.
+    if not verse_mode:
+        from phases.topics import peek_next_topic
+        try:
+            peek_next_topic(topic_id, production_mode=production_mode)
+        except (ValueError, RuntimeError) as e:
+            return JSONResponse({"error": str(e)}, 400)
+    bg.add_task(execute_pipeline, 0, topic_id, verse_mode, production_mode)
+    return {"status": "started", "topic_id": topic_id,
+            "verse_mode": verse_mode, "production_mode": production_mode}
 
 @app.post("/api/resume")
 async def trigger_resume(bg: BackgroundTasks):
