@@ -574,12 +574,14 @@ function planCard(p,title){
   // Cost breakdown lives in the tooltip to keep the card small.
   const tip=[c.images!=null?`${p.clips} images ≈ ${usd(c.images)}`:'images: price not on file',
     c.video!=null?`${c.footage_seconds}s of clips ≈ ${usd(c.video)}`:'clips: price not on file',
-    `AI writing ≈ ${usd(c.writing)}`,'Voice and render come from your ElevenLabs and Shotstack plans'].join(' · ');
+    `AI writing ≈ ${usd(c.writing)}`,'Excludes ElevenLabs narration/music and Shotstack render costs'].join(' · ');
   const est=p.estimated?'~':'';
   return `<div style="border:1px solid var(--bd2);padding:10px;background:rgba(227,160,40,.03);margin-bottom:10px">
 <div style="font-family:var(--f1);font-size:.6em;letter-spacing:.15em;color:var(--txtd);margin-bottom:6px">${title}</div>
 <div style="display:flex;gap:8px;margin-bottom:6px">${box('~'+Math.round(p.video_seconds)+'s','LENGTH','grn')}${box(p.clips,p.clips>1?'CLIPS':'CLIP','amb')}${box('≈ '+usd(c.total)+(missing?'+':''),'COST','blu',tip)}</div>
 <div style="font-size:.55em;color:var(--wht);line-height:1.5">${est}${Math.round(p.narration_seconds)}s of voice${p.script_words?` (${est}${p.script_words} words)`:''} → clips of ${(p.scene_seconds||[]).map(x=>x+'s').join(' · ')}${p.cta_seconds?` + ${p.cta_seconds}s CTA`:''}</div>
+${p.target_clips!=null?`<div style="font-size:.55em;color:${p.target_met?'var(--grn)':'var(--amb)'};margin-top:4px">Manual target: ${p.target_clips} clips · ${p.target_met?'met':'nearest feasible: '+p.clips+' clips (narration/model limit)'}</div>`:''}
+${p.estimated?`<div style="font-size:.5em;color:var(--txtdd);margin-top:4px">Estimate only; real timing and charges may differ. Excludes ElevenLabs and Shotstack costs.</div>`:''}
 </div>`;
 }
 const estTitle=()=>'NEXT VIDEO · ESTIMATE';
@@ -594,6 +596,9 @@ const PHS=[{n:"FETCH TOPIC",a:"LOCAL DB",i:"⬡",d:"~1s"},{n:"GENERATE SCRIPT",a
 const STS=[
 {t:"BRAND",f:[{k:"brand_name",l:"Brand Name",d:"Knights Reactor",b:1},{k:"brand_tagline",l:"Tagline",d:"Biblical content for men of faith",b:1},{k:"brand_persona",l:"Character Persona",tp:"textarea",d:"A battle-hardened Christian knight: Strong, disciplined, capable, calm. Not cruel, not cold—firm and compassionate. Protector of faith, family, duty, truth. Lives in peace but ready for war. Wears the Armor of God symbolically. Unwavering allegiance: Christ is King.",b:1},{k:"brand_voice",l:"Voice Description",tp:"textarea",d:"Low, controlled, resonant. Calm intensity; authoritative without shouting. Short, declarative sentences. Measured pacing. Dark, mysterious presence—disciplined resolve. Masculine and grounded. NO hype. NO motivational fluff.",b:1},{k:"brand_themes",l:"Core Themes",tp:"textarea",d:"Address real daily battles: Finances, family leadership, temptation, fatigue, doubt, lust, anger, responsibility, endurance, obedience. Discipline over comfort. Duty over desire. Endurance over escape. Faith over fear. Action over emotion.",b:1},{k:"brand_avoid",l:"What to Avoid",d:"Warmth or sentimentality, soft encouragement, modern slang, politics, long scripture quotations, hashtags",b:1},{k:"creative_direction",l:"Creative Brief — story goal, emotional arc, meaning, and visual direction",tp:"textarea",rows:5,d:""}]},
 {t:"SCRIPT ENGINE",f:[{k:"script_model",l:"AI Model",tp:"select",o:["gpt-4o","gpt-4o-mini"],d:"gpt-4o"},{k:"script_temp",l:"Temperature",d:"0.85"},{k:"script_words",l:"Script Length",tp:"slider",min:30,max:180,step:5,d:90},{k:"script_prompt_template",l:"Script Prompt (optional override, leave blank for built-in default — placeholders: {topic} {category} {angle} {scripture})",tp:"textarea",rows:12,d:""}]},
+{t:"VIDEO STRUCTURE",f:[{k:"video_length_target",l:"Video Structure",tp:"structure",d:"0"},
+{k:"scene_pacing",l:"Scene Pacing",tp:"hidden",d:"auto"},
+{k:"target_clips",l:"Target Clips",tp:"hidden",d:6}]},
 {t:"TOPICS",f:[{k:"research_enabled",l:"Ground AI Topics in Real Research (web search before generating topics)",tp:"toggle",d:true},{k:"topics_prompt_template",l:"AI Topic Generation Prompt (optional override, leave blank for built-in default — keep {count} in the text)",tp:"textarea",rows:6,d:""}]},
 {t:"SCENE ENGINE",f:[{k:"scene_ai_enabled",l:"AI-Generate Bespoke Scenes (off = always use the story library below)",tp:"toggle",d:true},{k:"scene_ref_required",l:"Visual Continuity: Require Approved Cast Reference (blocks unsupported image models or missing references)",tp:"toggle",d:false},{k:"scene_story",l:"Fallback Shot Template",tp:"select",o:["auto"],d:"auto",dynamic:"stories"},{k:"scene_theme",l:"Theme Force",tp:"select",o:["auto"],d:"auto",dynamic:"themes"},{k:"scene_figure",l:"Figure",tp:"select",o:["auto"],d:"auto",dynamic:"figures"},{k:"scene_intensity",l:"Intensity",tp:"select",o:["still","measured","dynamic"],d:"measured"},{k:"scene_camera",l:"Camera Style",tp:"select",o:["steady","dynamic","handheld"],d:"steady"},{k:"scene_mood",l:"Mood Lighting",tp:"select",o:["auto"],d:"auto",dynamic:"moods"},{k:"_scene_pack",l:"",tp:"scene_pack"},{k:"scene_image_prompt_template",l:"Image Prompt Template for pre-written JSON-library shots only (optional override, leave blank for built-in default — placeholders: {figure} {action} {setting} {composition} {lighting} {atmosphere} {suffix})",tp:"textarea",rows:3,d:""},{k:"scene_motion_prompt_template",l:"Motion Prompt Template for pre-written JSON-library shots only (optional override, leave blank for built-in default — placeholders: {camera} {subject} {ambient} {pace} {tech_suffix})",tp:"textarea",rows:3,d:""}]},
 {t:"VOICE SYNTH",f:[{k:"voice_id",l:"Voice ID",d:"bwCXcoVxWNYMlC6Esa8u",b:1},{k:"voice_model",l:"Model",tp:"select",o:["eleven_turbo_v2","eleven_multilingual_v2","eleven_monolingual_v1"],d:"eleven_turbo_v2"},{k:"voice_stability",l:"Stability",d:"0.5"},{k:"voice_similarity",l:"Similarity",d:"0.75"},{k:"voice_speed",l:"Speed",d:"1.0"},{k:"voice_style",l:"Style",d:"0.0"}]},
@@ -1189,9 +1194,15 @@ function getModels(fk){const prov=fk==='image_model'?(ST.image_provider||'replic
 // Creative choices live where users make films. Only operational controls
 // remain in Setup; all legacy fields are retained in the Advanced drawer.
 let stAdvanced=false;
-const BRIEF_FIELDS=new Set(['creative_direction','script_words','music_enabled','music_style']);
+const BRIEF_FIELDS=new Set(['creative_direction','video_length_target','music_enabled','music_style']);
 const DIRECTOR_FIELDS=new Set(['scene_ai_enabled','scene_ref_required','scene_figure','scene_intensity','scene_camera','scene_mood']);
 const SIMPLE_SETUP_FIELDS=new Set(['voice_id','voice_model','image_model','video_model','render_res','render_aspect','logo_enabled','captions_enabled','on_tt','on_yt','on_ig','on_fb','on_tw','on_th','on_pn']);
+function setVideoStructure(key,value){
+  if(key==='video_length_target')ST.video_length_target=String(['0','15','30','60'].includes(String(value))?value:'0');
+  else if(key==='scene_pacing')ST.scene_pacing=['auto','slow','dynamic','manual'].includes(value)?value:'auto';
+  else if(key==='target_clips')ST.target_clips=Math.max(2,Math.min(12,Math.round(Number(value)||6)));
+  rSt();
+}
 function settingGroup(key){
   if(BRIEF_FIELDS.has(key))return 'brief';
   if(DIRECTOR_FIELDS.has(key))return 'director';
@@ -1208,7 +1219,24 @@ function rSt(){
     let ff='';
     fields.forEach(f=>{try{
       const v=ST[f.k]!==undefined?ST[f.k]:f.d;
-      if(f.tp==='toggle'){
+      if(f.tp==='hidden'){return;}
+      if(f.tp==='structure'){
+        const duration=String(ST.video_length_target??'0');
+        const pacing=String(ST.scene_pacing||'auto');
+        const manual=Number(ST.target_clips||6);
+        const opts=[['0','Use existing script length'],['15','15 seconds — Quick message'],['30','30 seconds — Standard short'],['60','60 seconds — Cinematic story']];
+        const paceOpts=[['auto','Automatic — AI chooses natural cuts'],['slow','Slow & cinematic — Longer shots'],['dynamic','Dynamic — Faster cuts'],['manual','Manual — Target clip count']];
+        ff+=`<div class="fi w" style="border:1px solid var(--bd2);padding:12px;background:var(--bg2)">
+          <div class="fl">TARGET NARRATION LENGTH</div>
+          <select class="fin" onchange="setVideoStructure('video_length_target',this.value)">${opts.map(([v,l])=>`<option value="${v}"${duration===v?' selected':''}>${l}</option>`).join('')}</select>
+          <div class="fl" style="margin-top:12px">SCENE PACING</div>
+          <select class="fin" onchange="setVideoStructure('scene_pacing',this.value)">${paceOpts.map(([v,l])=>`<option value="${v}"${pacing===v?' selected':''}>${l}</option>`).join('')}</select>
+          ${pacing==='manual'?`<div style="margin-top:12px"><div class="fl">TARGET CLIPS <b style="color:var(--amb)">${manual}</b></div>
+          <input type="range" min="2" max="12" step="1" value="${manual}" style="width:100%;accent-color:var(--amb)" oninput="document.querySelectorAll('.target-clip-value').forEach(el=>el.textContent=this.value)" onchange="setVideoStructure('target_clips',this.value)">
+          <div style="font-size:.65em;color:var(--txtd)">Requested: <span class="target-clip-value">${manual}</span>. The planner uses the nearest feasible count if narration or the model makes this impossible.</div></div>`:''}
+          <div style="font-size:.65em;color:var(--txtd);line-height:1.6;margin-top:12px">Cuts are aligned to narrated sentences and pauses. Final timing and clip count are recalculated after voiceover. Select Save Brief to update the estimate. The optional end card is separate.</div>
+        </div>`;
+      }else if(f.tp==='toggle'){
         const on=v===true||v==='true';
         ff+=`<div class="fi w" style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:.9em;color:var(--wht)">${f.l}</div><button class="tg ${on?'on':'off'}" onclick="event.stopPropagation();ST['${f.k}']=!(ST['${f.k}']===true||ST['${f.k}']==='true');rSt()"><span class="td"></span></button></div>`;
       }else if(f.tp==='select'){
