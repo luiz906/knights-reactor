@@ -595,7 +595,7 @@ const PHS=[{n:"FETCH TOPIC",a:"LOCAL DB",i:"⬡",d:"~1s"},{n:"GENERATE SCRIPT",a
 
 const STS=[
 {t:"BRAND",f:[{k:"brand_name",l:"Brand Name",d:"Knights Reactor",b:1},{k:"brand_tagline",l:"Tagline",d:"Biblical content for men of faith",b:1},{k:"brand_persona",l:"Character Persona",tp:"textarea",d:"A battle-hardened Christian knight: Strong, disciplined, capable, calm. Not cruel, not cold—firm and compassionate. Protector of faith, family, duty, truth. Lives in peace but ready for war. Wears the Armor of God symbolically. Unwavering allegiance: Christ is King.",b:1},{k:"brand_voice",l:"Voice Description",tp:"textarea",d:"Low, controlled, resonant. Calm intensity; authoritative without shouting. Short, declarative sentences. Measured pacing. Dark, mysterious presence—disciplined resolve. Masculine and grounded. NO hype. NO motivational fluff.",b:1},{k:"brand_themes",l:"Core Themes",tp:"textarea",d:"Address real daily battles: Finances, family leadership, temptation, fatigue, doubt, lust, anger, responsibility, endurance, obedience. Discipline over comfort. Duty over desire. Endurance over escape. Faith over fear. Action over emotion.",b:1},{k:"brand_avoid",l:"What to Avoid",d:"Warmth or sentimentality, soft encouragement, modern slang, politics, long scripture quotations, hashtags",b:1},{k:"creative_direction",l:"Creative Brief — story goal, emotional arc, meaning, and visual direction",tp:"textarea",rows:5,d:""}]},
-{t:"SCRIPT ENGINE",f:[{k:"script_model",l:"AI Model",tp:"select",o:["gpt-4o","gpt-4o-mini"],d:"gpt-4o"},{k:"script_temp",l:"Temperature",d:"0.85"},{k:"script_words",l:"Script Length",tp:"slider",min:30,max:180,step:5,d:90},{k:"script_prompt_template",l:"Script Prompt (optional override, leave blank for built-in default — placeholders: {topic} {category} {angle} {scripture})",tp:"textarea",rows:12,d:""}]},
+{t:"SCRIPT ENGINE",f:[{k:"script_model",l:"AI Model",tp:"select",o:["gpt-4o","gpt-4o-mini"],d:"gpt-4o"},{k:"script_temp",l:"Temperature",d:"0.85"},{k:"script_words",l:"Custom Script Words (only when Video Structure uses existing length)",tp:"slider",min:30,max:180,step:5,d:90},{k:"script_prompt_template",l:"Script Prompt (optional override, leave blank for built-in default — placeholders: {topic} {category} {angle} {scripture})",tp:"textarea",rows:12,d:""}]},
 {t:"VIDEO STRUCTURE",f:[{k:"video_length_target",l:"Video Structure",tp:"structure",d:"0"},
 {k:"scene_pacing",l:"Scene Pacing",tp:"hidden",d:"auto"},
 {k:"target_clips",l:"Target Clips",tp:"hidden",d:6}]},
@@ -1194,7 +1194,7 @@ function getModels(fk){const prov=fk==='image_model'?(ST.image_provider||'replic
 // Creative choices live where users make films. Only operational controls
 // remain in Setup; all legacy fields are retained in the Advanced drawer.
 let stAdvanced=false;
-const BRIEF_FIELDS=new Set(['creative_direction','video_length_target','music_enabled','music_style']);
+const BRIEF_FIELDS=new Set(['creative_direction','video_length_target','scene_pacing','target_clips','music_enabled','music_style']);
 const DIRECTOR_FIELDS=new Set(['scene_ai_enabled','scene_ref_required','scene_figure','scene_intensity','scene_camera','scene_mood']);
 const SIMPLE_SETUP_FIELDS=new Set(['voice_id','voice_model','image_model','video_model','render_res','render_aspect','logo_enabled','captions_enabled','on_tt','on_yt','on_ig','on_fb','on_tw','on_th','on_pn']);
 function setVideoStructure(key,value){
