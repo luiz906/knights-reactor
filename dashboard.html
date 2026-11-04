@@ -1189,7 +1189,7 @@ function getModels(fk){const prov=fk==='image_model'?(ST.image_provider||'replic
 // Creative choices live where users make films. Only operational controls
 // remain in Setup; all legacy fields are retained in the Advanced drawer.
 let stAdvanced=false;
-const BRIEF_FIELDS=new Set(['brand_persona','brand_voice','brand_themes','brand_avoid','creative_direction','script_words','music_enabled','music_style','music_volume','sfx_enabled','sfx_volume']);
+const BRIEF_FIELDS=new Set(['creative_direction','script_words','music_enabled','music_style']);
 const DIRECTOR_FIELDS=new Set(['scene_ai_enabled','scene_ref_required','scene_figure','scene_intensity','scene_camera','scene_mood']);
 const SIMPLE_SETUP_FIELDS=new Set(['voice_id','voice_model','image_model','video_model','render_res','render_aspect','logo_enabled','captions_enabled','on_tt','on_yt','on_ig','on_fb','on_tw','on_th','on_pn']);
 function settingGroup(key){
@@ -1294,7 +1294,7 @@ ${showSeed?`<button style="flex:1;padding:6px;background:var(--bg);border:1px so
   }
   ['d-brief-fields','m-brief-fields'].forEach(id=>{if($(id))$(id).innerHTML=panels.brief;});
   ['d-director-fields','m-director-fields'].forEach(id=>{if($(id))$(id).innerHTML=panels.director;});
-  const intro='<div style="font-size:.72em;color:var(--txtd);line-height:1.6;margin-bottom:10px">Only production essentials live here. For creative direction, use the Brief in Pipeline or Visual Director.</div>';
+  const intro='<div style="font-size:.72em;color:var(--txtd);line-height:1.6;margin-bottom:10px">Only production essentials live here. Use Creative Brief for stories and Visual Director for shot choices. Your old custom prompts and brand settings remain in Advanced Setup.</div>';
   const advancedToggle='<button class="btn-sm" style="width:100%;margin:12px 0;padding:10px;text-align:left" onclick="stAdvanced=!stAdvanced;rSt()">'
     +(stAdvanced?'▾ HIDE ADVANCED SETUP':'▸ ADVANCED SETUP · Models, detailed prompts, audio, and integrations')+'</button>';
   const setup=intro+panels.settings+advancedToggle+(stAdvanced?panels.advanced:'');
