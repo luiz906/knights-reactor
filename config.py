@@ -48,6 +48,9 @@ class Config:
     SCRIPT_MODEL      = "gpt-4o"
     SCRIPT_TEMP       = 0.85
     SCRIPT_WORDS      = 90
+    VIDEO_LENGTH_TARGET = 0  # 0 preserves legacy custom script word settings
+    SCENE_PACING = "auto"
+    TARGET_CLIPS = 6
     SCENE_INTENSITY   = "measured"
     SCENE_CAMERA      = "steady"
     SCENE_MOOD_BIAS   = "auto"

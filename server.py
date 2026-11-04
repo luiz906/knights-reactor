@@ -88,6 +88,21 @@ def apply_model_settings():
     if s.get("script_model"):   Config.SCRIPT_MODEL = s["script_model"]
     if s.get("script_temp"):    Config.SCRIPT_TEMP = float(s["script_temp"])
     if s.get("script_words"):   Config.SCRIPT_WORDS = int(float(s["script_words"]))
+    try:
+        Config.VIDEO_LENGTH_TARGET = int(s.get("video_length_target") or 0)
+    except (ValueError, TypeError):
+        Config.VIDEO_LENGTH_TARGET = 0
+    if Config.VIDEO_LENGTH_TARGET not in (0, 15, 30, 60):
+        Config.VIDEO_LENGTH_TARGET = 0
+    if Config.VIDEO_LENGTH_TARGET:
+        # Words target the narration, not the optional CTA end card.
+        Config.SCRIPT_WORDS = {15: 45, 30: 90, 60: 180}[Config.VIDEO_LENGTH_TARGET]
+    pacing = str(s.get("scene_pacing") or "auto")
+    Config.SCENE_PACING = pacing if pacing in ("auto", "slow", "dynamic", "manual") else "auto"
+    try:
+        Config.TARGET_CLIPS = min(12, max(2, int(s.get("target_clips") or 6)))
+    except (ValueError, TypeError):
+        Config.TARGET_CLIPS = 6
     # Scene Engine
     if s.get("scene_intensity"): Config.SCENE_INTENSITY = s["scene_intensity"]
     if s.get("scene_camera"):   Config.SCENE_CAMERA = s["scene_camera"]
@@ -1029,7 +1044,14 @@ async def plan_estimate():
         ratios = [p["script_words"] / p["target_words"] for p in past if p.get("target_words")]
         if ratios:
             words = round(words * min(1.6, max(0.6, sum(ratios) / len(ratios))))
-    plan = estimate_plan(words, Config.VIDEO_MODEL, Config.IMAGE_MODEL, cta, spw)
+    # The target duration takes precedence over historical word-count drift.
+    if Config.VIDEO_LENGTH_TARGET:
+        words = int(Config.SCRIPT_WORDS)
+    pacing = Config.SCENE_PACING
+    target_clips = Config.TARGET_CLIPS if pacing == "manual" else None
+    plan = estimate_plan(words, Config.VIDEO_MODEL, Config.IMAGE_MODEL, cta, spw,
+                         pacing=pacing, target_clips=target_clips)
+    plan["duration_target"] = Config.VIDEO_LENGTH_TARGET or None
     from phases.scenes import figure_supports_reference
     plan["target_words"] = int(Config.SCRIPT_WORDS)
     plan["learned_from"] = len(past)
