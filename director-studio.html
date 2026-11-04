@@ -13,6 +13,7 @@
 <div class="navtip">Built on the original Director Studio design.<br><br>Connected to your current production engine. Paid generation and social publishing require deliberate confirmation.</div>
 </aside>
 <div class="content"><header class="top"><div class="eyebrow" id="header-caption">CREATE / DIRECTOR STUDIO</div><div class="topright"><span class="dot" id="system-dot"></span><span id="system-label">CONNECTING</span> · CHRIST IS KING</div></header>
+<nav class="mobile-nav" aria-label="Studio navigation"><button data-view="create">CREATE</button><button data-view="library">LIBRARY</button><button data-view="productions">PRODUCTIONS</button><button data-view="setup">SETUP</button></nav>
 <main class="main">
 <section id="view-create">
 <div class="heading"><div><div class="eyebrow">FROM IDEA TO CINEMATIC FILM</div><h1>Direct the story before generating.</h1><p>One creative brief, purposeful shots, clear reviews, and an intentional sound mix.</p></div>
@@ -33,6 +34,7 @@
 <div class="grid2">
 <div class="field"><label for="production-mode">STORY FORMAT</label><select id="production-mode"><option value="standalone">Standalone film</option><option value="series">Series episode · The Last Watch</option></select></div>
 <div class="field"><label for="topic-select">NEXT SCRIPT / TOPIC</label><select id="topic-select"></select></div>
+<div class="field" style="grid-column:1/-1"><label for="new-topic">OR WRITE A NEW STANDALONE IDEA</label><div class="inline"><input class="field-input" style="flex:1;min-width:180px" id="new-topic" maxlength="200" placeholder="A knight chooses mercy over revenge…"><button class="btn" id="add-topic" type="button">+ ADD IDEA</button></div></div>
 <div class="field"><label for="duration-target">TARGET NARRATION LENGTH</label><select id="duration-target"><option value="0">Existing custom length</option><option value="15">15 seconds — Quick message</option><option value="30">30 seconds — Standard short</option><option value="60">60 seconds — Cinematic story</option></select></div>
 <div class="field"><label for="scene-pacing">SCENE PACING</label><select id="scene-pacing"><option value="auto">Automatic — Natural cuts</option><option value="slow">Slow & cinematic</option><option value="dynamic">Dynamic — Faster cuts</option><option value="manual">Manual clip target</option></select></div></div>
 <div id="manual-clips-row" class="field hidden" style="margin-top:12px"><label for="target-clips">TARGET CLIP COUNT · <span id="target-clips-label">6</span></label><input id="target-clips" type="range" min="2" max="12" step="1"><p class="small">If the requested count is impossible with real narration or the model, the planner selects the nearest feasible count.</p></div>
