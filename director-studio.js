@@ -154,7 +154,7 @@ function renderState(){
   if(gate)$("gate-message").textContent=label+" · Edit or approve before proceeding.";
   if(result.final_video){
     $("final-media").classList.remove("hidden");
-    $("final-media video").src=result.final_video;$("final-download").href=result.final_video;
+    document.querySelector("#final-media video").src=result.final_video;$("final-download").href=result.final_video;
   }else $("final-media").classList.add("hidden");
   const btn=$("start-run");
   btn.disabled=!!status.running||!!gate||state.busy;
