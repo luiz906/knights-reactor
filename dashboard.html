@@ -615,7 +615,7 @@ const STS=[
 {t:"CHANNELS (BLOTATO IDs)",f:[{k:"ch_instagram",l:"Instagram Account ID",d:""},{k:"ch_tiktok",l:"TikTok Account ID",d:""},{k:"ch_youtube",l:"YouTube Account ID",d:""},{k:"ch_facebook",l:"Facebook Account ID",d:""},{k:"ch_facebook_page",l:"Facebook Page ID",d:""},{k:"ch_twitter",l:"Twitter/X Account ID",d:""},{k:"ch_threads",l:"Threads Account ID",d:""},{k:"ch_pinterest",l:"Pinterest Account ID",d:""},{k:"ch_pinterest_board",l:"Pinterest Board ID",d:""}]},
 {t:"CAPTIONS",f:[{k:"captions_video_prompt",l:"Video Caption Prompt — TikTok/YouTube/Instagram/Facebook (optional override, leave blank for built-in default)",tp:"textarea",rows:10,d:""},{k:"captions_text_prompt",l:"Text-Only Caption Prompt — X/Threads/Pinterest (optional override, leave blank for built-in default)",tp:"textarea",rows:8,d:""}]}
 ];
-let stOpen={};
+let stOpen={0:true,1:true,3:true,5:true};
 const IMG_MODELS={replicate:[{v:"google/nano-banana-2",l:"Nano Banana 2"},{v:"google/nano-banana-pro",l:"Nano Banana Pro"},{v:"google/nano-banana",l:"Nano Banana"},{v:"openai/gpt-image-1.5",l:"GPT Image 1.5"},{v:"xai/grok-imagine-image",l:"Grok Aurora"},{v:"bytedance/seedream-5",l:"Seedream 5"},{v:"bytedance/seedream-4.5",l:"Seedream 4.5"},{v:"black-forest-labs/flux-2-pro",l:"Flux 2 Pro"},{v:"black-forest-labs/flux-1.1-pro",l:"Flux 1.1 Pro"},{v:"black-forest-labs/flux-schnell",l:"Flux Schnell"},{v:"black-forest-labs/flux-dev",l:"Flux Dev"},{v:"ideogram-ai/ideogram-v3-quality",l:"Ideogram v3 Q"},{v:"ideogram-ai/ideogram-v3-turbo",l:"Ideogram v3 T"},{v:"recraft-ai/recraft-v4.1",l:"Recraft V4.1"},{v:"recraft-ai/recraft-v3",l:"Recraft v3"},{v:"stability-ai/stable-diffusion-3.5-large",l:"SD 3.5 L"},{v:"google/imagen-4",l:"Imagen 4"}]};
 const VID_MODELS={replicate:[{v:"bytedance/seedance-2.0",l:"Seedance 2.0"},{v:"bytedance/seedance-1-pro",l:"Seedance Pro"},{v:"bytedance/seedance-1-lite",l:"Seedance Lite"},{v:"kwaivgi/kling-v3-video",l:"Kling v3.0"},{v:"minimax/hailuo-2.3",l:"Hailuo 2.3"},{v:"google/veo-3.1",l:"Veo 3.1"},{v:"luma/ray-3.2",l:"Luma Ray 3.2"},{v:"luma/ray-2-720p",l:"Luma Ray 2"},{v:"luma/ray-flash-2-720p",l:"Luma Flash"},{v:"wan-video/wan-2.5-i2v",l:"Wan 2.5"},{v:"wavespeedai/wan-2.1-i2v-480p",l:"Wan 2.1 480p"},{v:"wavespeedai/wan-2.1-i2v-720p",l:"Wan 2.1 720p"},{v:"xai/grok-imagine-video",l:"Grok Video"},{v:"minimax/video-01-live",l:"Minimax Live"},{v:"minimax/video-01",l:"Minimax v01"}]};
 const SVCS=[{n:"OPENAI",d:"GPT-4o + Whisper",k:"openai"},{n:"REPLICATE",d:"Image + Video",k:"replicate"},{n:"ELEVENLABS",d:"Voice Synthesis",k:"elevenlabs"},{n:"SHOTSTACK",d:"Video Render",k:"shotstack"},{n:"R2",d:"Asset Storage",k:"r2"},{n:"BLOTATO",d:"Publishing",k:"blotato"}];
@@ -846,6 +846,8 @@ function rP(){
 /* ═══ ACTIONS ═══ */
 async function runNow(topicId,verseMode,explicitMode){
   if(RN)return;
+  // Creative Brief and shot direction must be persisted before AI runs.
+  if(!(await persistCreativeSettings()))return;
   const body={};
   if(topicId)body.topic_id=topicId;
   if(verseMode)body.verse_mode=true;
@@ -871,6 +873,7 @@ async function cancelPipeline(){
 }
 async function scriptOnly(){
   const btn=event.target;btn.textContent='⏳ GENERATING...';btn.disabled=true;
+  if(!(await persistCreativeSettings())){btn.textContent='✎ SCRIPT ONLY';btn.disabled=false;return;}
   try{
     const r=await fetch('/api/script-only',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
     const d=await r.json();
@@ -1320,8 +1323,15 @@ async function previewMusic(btn){
   }catch(e){status.textContent='Error: '+e.message;}finally{btn.disabled=false;}
 }
 
+async function persistCreativeSettings(){
+  try{
+    const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(ST)});
+    if(!r.ok)throw new Error('Save returned HTTP '+r.status);
+    return true;
+  }catch(e){alert('Could not save your production brief: '+e.message);return false;}
+}
 async function saveSett(){
-  await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(ST)});
+  if(!(await persistCreativeSettings()))return;
   await loadPlanEst();rSt();rP();
   ['d-ss','m-ss'].forEach(id=>{if($(id)){$(id).style.display='block';setTimeout(()=>$(id).style.display='none',3000);}});
 }
