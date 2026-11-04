@@ -64,8 +64,8 @@ class CreativeBriefTests(unittest.TestCase):
 
     def test_saved_brand_settings_remain_available_in_advanced(self):
         dashboard = (Path(__file__).resolve().parents[1] / "dashboard.html").read_text()
-        self.assertIn("'brand_persona'", dashboard)
-        self.assertIn("'brand_voice'", dashboard)
+        self.assertIn('k:"brand_persona"', dashboard)
+        self.assertIn('k:"brand_voice"', dashboard)
         self.assertIn("'creative_direction'", dashboard)
         self.assertIn("const panels={brief:'',director:'',settings:'',advanced:''}", dashboard)
 
